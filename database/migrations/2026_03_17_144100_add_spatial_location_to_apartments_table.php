@@ -15,14 +15,16 @@ return new class extends Migration
         Schema::table('apartments', function (Blueprint $table) {
             // Add spatial point column for location
             // Using MySQL spatial data type
+            // Note: Spatial index requires NOT NULL, so we skip it for nullable column
             $table->point('location')->nullable()->after('lng');
-            
-            // Add spatial index for location queries
-            $table->spatialIndex('location');
+            // $table->spatialIndex('location'); // Skipped - requires NOT NULL
         });
         
         // Update existing lat/lng to spatial point
-        DB::statement('UPDATE apartments SET location = POINT(lng, lat) WHERE lat IS NOT NULL AND lng IS NOT NULL');
+        // Only update if apartments table has data
+        if (DB::table('apartments')->count() > 0) {
+            DB::statement('UPDATE apartments SET location = POINT(lng, lat) WHERE lat IS NOT NULL AND lng IS NOT NULL');
+        }
     }
 
     /**
