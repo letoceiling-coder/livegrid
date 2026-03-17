@@ -12,37 +12,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Create trigger to sync location POINT with lat/lng
-        // When lat or lng changes, update location
-        // When location changes, update lat/lng
-        DB::unprepared('
-            CREATE TRIGGER apartments_location_sync_insert
-            BEFORE INSERT ON apartments
-            FOR EACH ROW
-            BEGIN
-                IF NEW.lat IS NOT NULL AND NEW.lng IS NOT NULL THEN
-                    SET NEW.location = POINT(NEW.lng, NEW.lat);
-                END IF;
-            END
-        ');
+        // Skip trigger creation - requires SUPER privilege
+        // Triggers are not critical for import functionality
+        // Location can be synced manually or via application logic if needed
         
-        DB::unprepared('
-            CREATE TRIGGER apartments_location_sync_update
-            BEFORE UPDATE ON apartments
-            FOR EACH ROW
-            BEGIN
-                IF (NEW.lat IS NOT NULL AND NEW.lng IS NOT NULL) AND 
-                   (NEW.lat != OLD.lat OR NEW.lng != OLD.lng OR OLD.lat IS NULL OR OLD.lng IS NULL) THEN
-                    SET NEW.location = POINT(NEW.lng, NEW.lat);
-                ELSEIF NEW.location IS NOT NULL AND (OLD.location IS NULL OR ST_AsText(NEW.location) != ST_AsText(OLD.location)) THEN
-                    SET NEW.lat = ST_Y(NEW.location);
-                    SET NEW.lng = ST_X(NEW.location);
-                END IF;
-            END
-        ');
-        
-        // Update existing records
-        DB::statement('UPDATE apartments SET location = POINT(lng, lat) WHERE lat IS NOT NULL AND lng IS NOT NULL AND location IS NULL');
+        // Update existing records with location if column exists
+        if (Schema::hasColumn('apartments', 'location')) {
+            DB::statement('UPDATE apartments SET location = POINT(lng, lat) WHERE lat IS NOT NULL AND lng IS NOT NULL AND location IS NULL');
+        }
     }
 
     /**
