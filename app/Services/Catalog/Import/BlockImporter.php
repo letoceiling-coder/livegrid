@@ -65,10 +65,11 @@ class BlockImporter
                 }
 
                 $name = $item['name'] ?? '';
-                $districtId = $item['district_id'] ?? null;
+                // In feed data, district is stored as 'district', not 'district_id'
+                $districtId = $item['district'] ?? $item['district_id'] ?? null;
                 $builderId = $item['builder_id'] ?? $item['block_builder'] ?? null;
                 
-                // Extract coordinates
+                // Extract coordinates - required for blocks
                 $lat = null;
                 $lng = null;
                 if (isset($item['geometry']['coordinates'])) {
@@ -78,6 +79,17 @@ class BlockImporter
                 } elseif (isset($item['lat']) && isset($item['lng'])) {
                     $lat = (float) $item['lat'];
                     $lng = (float) $item['lng'];
+                }
+                
+                // Note: lat/lng are required in table schema, but we'll allow NULL for now
+                // If both are missing, skip this block
+                if ($lat === null && $lng === null) {
+                    Log::warning('Block missing coordinates', [
+                        'source_id' => $sourceId,
+                        'external_id' => $externalId,
+                    ]);
+                    $stats['errors']++;
+                    continue;
                 }
 
                 // Use external_id as primary key (string ID)
