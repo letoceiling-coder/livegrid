@@ -99,6 +99,7 @@ class FeedImporter
                     $stats['updated'] += $chunkStats['updated'];
                     $stats['errors'] += $chunkStats['errors'];
                     $stats['skipped'] += $chunkStats['skipped'] ?? 0;
+                    $stats['unchanged'] += $chunkStats['unchanged'] ?? 0;
                 } catch (\Exception $e) {
                     Log::error('Failed to upsert chunk', [
                         'error' => $e->getMessage(),
