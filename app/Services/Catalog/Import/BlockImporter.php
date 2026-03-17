@@ -92,14 +92,31 @@ class BlockImporter
                     continue;
                 }
 
-                // Use external_id as primary key (string ID)
-                $id = (string) $externalId;
+                // Find district_id by external_id if district is provided
+                $districtId = null;
+                if (isset($item['district'])) {
+                    $districtId = DB::table('regions')
+                        ->where('external_id', $item['district'])
+                        ->value('id');
+                }
+
+                // Find builder_id by external_id if builder is provided
+                $builderId = null;
+                if (isset($item['builder_id']) || isset($item['block_builder'])) {
+                    $builderExternalId = $item['builder_id'] ?? $item['block_builder'];
+                    $builderId = DB::table('builders')
+                        ->where('external_id', $builderExternalId)
+                        ->value('id');
+                }
 
                 // Check if exists by (source_id, external_id)
                 $existing = DB::table('blocks')
                     ->where('source_id', $sourceId)
                     ->where('external_id', $externalId)
                     ->first();
+
+                // Generate UUID for new records
+                $id = $existing ? $existing->id : (string) \Illuminate\Support\Str::uuid();
 
                 $blockData = [
                     'id' => $id,

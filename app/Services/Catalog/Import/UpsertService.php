@@ -149,39 +149,44 @@ class UpsertService
         // Pre-fetch existing apartments for this chunk in single query (with all comparison fields)
         $existing = $this->prefetchExisting($dtos);
 
-        // Pre-fetch building IDs for FK validation
-        $buildingIds = array_unique(array_map(fn($dto) => $dto->buildingId, $dtos));
-        $blockIds = array_unique(array_map(fn($dto) => $dto->blockId, $dtos));
+        // Pre-fetch building and block IDs by external_id for FK validation
+        $buildingExternalIds = array_unique(array_map(fn($dto) => $dto->buildingId, $dtos));
+        $blockExternalIds = array_unique(array_map(fn($dto) => $dto->blockId, $dtos));
         
-        $validBuildings = DB::table('buildings')
-            ->whereIn('id', $buildingIds)
-            ->pluck('id')
+        // Map external_id -> id for buildings
+        $buildingIdMap = DB::table('buildings')
+            ->whereIn('external_id', $buildingExternalIds)
+            ->pluck('id', 'external_id')
             ->toArray();
         
-        $validBlocks = DB::table('blocks')
-            ->whereIn('id', $blockIds)
-            ->pluck('id')
+        // Map external_id -> id for blocks
+        $blockIdMap = DB::table('blocks')
+            ->whereIn('external_id', $blockExternalIds)
+            ->pluck('id', 'external_id')
             ->toArray();
 
         // Prepare records with FK validation
         foreach ($dtos as $dto) {
             try {
-                // Validate FK constraints - skip if missing
-                if (!in_array($dto->buildingId, $validBuildings)) {
+                // Find building.id by building.external_id
+                $buildingId = $buildingIdMap[$dto->buildingId] ?? null;
+                if (!$buildingId) {
                     Log::warning('Apartment building_id not found, skipping', [
                         'source_id' => $dto->sourceId,
                         'external_id' => $dto->externalId,
-                        'building_id' => $dto->buildingId,
+                        'feed_building_id' => $dto->buildingId,
                     ]);
                     $stats['skipped']++;
                     continue;
                 }
 
-                if (!in_array($dto->blockId, $validBlocks)) {
+                // Find block.id by block.external_id
+                $blockId = $blockIdMap[$dto->blockId] ?? null;
+                if (!$blockId) {
                     Log::warning('Apartment block_id not found, skipping', [
                         'source_id' => $dto->sourceId,
                         'external_id' => $dto->externalId,
-                        'block_id' => $dto->blockId,
+                        'feed_block_id' => $dto->blockId,
                     ]);
                     $stats['skipped']++;
                     continue;
@@ -189,11 +194,24 @@ class UpsertService
 
                 $key = $dto->sourceId . ':' . $dto->externalId;
                 $data = $dto->toArray();
+                
+                // Replace feed external_ids with database UUIDs
+                $data['building_id'] = $buildingId;
+                $data['block_id'] = $blockId;
+                
+                // Find builder_id by external_id if provided
+                if ($dto->builderId) {
+                    $builderId = DB::table('builders')
+                        ->where('external_id', $dto->builderId)
+                        ->value('id');
+                    $data['builder_id'] = $builderId;
+                }
+                
                 $data['is_active'] = true;
                 $data['last_seen_at'] = $importTime;
                 $data['updated_at'] = $now;
 
-                // Use external_id as ID for new apartments (string ID like blocks/buildings)
+                // Use external_id as ID for new apartments (string ID)
                 if (!isset($existing[$key])) {
                     $data['id'] = $dto->externalId; // Use external_id as primary key
                     $data['created_at'] = $now;

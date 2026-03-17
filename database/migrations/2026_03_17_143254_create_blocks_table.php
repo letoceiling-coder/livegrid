@@ -12,9 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('blocks', function (Blueprint $table) {
-            $table->string('id')->primary();
+            $table->uuid('id')->primary();
             $table->string('name');
             $table->string('district_id')->nullable();
+            $table->string('builder_id')->nullable();
             $table->decimal('lat', 10, 7);
             $table->decimal('lng', 10, 7);
             $table->timestamp('created_at')->nullable();

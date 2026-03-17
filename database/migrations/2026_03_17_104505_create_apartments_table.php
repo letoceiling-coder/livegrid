@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('apartments', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->unsignedBigInteger('source_id'); // FK will be added later
-            $table->string('building_id');
-            $table->string('block_id');
+            $table->uuid('building_id');
+            $table->uuid('block_id');
             $table->string('builder_id')->nullable();
             $table->unsignedBigInteger('price')->index();
             $table->integer('rooms_count')->index();

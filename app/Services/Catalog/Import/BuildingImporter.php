@@ -64,8 +64,8 @@ class BuildingImporter
                     continue;
                 }
 
-                $blockId = $item['block_id'] ?? null;
-                if (!$blockId) {
+                $feedBlockId = $item['block_id'] ?? null;
+                if (!$feedBlockId) {
                     Log::warning('Building missing block_id', [
                         'source_id' => $sourceId,
                         'external_id' => $externalId,
@@ -74,33 +74,52 @@ class BuildingImporter
                     continue;
                 }
 
-                // Validate block_id exists
-                $blockExists = DB::table('blocks')
-                    ->where('id', $blockId)
-                    ->exists();
+                // Find block.id by block.external_id
+                $blockId = DB::table('blocks')
+                    ->where('external_id', $feedBlockId)
+                    ->value('id');
 
-                if (!$blockExists) {
+                if (!$blockId) {
                     Log::warning('Building block_id not found, skipping', [
                         'source_id' => $sourceId,
                         'external_id' => $externalId,
-                        'block_id' => $blockId,
+                        'feed_block_id' => $feedBlockId,
                     ]);
                     $stats['skipped']++;
                     continue;
                 }
 
                 $name = $item['name'] ?? '';
-                $buildingTypeId = $item['building_type_id'] ?? null;
+                
+                // Find building_type_id by external_id if provided
+                $buildingTypeId = null;
+                if (isset($item['building_type'])) {
+                    $buildingTypeId = DB::table('building_types')
+                        ->where('external_id', $item['building_type'])
+                        ->value('id');
+                } elseif (isset($item['building_type_id'])) {
+                    $buildingTypeId = DB::table('building_types')
+                        ->where('external_id', $item['building_type_id'])
+                        ->value('id');
+                }
+                
                 $deadline = $item['deadline'] ?? null;
-
-                // Use external_id as primary key (string ID)
-                $id = (string) $externalId;
+                if ($deadline) {
+                    try {
+                        $deadline = \Carbon\Carbon::parse($deadline)->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        $deadline = null;
+                    }
+                }
 
                 // Check if exists by (source_id, external_id)
                 $existing = DB::table('buildings')
                     ->where('source_id', $sourceId)
                     ->where('external_id', $externalId)
                     ->first();
+
+                // Generate UUID for new records
+                $id = $existing ? $existing->id : (string) \Illuminate\Support\Str::uuid();
 
                 $buildingData = [
                     'id' => $id,

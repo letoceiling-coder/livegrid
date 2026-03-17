@@ -12,8 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('buildings', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->string('block_id');
+            $table->uuid('id')->primary();
+            $table->uuid('block_id');
             $table->string('building_type_id')->nullable();
             $table->string('name');
             $table->date('deadline')->nullable();
