@@ -158,9 +158,9 @@ class TestImportProductionCommand extends Command
 
         // CHECK 1: Counts
         $this->info('CHECK 1: Counts');
-        $totalApartments = DB::table('apartments')->count();
-        $totalBuildings = DB::table('buildings')->count();
-        $totalBlocks = DB::table('blocks')->count();
+        $totalApartments = DB::getSchemaBuilder()->hasTable('apartments') ? DB::table('apartments')->count() : 0;
+        $totalBuildings = DB::getSchemaBuilder()->hasTable('buildings') ? DB::table('buildings')->count() : 0;
+        $totalBlocks = DB::getSchemaBuilder()->hasTable('blocks') ? DB::table('blocks')->count() : 0;
         $this->line("  Apartments: {$totalApartments}");
         $this->line("  Buildings: {$totalBuildings}");
         $this->line("  Blocks: {$totalBlocks}");
