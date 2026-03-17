@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('apartments', function (Blueprint $table) {
             $table->string('id')->primary();
-            $table->foreignId('source_id')->constrained()->cascadeOnDelete();
+            $table->unsignedBigInteger('source_id'); // FK will be added later
             $table->string('building_id');
             $table->string('block_id');
             $table->string('builder_id')->nullable();
@@ -37,8 +37,10 @@ return new class extends Migration
             
             $table->timestamps();
             
-            $table->foreign('building_id')->references('id')->on('buildings')->cascadeOnDelete();
-            $table->foreign('block_id')->references('id')->on('blocks')->cascadeOnDelete();
+            // Foreign keys will be added later when referenced tables exist
+            // $table->foreign('source_id')->references('id')->on('sources')->cascadeOnDelete();
+            // $table->foreign('building_id')->references('id')->on('buildings')->cascadeOnDelete();
+            // $table->foreign('block_id')->references('id')->on('blocks')->cascadeOnDelete();
             $table->foreign('builder_id')->references('id')->on('builders')->nullOnDelete();
             $table->index('building_id');
         });
