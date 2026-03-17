@@ -115,19 +115,23 @@ class TestImportProductionCommand extends Command
             // Display blocks stats
             if (isset($result1['blocks'])) {
                 $stats = $result1['blocks'];
-                $this->line("  blocks: processed={$stats['processed']}, created={$stats['created']}, updated={$stats['updated']}, errors={$stats['errors']}, skipped={$stats['skipped'] ?? 0}");
+                $skipped = isset($stats['skipped']) ? $stats['skipped'] : 0;
+                $this->line("  blocks: processed={$stats['processed']}, created={$stats['created']}, updated={$stats['updated']}, errors={$stats['errors']}, skipped={$skipped}");
             }
             
             // Display buildings stats
             if (isset($result1['buildings'])) {
                 $stats = $result1['buildings'];
-                $this->line("  buildings: processed={$stats['processed']}, created={$stats['created']}, updated={$stats['updated']}, errors={$stats['errors']}, skipped={$stats['skipped'] ?? 0}");
+                $skipped = isset($stats['skipped']) ? $stats['skipped'] : 0;
+                $this->line("  buildings: processed={$stats['processed']}, created={$stats['created']}, updated={$stats['updated']}, errors={$stats['errors']}, skipped={$skipped}");
             }
             
             // Display apartments stats
             if (isset($result1['apartments'])) {
                 $stats = $result1['apartments'];
-                $this->line("  apartments: processed={$stats['processed']}, created={$stats['created']}, updated={$stats['updated']}, archived={$stats['archived'] ?? 0}, errors={$stats['errors']}, skipped={$stats['skipped'] ?? 0}");
+                $archived = isset($stats['archived']) ? $stats['archived'] : 0;
+                $skipped = isset($stats['skipped']) ? $stats['skipped'] : 0;
+                $this->line("  apartments: processed={$stats['processed']}, created={$stats['created']}, updated={$stats['updated']}, archived={$archived}, errors={$stats['errors']}, skipped={$skipped}");
             }
             if (isset($result1['apartments'])) {
                 $this->line("  Completed: " . (($result1['apartments']['completed'] ?? false) ? 'YES' : 'NO'));
@@ -226,8 +230,12 @@ class TestImportProductionCommand extends Command
             // Display apartments stats
             if (isset($result2['apartments'])) {
                 $stats = $result2['apartments'];
-                $this->line("  apartments: processed={$stats['processed']}, created={$stats['created']}, updated={$stats['updated']}, unchanged={$stats['unchanged'] ?? 0}, archived={$stats['archived'] ?? 0}, errors={$stats['errors']}, skipped={$stats['skipped'] ?? 0}");
-                $this->line("  Completed: " . (($stats['completed'] ?? false) ? 'YES' : 'NO'));
+                $unchanged = isset($stats['unchanged']) ? $stats['unchanged'] : 0;
+                $archived = isset($stats['archived']) ? $stats['archived'] : 0;
+                $skipped = isset($stats['skipped']) ? $stats['skipped'] : 0;
+                $completed = isset($stats['completed']) ? $stats['completed'] : false;
+                $this->line("  apartments: processed={$stats['processed']}, created={$stats['created']}, updated={$stats['updated']}, unchanged={$unchanged}, archived={$archived}, errors={$stats['errors']}, skipped={$skipped}");
+                $this->line("  Completed: " . ($completed ? 'YES' : 'NO'));
             }
         } catch (\Exception $e) {
             $this->error("ERROR: " . $e->getMessage());
@@ -254,12 +262,13 @@ class TestImportProductionCommand extends Command
 
         // CHECK 6: Unchanged stats
         $this->info('CHECK 6: Unchanged records');
-        $unchangedCount = $result2['apartments']['unchanged'] ?? 0;
-        $processedCount = $result2['apartments']['processed'] ?? 0;
+        $apartmentsStats = isset($result2['apartments']) ? $result2['apartments'] : [];
+        $unchangedCount = isset($apartmentsStats['unchanged']) ? $apartmentsStats['unchanged'] : 0;
+        $processedCount = isset($apartmentsStats['processed']) ? $apartmentsStats['processed'] : 0;
         $unchangedPercent = $processedCount > 0 ? round(($unchangedCount / $processedCount) * 100, 2) : 0;
         $this->line("  Unchanged: {$unchangedCount} ({$unchangedPercent}%)");
-        $this->line("  Updated: " . ($result2['apartments']['updated'] ?? 0));
-        $this->line("  Created: " . ($result2['apartments']['created'] ?? 0));
+        $this->line("  Updated: " . (isset($apartmentsStats['updated']) ? $apartmentsStats['updated'] : 0));
+        $this->line("  Created: " . (isset($apartmentsStats['created']) ? $apartmentsStats['created'] : 0));
         
         if ($unchangedPercent > 80) {
             $this->info("  ✓ PASS: Most records unchanged (optimization working)");
@@ -272,7 +281,7 @@ class TestImportProductionCommand extends Command
 
         // CHECK 7: Updated records
         $this->info('CHECK 7: Updated records validation');
-        $updatedCount = $result2['apartments']['updated'] ?? 0;
+        $updatedCount = isset($apartmentsStats['updated']) ? $apartmentsStats['updated'] : 0;
         if ($updatedCount === 0) {
             $this->info("  ✓ PASS: No updates (all records unchanged)");
         } elseif ($updatedCount < $unchangedCount) {
@@ -314,7 +323,7 @@ class TestImportProductionCommand extends Command
                 ['Speedup', "{$speedup}x"],
                 ['Unchanged records', "{$unchangedCount} ({$unchangedPercent}%)"],
                 ['Updated records', $updatedCount],
-                ['Created records', $result2['apartments']['created'] ?? 0],
+                ['Created records', isset($apartmentsStats['created']) ? $apartmentsStats['created'] : 0],
             ]
         );
         $this->newLine();
