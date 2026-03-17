@@ -16,8 +16,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('district_id')->nullable();
             $table->string('builder_id')->nullable();
-            $table->decimal('lat', 10, 7);
-            $table->decimal('lng', 10, 7);
+            $table->decimal('lat', 10, 7)->nullable();
+            $table->decimal('lng', 10, 7)->nullable();
             $table->timestamp('created_at')->nullable();
             
             $table->foreign('district_id')->references('id')->on('regions')->nullOnDelete();
