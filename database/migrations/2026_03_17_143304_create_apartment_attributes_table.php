@@ -13,7 +13,21 @@ return new class extends Migration
     {
         Schema::create('apartment_attributes', function (Blueprint $table) {
             $table->id();
-            $table->string('apartment_id');
+            
+            // Check apartments table structure to determine apartment_id type
+            // On production, apartments.id is bigint unsigned, not string
+            if (DB::getSchemaBuilder()->hasTable('apartments')) {
+                $apartmentsIdType = DB::select("SHOW COLUMNS FROM apartments WHERE Field = 'id'");
+                if (!empty($apartmentsIdType) && str_contains($apartmentsIdType[0]->Type, 'bigint')) {
+                    $table->unsignedBigInteger('apartment_id');
+                } else {
+                    $table->string('apartment_id');
+                }
+            } else {
+                // Default to string if apartments table doesn't exist yet
+                $table->string('apartment_id');
+            }
+            
             $table->foreignId('attribute_id')->constrained()->cascadeOnDelete();
             $table->bigInteger('value_int')->nullable();
             $table->decimal('value_float', 10, 2)->nullable();
@@ -22,7 +36,10 @@ return new class extends Migration
             $table->json('value_json')->nullable();
             $table->timestamps();
             
-            $table->foreign('apartment_id')->references('id')->on('apartments')->cascadeOnDelete();
+            // Only add foreign key if apartments table exists
+            if (DB::getSchemaBuilder()->hasTable('apartments')) {
+                $table->foreign('apartment_id')->references('id')->on('apartments')->cascadeOnDelete();
+            }
             $table->index('attribute_id');
             $table->index('apartment_id');
         });
