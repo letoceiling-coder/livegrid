@@ -81,16 +81,7 @@ class BlockImporter
                     $lng = (float) $item['lng'];
                 }
                 
-                // Note: lat/lng are required in table schema, but we'll allow NULL for now
-                // If both are missing, skip this block
-                if ($lat === null && $lng === null) {
-                    Log::warning('Block missing coordinates', [
-                        'source_id' => $sourceId,
-                        'external_id' => $externalId,
-                    ]);
-                    $stats['errors']++;
-                    continue;
-                }
+                // lat/lng are now nullable, so we don't skip blocks without coordinates
 
                 // Find district_id by external_id if district is provided
                 $districtId = null;
