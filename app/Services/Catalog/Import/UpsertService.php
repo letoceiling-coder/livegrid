@@ -116,6 +116,10 @@ class UpsertService
                 $stats['errors'] += $result['errors'];
                 $stats['skipped'] += $result['skipped'] ?? 0;
                 $stats['unchanged'] += $result['unchanged'] ?? 0;
+                // Collect processed external_ids from chunk
+                if (!empty($result['processed_external_ids'] ?? [])) {
+                    $stats['processed_external_ids'] = array_merge($stats['processed_external_ids'], $result['processed_external_ids']);
+                }
             } catch (\Exception $e) {
                 Log::error('Failed to process chunk', [
                     'error' => $e->getMessage(),
@@ -140,7 +144,7 @@ class UpsertService
     private function processChunk(array $dtos, Carbon $importTime): array
     {
         $chunkStartTime = microtime(true);
-        $stats = ['created' => 0, 'updated' => 0, 'errors' => 0, 'skipped' => 0, 'unchanged' => 0];
+        $stats = ['created' => 0, 'updated' => 0, 'errors' => 0, 'skipped' => 0, 'unchanged' => 0, 'processed_external_ids' => []];
         $now = now();
 
         // Prepare data arrays
