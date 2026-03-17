@@ -65,11 +65,8 @@ class BlockImporter
                 }
 
                 $name = $item['name'] ?? '';
-                // In feed data, district is stored as 'district', not 'district_id'
-                $districtId = $item['district'] ?? $item['district_id'] ?? null;
-                $builderId = $item['builder_id'] ?? $item['block_builder'] ?? null;
                 
-                // Extract coordinates - required for blocks
+                // Extract coordinates
                 $lat = null;
                 $lng = null;
                 if (isset($item['geometry']['coordinates'])) {
@@ -81,22 +78,22 @@ class BlockImporter
                     $lng = (float) $item['lng'];
                 }
                 
-                // lat/lng are now nullable, so we don't skip blocks without coordinates
-
                 // Find district_id by external_id if district is provided
+                // In feed data, district is stored as 'district', not 'district_id'
                 $districtId = null;
-                if (isset($item['district'])) {
+                $feedDistrictId = $item['district'] ?? $item['district_id'] ?? null;
+                if ($feedDistrictId) {
                     $districtId = DB::table('regions')
-                        ->where('external_id', $item['district'])
+                        ->where('external_id', $feedDistrictId)
                         ->value('id');
                 }
 
                 // Find builder_id by external_id if builder is provided
                 $builderId = null;
-                if (isset($item['builder_id']) || isset($item['block_builder'])) {
-                    $builderExternalId = $item['builder_id'] ?? $item['block_builder'];
+                $feedBuilderId = $item['builder_id'] ?? $item['block_builder'] ?? null;
+                if ($feedBuilderId) {
                     $builderId = DB::table('builders')
-                        ->where('external_id', $builderExternalId)
+                        ->where('external_id', $feedBuilderId)
                         ->value('id');
                 }
 
@@ -138,8 +135,10 @@ class BlockImporter
             } catch (\Exception $e) {
                 Log::error('Failed to import block', [
                     'source_id' => $sourceId,
+                    'external_id' => $externalId ?? 'unknown',
                     'error' => $e->getMessage(),
-                    'item' => $item,
+                    'trace' => $e->getTraceAsString(),
+                    'item_keys' => array_keys($item ?? []),
                 ]);
                 $stats['errors']++;
             }
