@@ -19,20 +19,37 @@ return new class extends Migration
         $indexes = ['building_id', 'block_id', 'builder_id'];
         
         foreach ($indexes as $column) {
-            // Get index name from information_schema
-            $indexName = DB::selectOne("
-                SELECT INDEX_NAME 
-                FROM information_schema.STATISTICS 
+            // Check if column has foreign key constraint
+            $hasForeignKey = DB::selectOne("
+                SELECT COUNT(*) as cnt
+                FROM information_schema.KEY_COLUMN_USAGE 
                 WHERE TABLE_SCHEMA = DATABASE() 
                 AND TABLE_NAME = 'apartments' 
                 AND COLUMN_NAME = ? 
-                AND INDEX_NAME != 'PRIMARY'
-                AND INDEX_NAME NOT LIKE 'fk_%'
-                LIMIT 1
+                AND REFERENCED_TABLE_NAME IS NOT NULL
             ", [$column]);
             
-            if ($indexName) {
-                DB::statement("ALTER TABLE apartments DROP INDEX `{$indexName->INDEX_NAME}`");
+            // Only drop index if column doesn't have foreign key
+            if (!$hasForeignKey || $hasForeignKey->cnt == 0) {
+                // Get index name from information_schema
+                $indexName = DB::selectOne("
+                    SELECT INDEX_NAME 
+                    FROM information_schema.STATISTICS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'apartments' 
+                    AND COLUMN_NAME = ? 
+                    AND INDEX_NAME != 'PRIMARY'
+                    AND INDEX_NAME NOT LIKE 'fk_%'
+                    LIMIT 1
+                ", [$column]);
+                
+                if ($indexName) {
+                    try {
+                        DB::statement("ALTER TABLE apartments DROP INDEX `{$indexName->INDEX_NAME}`");
+                    } catch (\Exception $e) {
+                        // Index might be used by FK, skip
+                    }
+                }
             }
         }
     }
