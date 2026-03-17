@@ -42,6 +42,7 @@ class FeedImporter
             'processed' => 0,
             'created' => 0,
             'updated' => 0,
+            'unchanged' => 0,
             'archived' => 0,
             'errors' => 0,
             'skipped' => 0,
@@ -257,7 +258,7 @@ class FeedImporter
             $stats = $this->importFromFile($apartmentsPath, $sourceId);
             $allStats['apartments'] = $stats;
         } else {
-            $allStats['apartments'] = ['processed' => 0, 'created' => 0, 'updated' => 0, 'archived' => 0, 'errors' => 0, 'skipped' => 0, 'completed' => false];
+            $allStats['apartments'] = ['processed' => 0, 'created' => 0, 'updated' => 0, 'unchanged' => 0, 'archived' => 0, 'errors' => 0, 'skipped' => 0, 'completed' => false];
         }
 
         $apartmentsDuration = round(microtime(true) - $apartmentsStartTime, 3);
@@ -361,6 +362,7 @@ class FeedImporter
             'processed' => 0,
             'created' => 0,
             'updated' => 0,
+            'unchanged' => 0,
             'archived' => 0,
             'errors' => 0,
             'skipped' => 0,
@@ -391,6 +393,7 @@ class FeedImporter
                         $stats['updated'] += $chunkStats['updated'];
                         $stats['errors'] += $chunkStats['errors'];
                         $stats['skipped'] += $chunkStats['skipped'] ?? 0;
+                        $stats['unchanged'] += $chunkStats['unchanged'] ?? 0;
                         $chunk = [];
                     }
                 } catch (\Exception $e) {
@@ -408,6 +411,7 @@ class FeedImporter
                 $stats['updated'] += $chunkStats['updated'];
                 $stats['errors'] += $chunkStats['errors'];
                 $stats['skipped'] += $chunkStats['skipped'] ?? 0;
+                $stats['unchanged'] += $chunkStats['unchanged'] ?? 0;
             }
 
             // Mark import as completed only if no critical errors
