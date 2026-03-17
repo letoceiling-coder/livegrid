@@ -28,8 +28,9 @@ return new class extends Migration
         }
         
         Schema::table('blocks', function (Blueprint $table) {
-            // Make builder_id NOT NULL (from feed analysis, all blocks have builders)
-            $table->string('builder_id')->nullable(false)->change();
+            // Keep builder_id nullable - feed data may not have builder_id for all blocks
+            // $table->string('builder_id')->nullable(false)->change();
+            // Migration skipped - builder_id remains nullable
         });
         
         // Restore foreign key with CASCADE instead of SET NULL
