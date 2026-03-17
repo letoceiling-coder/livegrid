@@ -101,6 +101,11 @@ class FeedImporter
                     $stats['errors'] += $chunkStats['errors'];
                     $stats['skipped'] += $chunkStats['skipped'] ?? 0;
                     $stats['unchanged'] += $chunkStats['unchanged'] ?? 0;
+                    
+                    // Collect processed external_ids for bulk last_seen_at update
+                    if (!empty($chunkStats['processed_external_ids'] ?? [])) {
+                        $allProcessedExternalIds = array_merge($allProcessedExternalIds, $chunkStats['processed_external_ids']);
+                    }
                 } catch (\Exception $e) {
                     Log::error('Failed to upsert chunk', [
                         'error' => $e->getMessage(),
@@ -123,6 +128,12 @@ class FeedImporter
 
         // Mark import as completed only if no critical errors
         $importCompleted = ($stats['errors'] / max($stats['processed'], 1)) < 0.1; // Less than 10% errors
+
+        // Bulk update last_seen_at for all processed apartments (including unchanged)
+        // This prevents archiving and is much faster than row-by-row updates
+        if (!empty($allProcessedExternalIds)) {
+            $this->updateLastSeenAtForProcessed($allProcessedExternalIds, $sourceId, $importStartedAt);
+        }
 
         // Reactivate apartments that are back in feed
         if (!empty($processedExternalIds)) {
@@ -301,6 +312,60 @@ class FeedImporter
     }
 
     /**
+     * Bulk update last_seen_at for all processed apartments
+     * This is much faster than updating row-by-row
+     *
+     * @param array $externalIds Array of external_ids that were processed
+     * @param int $sourceId Source ID
+     * @param Carbon $importStartedAt Import start time
+     * @return int Number of updated records
+     */
+    private function updateLastSeenAtForProcessed(array $externalIds, int $sourceId, Carbon $importStartedAt): int
+    {
+        if (empty($externalIds)) {
+            return 0;
+        }
+
+        // Remove duplicates
+        $externalIds = array_unique($externalIds);
+
+        // Process in chunks to avoid SQL IN clause limit (MySQL default is 1000)
+        $chunkSize = 1000;
+        $chunks = array_chunk($externalIds, $chunkSize);
+        $totalUpdated = 0;
+
+        foreach ($chunks as $chunk) {
+            try {
+                $updated = DB::table('apartments')
+                    ->where('source_id', $sourceId)
+                    ->whereIn('external_id', $chunk)
+                    ->update([
+                        'last_seen_at' => $importStartedAt,
+                        'is_active' => true, // Reactivate if archived
+                        'updated_at' => now(),
+                    ]);
+                $totalUpdated += $updated;
+            } catch (\Exception $e) {
+                Log::error('Failed to bulk update last_seen_at', [
+                    'error' => $e->getMessage(),
+                    'chunk_size' => count($chunk),
+                    'source_id' => $sourceId,
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+        }
+
+        if ($totalUpdated > 0) {
+            Log::info("Bulk updated last_seen_at for {$totalUpdated} apartments", [
+                'source_id' => $sourceId,
+                'total_external_ids' => count($externalIds),
+            ]);
+        }
+
+        return $totalUpdated;
+    }
+
+    /**
      * Import from JSON file with streaming for large files
      *
      * @param string $filePath Path to JSON file
@@ -371,6 +436,7 @@ class FeedImporter
 
         $chunk = [];
         $processedExternalIds = [];
+        $allProcessedExternalIds = []; // Collect all external_ids from all chunks for bulk update
         $importCompleted = false;
 
         // Check if json-machine is available
@@ -394,6 +460,12 @@ class FeedImporter
                         $stats['errors'] += $chunkStats['errors'];
                         $stats['skipped'] += $chunkStats['skipped'] ?? 0;
                         $stats['unchanged'] += $chunkStats['unchanged'] ?? 0;
+                        
+                        // Collect processed external_ids for bulk last_seen_at update
+                        if (!empty($chunkStats['processed_external_ids'] ?? [])) {
+                            $allProcessedExternalIds = array_merge($allProcessedExternalIds, $chunkStats['processed_external_ids']);
+                        }
+                        
                         $chunk = [];
                     }
                 } catch (\Exception $e) {
@@ -412,10 +484,21 @@ class FeedImporter
                 $stats['errors'] += $chunkStats['errors'];
                 $stats['skipped'] += $chunkStats['skipped'] ?? 0;
                 $stats['unchanged'] += $chunkStats['unchanged'] ?? 0;
+                
+                // Collect processed external_ids for bulk last_seen_at update
+                if (!empty($chunkStats['processed_external_ids'] ?? [])) {
+                    $allProcessedExternalIds = array_merge($allProcessedExternalIds, $chunkStats['processed_external_ids']);
+                }
             }
 
             // Mark import as completed only if no critical errors
             $importCompleted = ($stats['errors'] / max($stats['processed'], 1)) < 0.1;
+
+            // Bulk update last_seen_at for all processed apartments (including unchanged)
+            // This prevents archiving and is much faster than row-by-row updates
+            if (!empty($allProcessedExternalIds)) {
+                $this->updateLastSeenAtForProcessed($allProcessedExternalIds, $sourceId, $importStartedAt);
+            }
 
             // Reactivate apartments that are back in feed
             if (!empty($processedExternalIds)) {

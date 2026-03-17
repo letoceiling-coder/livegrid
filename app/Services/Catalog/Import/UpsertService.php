@@ -92,7 +92,7 @@ class UpsertService
      *
      * @param array $dtos Array of ApartmentDTO
      * @param Carbon $importTime
-     * @return array Statistics: ['created' => int, 'updated' => int, 'errors' => int, 'skipped' => int]
+     * @return array Statistics: ['created' => int, 'updated' => int, 'errors' => int, 'skipped' => int, 'processed_external_ids' => array]
      */
     public function bulkUpsert(array $dtos, Carbon $importTime): array
     {
@@ -102,6 +102,7 @@ class UpsertService
             'errors' => 0,
             'skipped' => 0,
             'unchanged' => 0,
+            'processed_external_ids' => [], // Track all processed external_ids for bulk last_seen_at update
         ];
 
         // Process in chunks
@@ -145,7 +146,6 @@ class UpsertService
         // Prepare data arrays
         $apartmentsToInsert = [];
         $apartmentsToUpdate = [];
-        $apartmentsToUpdateLastSeen = []; // For unchanged records - only update last_seen_at
 
         // Pre-fetch existing apartments for this chunk in single query (with all comparison fields)
         $existing = $this->prefetchExisting($dtos);
@@ -218,24 +218,20 @@ class UpsertService
                     $data['id'] = $dto->externalId; // Use external_id as primary key
                     $data['created_at'] = $now;
                     $apartmentsToInsert[] = $data;
+                    $stats['processed_external_ids'][] = $dto->externalId;
                 } else {
                     // Check if data has changed
                     $existingData = $existing[$key];
                     if ($this->isDataUnchanged($data, $existingData)) {
-                        // Data unchanged - but still update last_seen_at to prevent archiving
-                        // Only update last_seen_at and is_active for unchanged records
-                        $apartmentsToUpdateLastSeen[] = [
-                            'source_id' => $dto->sourceId,
-                            'external_id' => $dto->externalId,
-                            'last_seen_at' => $importTime,
-                            'is_active' => true, // Reactivate if archived
-                            'updated_at' => $now,
-                        ];
+                        // Data unchanged - track external_id for bulk last_seen_at update later
+                        // Don't update row-by-row - will be done in bulk after all chunks
+                        $stats['processed_external_ids'][] = $dto->externalId;
                         $stats['unchanged']++;
                     } else {
-                        // Data changed - full update
+                        // Data changed - full update (includes last_seen_at)
                         unset($data['id']);
                         $apartmentsToUpdate[] = $data;
+                        $stats['processed_external_ids'][] = $dto->externalId;
                     }
                 }
             } catch (\Exception $e) {
@@ -303,33 +299,8 @@ class UpsertService
             }
         }
 
-        // Process last_seen_at updates for unchanged records (batch for performance)
-        if (!empty($apartmentsToUpdateLastSeen)) {
-            $lastSeenChunks = array_chunk($apartmentsToUpdateLastSeen, self::UPDATE_CHUNK_SIZE);
-            foreach ($lastSeenChunks as $lastSeenChunk) {
-                try {
-                    DB::transaction(function () use ($lastSeenChunk) {
-                        foreach ($lastSeenChunk as $data) {
-                            DB::table('apartments')
-                                ->where('source_id', $data['source_id'])
-                                ->where('external_id', $data['external_id'])
-                                ->update([
-                                    'last_seen_at' => $data['last_seen_at'],
-                                    'is_active' => $data['is_active'],
-                                    'updated_at' => $data['updated_at'],
-                                ]);
-                        }
-                    });
-                } catch (\Exception $e) {
-                    Log::error('Failed to update last_seen_at for unchanged records', [
-                        'error' => $e->getMessage(),
-                        'chunk_size' => count($lastSeenChunk),
-                        'trace' => $e->getTraceAsString(),
-                    ]);
-                    $stats['errors'] += count($lastSeenChunk);
-                }
-            }
-        }
+        // Note: last_seen_at update for unchanged records is done in bulk after all chunks
+        // See FeedImporter::updateLastSeenAtForProcessed() method
 
         // TEMPORARILY DISABLED: Skip attributes upsert for speed
         // $this->bulkUpsertAttributes($existingIds);
