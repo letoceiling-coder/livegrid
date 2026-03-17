@@ -11,9 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('builders', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->string('name')->index();
+        Schema::table('blocks', function (Blueprint $table) {
+            // Make builder_id NOT NULL (from feed analysis, all blocks have builders)
+            $table->string('builder_id')->nullable(false)->change();
         });
     }
 
@@ -22,6 +22,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('builders');
+        Schema::table('blocks', function (Blueprint $table) {
+            $table->string('builder_id')->nullable()->change();
+        });
     }
 };

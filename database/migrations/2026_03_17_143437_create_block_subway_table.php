@@ -11,14 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('project_subway', function (Blueprint $table) {
-            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('subway_id')->constrained()->cascadeOnDelete();
+        Schema::create('block_subway', function (Blueprint $table) {
+            $table->string('block_id');
+            $table->string('subway_id');
             $table->integer('distance_time');
             $table->tinyInteger('distance_type');
-            $table->timestamps();
             
-            $table->primary(['project_id', 'subway_id']);
+            $table->primary(['block_id', 'subway_id']);
+            $table->foreign('block_id')->references('id')->on('blocks')->cascadeOnDelete();
+            $table->foreign('subway_id')->references('id')->on('subways')->cascadeOnDelete();
         });
     }
 
@@ -27,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('project_subway');
+        Schema::dropIfExists('block_subway');
     }
 };

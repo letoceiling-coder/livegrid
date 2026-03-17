@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('builders', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->string('name')->index();
+        Schema::create('sources', function (Blueprint $table) {
+            $table->id();
+            $table->string('code')->unique();
+            $table->string('name');
+            $table->timestamps();
         });
     }
 
@@ -22,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('builders');
+        Schema::dropIfExists('sources');
     }
 };

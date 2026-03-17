@@ -1,0 +1,135 @@
+<?php
+
+namespace App\Services\Catalog\Import;
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Import blocks from feed
+ * Blocks must be imported before buildings
+ */
+class BlockImporter
+{
+    /**
+     * Import blocks from JSON file
+     *
+     * @param string $filePath Path to blocks.json
+     * @param int $sourceId Source ID
+     * @return array Statistics
+     */
+    public function importFromFile(string $filePath, int $sourceId): array
+    {
+        if (!file_exists($filePath)) {
+            Log::warning("Blocks file not found", ['file' => $filePath]);
+            return ['processed' => 0, 'created' => 0, 'updated' => 0, 'errors' => 0];
+        }
+
+        $content = file_get_contents($filePath);
+        $data = json_decode($content, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \InvalidArgumentException('Invalid JSON: ' . json_last_error_msg());
+        }
+
+        if (!is_array($data)) {
+            throw new \InvalidArgumentException('JSON must contain an array');
+        }
+
+        return $this->import($data, $sourceId);
+    }
+
+    /**
+     * Import blocks from array
+     *
+     * @param array $data Array of block data
+     * @param int $sourceId Source ID
+     * @return array Statistics
+     */
+    public function import(array $data, int $sourceId): array
+    {
+        $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'errors' => 0];
+
+        Log::info("Starting blocks import", [
+            'source_id' => $sourceId,
+            'total_items' => count($data),
+        ]);
+
+        foreach ($data as $item) {
+            try {
+                $externalId = $item['_id'] ?? $item['id'] ?? null;
+                if (!$externalId) {
+                    Log::warning('Block missing _id', ['item' => $item]);
+                    $stats['errors']++;
+                    continue;
+                }
+
+                $name = $item['name'] ?? '';
+                $districtId = $item['district_id'] ?? null;
+                $builderId = $item['builder_id'] ?? $item['block_builder'] ?? null;
+                
+                // Extract coordinates
+                $lat = null;
+                $lng = null;
+                if (isset($item['geometry']['coordinates'])) {
+                    $coords = $item['geometry']['coordinates'];
+                    $lng = (float) ($coords[0] ?? null);
+                    $lat = (float) ($coords[1] ?? null);
+                } elseif (isset($item['lat']) && isset($item['lng'])) {
+                    $lat = (float) $item['lat'];
+                    $lng = (float) $item['lng'];
+                }
+
+                // Use external_id as primary key (string ID)
+                $id = (string) $externalId;
+
+                // Check if exists by (source_id, external_id)
+                $existing = DB::table('blocks')
+                    ->where('source_id', $sourceId)
+                    ->where('external_id', $externalId)
+                    ->first();
+
+                $blockData = [
+                    'id' => $id,
+                    'name' => $name,
+                    'district_id' => $districtId,
+                    'builder_id' => $builderId,
+                    'source_id' => $sourceId,
+                    'external_id' => $externalId,
+                    'lat' => $lat,
+                    'lng' => $lng,
+                    'created_at' => now(),
+                ];
+
+                if ($existing) {
+                    // Update existing
+                    unset($blockData['id']); // Don't update primary key
+                    DB::table('blocks')
+                        ->where('id', $existing->id)
+                        ->update($blockData);
+                    $stats['updated']++;
+                } else {
+                    // Insert new
+                    DB::table('blocks')->insert($blockData);
+                    $stats['created']++;
+                }
+
+                $stats['processed']++;
+            } catch (\Exception $e) {
+                Log::error('Failed to import block', [
+                    'source_id' => $sourceId,
+                    'error' => $e->getMessage(),
+                    'item' => $item,
+                ]);
+                $stats['errors']++;
+            }
+        }
+
+        Log::info("Blocks import finished", [
+            'source_id' => $sourceId,
+            'stats' => $stats,
+        ]);
+
+        return $stats;
+    }
+}

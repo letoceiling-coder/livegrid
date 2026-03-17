@@ -12,8 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('apartments', function (Blueprint $table) {
-            $table->boolean('is_active')->default(true)->index()->after('finishing_id');
-            $table->timestamp('last_seen_at')->nullable()->after('is_active');
+            $table->string('external_id')->after('source_id');
+            $table->unique(['source_id', 'external_id']);
         });
     }
 
@@ -23,8 +23,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('apartments', function (Blueprint $table) {
-            $table->dropIndex(['is_active']);
-            $table->dropColumn(['is_active', 'last_seen_at']);
+            $table->dropUnique(['source_id', 'external_id']);
+            $table->dropColumn('external_id');
         });
     }
 };

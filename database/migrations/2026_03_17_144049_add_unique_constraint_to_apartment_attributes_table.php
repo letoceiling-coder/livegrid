@@ -11,9 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('builders', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->string('name')->index();
+        Schema::table('apartment_attributes', function (Blueprint $table) {
+            $table->unique(['apartment_id', 'attribute_id']);
         });
     }
 
@@ -22,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('builders');
+        Schema::table('apartment_attributes', function (Blueprint $table) {
+            $table->dropUnique(['apartment_id', 'attribute_id']);
+        });
     }
 };

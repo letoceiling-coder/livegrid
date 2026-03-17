@@ -11,9 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('rooms', function (Blueprint $table) {
+        Schema::create('blocks', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->string('name');
+            $table->string('district_id')->nullable();
+            $table->decimal('lat', 10, 7);
+            $table->decimal('lng', 10, 7);
+            $table->timestamp('created_at')->nullable();
+            
+            $table->foreign('district_id')->references('id')->on('regions')->nullOnDelete();
         });
     }
 
@@ -22,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('rooms');
+        Schema::dropIfExists('blocks');
     }
 };

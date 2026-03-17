@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('builders', function (Blueprint $table) {
+        Schema::create('regions', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->string('name')->index();
         });
@@ -22,6 +22,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('builders');
+        Schema::dropIfExists('regions');
     }
 };
