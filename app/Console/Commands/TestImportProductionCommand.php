@@ -189,13 +189,25 @@ class TestImportProductionCommand extends Command
         // CHECK 3: Null foreign keys
         $this->info('CHECK 3: Null foreign keys');
         $nullBuildingId = DB::table('apartments')->whereNull('building_id')->count();
-        $nullBlockId = DB::table('apartments')->whereNull('block_id')->count();
         $this->line("  Apartments without building_id: {$nullBuildingId}");
-        $this->line("  Apartments without block_id: {$nullBlockId}");
-        if ($nullBuildingId === 0 && $nullBlockId === 0) {
-            $this->info("  ✓ PASS: No null foreign keys");
+        
+        // Check if block_id column exists
+        $hasBlockId = DB::getSchemaBuilder()->hasColumn('apartments', 'block_id');
+        if ($hasBlockId) {
+            $nullBlockId = DB::table('apartments')->whereNull('block_id')->count();
+            $this->line("  Apartments without block_id: {$nullBlockId}");
+            if ($nullBuildingId === 0 && $nullBlockId === 0) {
+                $this->info("  ✓ PASS: No null foreign keys");
+            } else {
+                $this->error("  ✗ FAIL: Found null foreign keys");
+            }
         } else {
-            $this->error("  ✗ FAIL: Found null foreign keys");
+            $this->warn("  ⚠ block_id column does not exist in apartments table");
+            if ($nullBuildingId === 0) {
+                $this->info("  ✓ PASS: No null building_id");
+            } else {
+                $this->error("  ✗ FAIL: Found null building_id");
+            }
         }
         $this->newLine();
 
