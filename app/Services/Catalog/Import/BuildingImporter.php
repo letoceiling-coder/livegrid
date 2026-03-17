@@ -91,15 +91,13 @@ class BuildingImporter
 
                 $name = $item['name'] ?? '';
                 
-                // Find building_type_id by external_id if provided
+                // Find building_type_id - in reference tables, id = external_id (feed _id)
                 $buildingTypeId = null;
-                if (isset($item['building_type'])) {
+                $feedBuildingTypeId = $item['building_type'] ?? $item['building_type_id'] ?? null;
+                if ($feedBuildingTypeId) {
+                    // For reference tables, id = external_id (feed _id)
                     $buildingTypeId = DB::table('building_types')
-                        ->where('external_id', $item['building_type'])
-                        ->value('id');
-                } elseif (isset($item['building_type_id'])) {
-                    $buildingTypeId = DB::table('building_types')
-                        ->where('external_id', $item['building_type_id'])
+                        ->where('id', $feedBuildingTypeId)
                         ->value('id');
                 }
                 
