@@ -19,7 +19,8 @@ return new class extends Migration
             $table->date('deadline')->nullable();
             $table->timestamp('created_at')->nullable();
             
-            $table->foreign('block_id')->references('id')->on('blocks')->cascadeOnDelete();
+            // Foreign keys will be added later when referenced tables exist
+            // $table->foreign('block_id')->references('id')->on('blocks')->cascadeOnDelete();
             $table->foreign('building_type_id')->references('id')->on('building_types')->nullOnDelete();
         });
     }
