@@ -11,15 +11,33 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Ensure id column is properly configured for UUID storage
-        // The id column should store UUIDs (36 characters)
-        // We keep it as string type but ensure it's sized appropriately
-        // Note: Changing PK type is risky, so we only adjust if needed
+        // Check current id type - if already string, skip
+        $columns = DB::select("SHOW COLUMNS FROM apartments WHERE Field = 'id'");
+        if (!empty($columns) && (str_contains($columns[0]->Type, 'varchar') || str_contains($columns[0]->Type, 'char'))) {
+            // Already string type, no need to change
+            return;
+        }
+        
+        // Temporarily drop foreign keys that reference apartments.id
+        $foreignKeys = DB::select("
+            SELECT CONSTRAINT_NAME 
+            FROM information_schema.KEY_COLUMN_USAGE 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND REFERENCED_TABLE_NAME = 'apartments' 
+            AND REFERENCED_COLUMN_NAME = 'id'
+        ");
+        
+        foreach ($foreignKeys as $fk) {
+            DB::statement("ALTER TABLE {$fk->TABLE_NAME} DROP FOREIGN KEY {$fk->CONSTRAINT_NAME}");
+        }
+        
+        // Change id to string (keep as string, not char(36) to avoid issues)
         Schema::table('apartments', function (Blueprint $table) {
-            // Change id to char(36) for proper UUID storage
-            // This ensures UUID format (36 chars) while maintaining compatibility
-            $table->char('id', 36)->change();
+            $table->string('id')->change();
         });
+        
+        // Restore foreign keys
+        // Note: Foreign keys will be recreated by later migrations if needed
     }
 
     /**
