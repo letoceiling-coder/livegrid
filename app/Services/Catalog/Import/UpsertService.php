@@ -199,10 +199,11 @@ class UpsertService
                 $data['building_id'] = $buildingId;
                 $data['block_id'] = $blockId;
                 
-                // Find builder_id by external_id if provided
+                // Find builder_id - in reference tables, id = external_id (feed _id)
                 if ($dto->builderId) {
+                    // For reference tables, id = external_id (feed _id)
                     $builderId = DB::table('builders')
-                        ->where('external_id', $dto->builderId)
+                        ->where('id', $dto->builderId)
                         ->value('id');
                     $data['builder_id'] = $builderId;
                 }
