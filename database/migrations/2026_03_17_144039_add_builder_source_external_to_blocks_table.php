@@ -12,17 +12,68 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('blocks', function (Blueprint $table) {
-            $table->string('builder_id')->nullable()->after('district_id');
-            $table->foreignId('source_id')->nullable()->after('builder_id');
-            $table->string('external_id')->nullable()->after('source_id');
-            
-            // Note: unique constraint allows multiple NULLs in MySQL
-            // For proper uniqueness, ensure source_id is set when external_id is set
-            
-            $table->foreign('builder_id')->references('id')->on('builders')->nullOnDelete();
-            $table->foreign('source_id')->references('id')->on('sources')->nullOnDelete();
-            $table->unique(['source_id', 'external_id']);
+            // Check if columns already exist (they might be in create_blocks_table)
+            if (!Schema::hasColumn('blocks', 'builder_id')) {
+                $table->string('builder_id')->nullable()->after('district_id');
+            }
+            if (!Schema::hasColumn('blocks', 'source_id')) {
+                $table->foreignId('source_id')->nullable()->after('builder_id');
+            }
+            if (!Schema::hasColumn('blocks', 'external_id')) {
+                $table->string('external_id')->nullable()->after('source_id');
+            }
         });
+        
+        // Add foreign keys and unique constraint if they don't exist
+        if (Schema::hasTable('builders')) {
+            $hasFk = DB::selectOne("
+                SELECT COUNT(*) as cnt
+                FROM information_schema.KEY_COLUMN_USAGE 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'blocks' 
+                AND COLUMN_NAME = 'builder_id'
+                AND REFERENCED_TABLE_NAME = 'builders'
+            ");
+            
+            if (!$hasFk || $hasFk->cnt == 0) {
+                Schema::table('blocks', function (Blueprint $table) {
+                    $table->foreign('builder_id')->references('id')->on('builders')->nullOnDelete();
+                });
+            }
+        }
+        
+        if (Schema::hasTable('sources')) {
+            $hasFk = DB::selectOne("
+                SELECT COUNT(*) as cnt
+                FROM information_schema.KEY_COLUMN_USAGE 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'blocks' 
+                AND COLUMN_NAME = 'source_id'
+                AND REFERENCED_TABLE_NAME = 'sources'
+            ");
+            
+            if (!$hasFk || $hasFk->cnt == 0) {
+                Schema::table('blocks', function (Blueprint $table) {
+                    $table->foreign('source_id')->references('id')->on('sources')->nullOnDelete();
+                });
+            }
+            
+            // Add unique constraint
+            $hasUnique = DB::selectOne("
+                SELECT COUNT(*) as cnt
+                FROM information_schema.TABLE_CONSTRAINTS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'blocks' 
+                AND CONSTRAINT_TYPE = 'UNIQUE'
+                AND CONSTRAINT_NAME LIKE '%source_id%external_id%'
+            ");
+            
+            if (!$hasUnique || $hasUnique->cnt == 0) {
+                Schema::table('blocks', function (Blueprint $table) {
+                    $table->unique(['source_id', 'external_id']);
+                });
+            }
+        }
     }
 
     /**
