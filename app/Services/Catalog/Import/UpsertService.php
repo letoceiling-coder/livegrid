@@ -145,6 +145,7 @@ class UpsertService
         // Prepare data arrays
         $apartmentsToInsert = [];
         $apartmentsToUpdate = [];
+        $apartmentsToUpdateLastSeen = []; // For unchanged records - only update last_seen_at
 
         // Pre-fetch existing apartments for this chunk in single query (with all comparison fields)
         $existing = $this->prefetchExisting($dtos);
@@ -218,17 +219,24 @@ class UpsertService
                     $data['created_at'] = $now;
                     $apartmentsToInsert[] = $data;
                 } else {
-                    // Check if data has changed - skip update if identical
+                    // Check if data has changed
                     $existingData = $existing[$key];
                     if ($this->isDataUnchanged($data, $existingData)) {
-                        // Data unchanged - skip update
+                        // Data unchanged - but still update last_seen_at to prevent archiving
+                        // Only update last_seen_at and is_active for unchanged records
+                        $apartmentsToUpdateLastSeen[] = [
+                            'source_id' => $dto->sourceId,
+                            'external_id' => $dto->externalId,
+                            'last_seen_at' => $importTime,
+                            'is_active' => true, // Reactivate if archived
+                            'updated_at' => $now,
+                        ];
                         $stats['unchanged']++;
-                        continue;
+                    } else {
+                        // Data changed - full update
+                        unset($data['id']);
+                        $apartmentsToUpdate[] = $data;
                     }
-                    
-                    // Update existing - don't update id
-                    unset($data['id']);
-                    $apartmentsToUpdate[] = $data;
                 }
             } catch (\Exception $e) {
                 Log::warning('Failed to prepare apartment record', [
@@ -291,6 +299,34 @@ class UpsertService
                         'trace' => $e->getTraceAsString(),
                     ]);
                     $stats['errors'] += count($updateChunk);
+                }
+            }
+        }
+
+        // Process last_seen_at updates for unchanged records (batch for performance)
+        if (!empty($apartmentsToUpdateLastSeen)) {
+            $lastSeenChunks = array_chunk($apartmentsToUpdateLastSeen, self::UPDATE_CHUNK_SIZE);
+            foreach ($lastSeenChunks as $lastSeenChunk) {
+                try {
+                    DB::transaction(function () use ($lastSeenChunk) {
+                        foreach ($lastSeenChunk as $data) {
+                            DB::table('apartments')
+                                ->where('source_id', $data['source_id'])
+                                ->where('external_id', $data['external_id'])
+                                ->update([
+                                    'last_seen_at' => $data['last_seen_at'],
+                                    'is_active' => $data['is_active'],
+                                    'updated_at' => $data['updated_at'],
+                                ]);
+                        }
+                    });
+                } catch (\Exception $e) {
+                    Log::error('Failed to update last_seen_at for unchanged records', [
+                        'error' => $e->getMessage(),
+                        'chunk_size' => count($lastSeenChunk),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                    $stats['errors'] += count($lastSeenChunk);
                 }
             }
         }
