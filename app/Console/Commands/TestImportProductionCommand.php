@@ -21,9 +21,18 @@ class TestImportProductionCommand extends Command
         $this->info('STEP 0: Cleaning tables (clean start)...');
         if ($this->confirm('Truncate apartments, buildings, blocks?', true)) {
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-            DB::table('apartments')->truncate();
-            DB::table('buildings')->truncate();
-            DB::table('blocks')->truncate();
+            
+            // Check and truncate only existing tables
+            $tables = ['apartments', 'buildings', 'blocks'];
+            foreach ($tables as $table) {
+                if (DB::getSchemaBuilder()->hasTable($table)) {
+                    DB::table($table)->truncate();
+                    $this->line("  ✓ Truncated {$table}");
+                } else {
+                    $this->warn("  ⚠ Table {$table} does not exist, skipping");
+                }
+            }
+            
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
             $this->info('  ✓ Tables truncated');
         } else {
