@@ -78,22 +78,24 @@ class BlockImporter
                     $lng = (float) $item['lng'];
                 }
                 
-                // Find district_id by external_id if district is provided
+                // Find district_id - in reference tables, id = external_id (feed _id)
                 // In feed data, district is stored as 'district', not 'district_id'
                 $districtId = null;
                 $feedDistrictId = $item['district'] ?? $item['district_id'] ?? null;
                 if ($feedDistrictId) {
+                    // For reference tables, id = external_id (feed _id)
                     $districtId = DB::table('regions')
-                        ->where('external_id', $feedDistrictId)
+                        ->where('id', $feedDistrictId)
                         ->value('id');
                 }
 
-                // Find builder_id by external_id if builder is provided
+                // Find builder_id - in reference tables, id = external_id (feed _id)
                 $builderId = null;
                 $feedBuilderId = $item['builder_id'] ?? $item['block_builder'] ?? null;
                 if ($feedBuilderId) {
+                    // For reference tables, id = external_id (feed _id)
                     $builderId = DB::table('builders')
-                        ->where('external_id', $feedBuilderId)
+                        ->where('id', $feedBuilderId)
                         ->value('id');
                 }
 
