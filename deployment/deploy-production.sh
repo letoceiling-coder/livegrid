@@ -63,6 +63,35 @@ composer install --no-dev --optimize-autoloader --no-interaction
 print_status "Dependencies installed"
 
 echo ""
+echo "STEP 1.5: Frontend Build"
+echo "------------------------"
+
+if [ -d "$PROJECT_DIR/frontend" ]; then
+    print_warning "Building frontend..."
+    cd $PROJECT_DIR/frontend
+    
+    # Check if node_modules exists, if not install
+    if [ ! -d "node_modules" ]; then
+        print_warning "Installing frontend dependencies..."
+        npm install
+        print_status "Frontend dependencies installed"
+    else
+        print_warning "Updating frontend dependencies..."
+        npm install
+        print_status "Frontend dependencies updated"
+    fi
+    
+    # Build frontend
+    print_warning "Building frontend assets..."
+    npm run build
+    print_status "Frontend build completed"
+    
+    cd $PROJECT_DIR
+else
+    print_warning "Frontend directory not found, skipping frontend build"
+fi
+
+echo ""
 echo "STEP 2: Environment Configuration"
 echo "----------------------------------"
 

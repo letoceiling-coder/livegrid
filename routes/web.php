@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// Laravel + Vite + React - serve Blade template for all non-API routes
+Route::get('/{any?}', function () {
+    return view('app');
+})->where('any', '.*');
