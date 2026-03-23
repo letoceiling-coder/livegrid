@@ -11,6 +11,63 @@ use Illuminate\Http\Request;
 class ComplexController extends Controller
 {
     /**
+     * Список комплексов (краткая форма)
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $query = Complex::with(['district', 'builder', 'subways'])
+            ->withCount(['apartments as available_count' => fn($q) =>
+                $q->where('is_active', 1)->whereIn('status', ['available', 'reserved'])
+            ]);
+
+        if ($search = $request->input('search')) {
+            $query->where('name', 'like', "%{$search}%");
+        }
+        if ($builderId = $request->input('builder_id')) {
+            $query->where('builder_id', $builderId);
+        }
+        if ($districtId = $request->input('district_id')) {
+            $query->where('district_id', $districtId);
+        }
+        if ($status = $request->input('status')) {
+            $query->where('status', $status);
+        }
+
+        $perPage = min((int) $request->input('per_page', 20), 100);
+        $page    = max((int) $request->input('page', 1), 1);
+        $total   = $query->count();
+
+        $items = $query->orderBy('name')
+            ->offset(($page - 1) * $perPage)
+            ->limit($perPage)
+            ->get();
+
+        return response()->json([
+            'data' => $items->map(fn($c) => [
+                'id'      => $c->id,
+                'slug'    => $c->slug,
+                'name'    => $c->name,
+                'address' => $c->address,
+                'status'  => $c->status,
+                'deadline' => $c->deadline,
+                'district' => $c->district?->name,
+                'builder'  => $c->builder?->name,
+                'subway'   => $c->subways->first()?->name,
+                'lat'      => (float) $c->lat,
+                'lng'      => (float) $c->lng,
+                'images'   => $c->images ?? [],
+                'available_apartments' => $c->available_count,
+            ]),
+            'meta' => [
+                'total'    => $total,
+                'page'     => $page,
+                'per_page' => $perPage,
+                'pages'    => (int) ceil($total / $perPage),
+            ],
+        ]);
+    }
+
+    /**
      * Получить детальную информацию о комплексе
      */
     public function show(string $slug): JsonResponse
@@ -99,7 +156,9 @@ class ComplexController extends Controller
                     'floor' => $apartment->floor,
                     'totalFloors' => $apartment->floors,
                     'price' => (int) $apartment->price,
-                    'pricePerMeter' => (float) $apartment->price_per_meter,
+                    'pricePerMeter' => $apartment->area_total > 0
+                        ? round((float) $apartment->price / (float) $apartment->area_total)
+                        : 0,
                     'finishing' => $apartment->finishing ? $apartment->finishing->name : null,
                     'status' => $apartment->status,
                     'planImage' => $apartment->plan_image,

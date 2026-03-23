@@ -13,9 +13,28 @@ import CategoryTiles from '@/components/CategoryTiles';
 import LatestNews from '@/components/LatestNews';
 import ContactsSection from '@/components/ContactsSection';
 import FooterSection from '@/components/FooterSection';
-import { complexes, formatPrice } from '@/redesign/data/mock-data';
-import { useState, useRef, useEffect } from 'react';
+import { formatPrice } from '@/redesign/data/mock-data';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { useBlocks } from '@/hooks/useBlocks';
+import type { Complex } from '@/redesign/data/types';
+import type { ResidentialComplex } from '@/redesign/data/types';
+
+function adaptComplex(c: Complex): ResidentialComplex {
+  return {
+    id: c.id, slug: c.slug, name: c.name,
+    description: c.description ?? '',
+    builder: c.builder ?? '', district: c.district ?? '',
+    subway: c.subway ?? '', subwayDistance: c.subway_distance ?? '',
+    address: c.address ?? '', deadline: c.deadline ?? '',
+    status: (c.status ?? 'building') as ResidentialComplex['status'],
+    priceFrom: c.price_from ?? 0, priceTo: c.price_to ?? c.price_from ?? 0,
+    images: c.images?.length ? c.images : ['/placeholder-complex.jpg'],
+    coords: [c.lat ?? 0, c.lng ?? 0],
+    advantages: c.advantages ?? [], infrastructure: c.infrastructure ?? [],
+    buildings: [],
+  };
+}
 
 const quickFilters = [
   { label: 'Студии', search: '' },
@@ -45,7 +64,9 @@ const RedesignIndex = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'map'>('cards');
   const [activeComplex, setActiveComplex] = useState<string | null>(null);
   const regionRef = useRef<HTMLDivElement>(null);
-  const featured = complexes.slice(0, 6);
+
+  const { data } = useBlocks(undefined, { page: 1, perPage: 6, enabled: true });
+  const featured = useMemo(() => (data?.complexes ?? []).map(adaptComplex), [data]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

@@ -24,7 +24,9 @@ class ApartmentResource extends JsonResource
             'floor' => $this->floor,
             'totalFloors' => $this->floors,
             'price' => (int) $this->price,
-            'pricePerMeter' => (float) $this->price_per_meter,
+            'pricePerMeter' => $this->area_total > 0
+                ? round((float) $this->price / (float) $this->area_total)
+                : 0,
             'finishing' => $this->finishing ? $this->finishing->name : null,
             'status' => $this->status,
             'planImage' => $this->plan_image,

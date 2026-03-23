@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Catalog\Complex;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 
 class CrmComplexController extends Controller
@@ -84,6 +85,7 @@ class CrmComplexController extends Controller
 
         $complex = Complex::create($validated);
         $complex->load(['builder', 'district']);
+        $this->syncSearch();
 
         return response()->json(['data' => $this->format($complex)], 201);
     }
@@ -116,6 +118,7 @@ class CrmComplexController extends Controller
 
         $complex->update($validated);
         $complex->load(['builder', 'district']);
+        $this->syncSearch();
 
         return response()->json(['data' => $this->format($complex)]);
     }
@@ -124,8 +127,18 @@ class CrmComplexController extends Controller
     {
         $complex = Complex::findOrFail($id);
         $complex->delete();
+        $this->syncSearch();
 
         return response()->json(['message' => 'Комплекс удалён.']);
+    }
+
+    private function syncSearch(): void
+    {
+        try {
+            Artisan::call('complexes:sync-search');
+        } catch (\Throwable) {
+            // Non-critical — search index will sync on next manual sync
+        }
     }
 
     private function format(Complex $c, bool $full = false): array

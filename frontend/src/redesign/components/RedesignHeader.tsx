@@ -3,8 +3,12 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Phone, Menu, X, Search, MapPin, Building2, Home, LayoutGrid, Map as MapIcon, Heart, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
-import { searchComplexes } from '@/redesign/data/mock-data';
-import type { ResidentialComplex } from '@/redesign/data/types';
+import { getApiUrl, defaultFetchOptions } from '@/shared/config/api';
+
+interface SearchResult {
+  id: string; slug: string; name: string;
+  district: string; subway: string; image: string;
+}
 
 const navItems = [
   { label: 'Каталог', href: '/catalog' },
@@ -16,7 +20,7 @@ const RedesignHeader = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<ResidentialComplex[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLDivElement>(null);
@@ -25,7 +29,20 @@ const RedesignHeader = () => {
   const handleSearch = useCallback((q: string) => {
     setQuery(q);
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setResults(searchComplexes(q)), 200);
+    if (!q.trim()) { setResults([]); return; }
+    timerRef.current = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({ search: q.trim(), perPage: '8' });
+        const res = await fetch(`${getApiUrl('search/complexes')}?${params}`, defaultFetchOptions);
+        if (!res.ok) return;
+        const json = await res.json();
+        setResults((json.data ?? []).map((c: any) => ({
+          id: c.id, slug: c.slug, name: c.name,
+          district: c.district ?? '', subway: c.subway ?? '',
+          image: (c.images ?? [])[0] ?? '',
+        })));
+      } catch { /* silent */ }
+    }, 250);
   }, []);
 
   useEffect(() => {
@@ -85,13 +102,13 @@ const RedesignHeader = () => {
                   <Link
                     key={c.id}
                     to={`/complex/${c.slug}`}
-                    onClick={() => { setSearchOpen(false); setQuery(''); }}
+                    onClick={() => { setSearchOpen(false); setQuery(''); setResults([]); }}
                     className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border last:border-0"
                   >
-                    <img src={c.images[0]} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                    {c.image ? <img src={c.image} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" /> : <div className="w-10 h-10 rounded-lg bg-muted shrink-0" />}
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">{c.district} · м. {c.subway}</p>
+                      <p className="text-xs text-muted-foreground">{c.district}{c.subway ? ` · м. ${c.subway}` : ''}</p>
                     </div>
                   </Link>
                 ))}
@@ -155,13 +172,13 @@ const RedesignHeader = () => {
                   <Link
                     key={c.id}
                     to={`/complex/${c.slug}`}
-                    onClick={() => { setSearchOpen(false); setQuery(''); }}
+                    onClick={() => { setSearchOpen(false); setQuery(''); setResults([]); }}
                     className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border last:border-0"
                   >
-                    <img src={c.images[0]} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                    {c.image ? <img src={c.image} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" /> : <div className="w-10 h-10 rounded-lg bg-muted shrink-0" />}
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">{c.district} · м. {c.subway}</p>
+                      <p className="text-xs text-muted-foreground">{c.district}{c.subway ? ` · м. ${c.subway}` : ''}</p>
                     </div>
                   </Link>
                 ))}

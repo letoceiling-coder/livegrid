@@ -1,14 +1,15 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ArrowLeft, MapPin } from 'lucide-react';
+import { ArrowLeft, MapPin, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import ComplexHero from '@/redesign/components/ComplexHero';
 import ApartmentTable from '@/redesign/components/ApartmentTable';
 import Chessboard from '@/redesign/components/Chessboard';
 import LayoutGrid from '@/redesign/components/LayoutGrid';
-import { getComplexBySlug, getLayoutGroups, formatPrice } from '@/redesign/data/mock-data';
+import { formatPrice } from '@/redesign/data/mock-data';
 import type { SortField, SortDir } from '@/redesign/data/types';
+import { useComplex } from '@/hooks/useComplex';
 
 declare global {
   interface Window { ymaps: any; }
@@ -16,7 +17,7 @@ declare global {
 
 const RedesignComplex = () => {
   const { slug } = useParams<{ slug: string }>();
-  const complex = getComplexBySlug(slug || '');
+  const { data: complex, isLoading, error } = useComplex(slug);
   const [sort, setSort] = useState<{ field: SortField; dir: SortDir }>({ field: 'price', dir: 'asc' });
   const [roomFilter, setRoomFilter] = useState<number | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
@@ -33,7 +34,19 @@ const RedesignComplex = () => {
     return apts;
   }, [complex, sort, roomFilter]);
 
-  const layouts = useMemo(() => complex ? getLayoutGroups(complex.id) : [], [complex]);
+  const layouts = useMemo(() => {
+    if (!complex) return [];
+    const groups: Record<number, { rooms: number; minArea: number; minPrice: number; planImage: string; count: number }> = {};
+    complex.buildings.flatMap(b => b.apartments)
+      .filter(a => a.status === 'available')
+      .forEach(a => {
+        if (!groups[a.rooms]) groups[a.rooms] = { rooms: a.rooms, minArea: a.area, minPrice: a.price, planImage: a.planImage, count: 0 };
+        groups[a.rooms].count++;
+        if (a.area < groups[a.rooms].minArea) groups[a.rooms].minArea = a.area;
+        if (a.price < groups[a.rooms].minPrice) { groups[a.rooms].minPrice = a.price; groups[a.rooms].planImage = a.planImage; }
+      });
+    return Object.values(groups).map((g, i) => ({ id: String(i), complexId: complex.id, rooms: g.rooms, area: g.minArea, priceFrom: g.minPrice, planImage: g.planImage, availableCount: g.count }));
+  }, [complex]);
 
   const handleSort = (field: SortField) => {
     setSort(prev => ({ field, dir: prev.field === field && prev.dir === 'asc' ? 'desc' : 'asc' }));
@@ -68,12 +81,25 @@ const RedesignComplex = () => {
     mapInstanceRef.current = map;
   };
 
-  if (!complex) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <RedesignHeader />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !complex) {
     return (
       <div className="min-h-screen bg-background">
         <RedesignHeader />
         <div className="max-w-[1400px] mx-auto px-4 py-16 text-center">
-          <p className="text-muted-foreground">Комплекс не найден</p>
+          <p className="text-muted-foreground">
+            {(error as any)?.message === 'not_found' ? 'Комплекс не найден' : 'Ошибка загрузки данных'}
+          </p>
           <Link to="/catalog" className="text-primary text-sm mt-2 inline-block">← Вернуться в каталог</Link>
         </div>
       </div>

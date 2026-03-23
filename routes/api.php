@@ -23,6 +23,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::prefix('v1')->group(function () {
     Route::get('/complexes', [ComplexController::class, 'index']);
     Route::get('/complexes/{slug}', [ComplexController::class, 'show']);
+    Route::get('/complexes/{slug}/apartments', [ComplexController::class, 'apartments']);
     Route::get('/apartments', [ApartmentController::class, 'index']);
     Route::get('/map/complexes', [MapController::class, 'complexes']);
     Route::get('/filters', [ReferenceController::class, 'filters']);
@@ -50,7 +51,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('districts', CrmDistrictController::class);
 
         Route::get('/feed/status', [CrmFeedController::class, 'status']);
-        Route::post('/feed/download', [CrmFeedController::class, 'download']);
-        Route::post('/feed/sync', [CrmFeedController::class, 'sync']);
+        Route::post('/feed/download', [CrmFeedController::class, 'runDownload']);
+        Route::post('/feed/sync', [CrmFeedController::class, 'runSync']);
     });
 });
