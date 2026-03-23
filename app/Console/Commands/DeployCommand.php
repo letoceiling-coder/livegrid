@@ -51,7 +51,22 @@ class DeployCommand extends Command
             return Command::FAILURE;
         }
 
-        // Step 3: Run migrations (if not skipped)
+        // Step 3: Build frontend
+        $this->info('🎨 Installing npm dependencies...');
+        $npmInstall = $this->executeCommand('npm install --legacy-peer-deps', 'Failed to install npm dependencies');
+        if ($npmInstall !== 0) {
+            return Command::FAILURE;
+        }
+
+        $this->info('🏗️  Building frontend assets...');
+        $npmBuild = $this->executeCommand('npm run build', 'Failed to build frontend');
+        if ($npmBuild !== 0) {
+            $this->error('❌ Frontend build failed');
+            return Command::FAILURE;
+        }
+        $this->info('✅ Frontend built successfully');
+
+        // Step 4: Run migrations (if not skipped)
         if (!$this->option('no-migrate')) {
             $this->info('🗄️  Running database migrations...');
             $migrateOptions = $this->option('force') ? '--force' : '';

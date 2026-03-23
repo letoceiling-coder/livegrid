@@ -2,9 +2,21 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ScrollToTop from "./components/ScrollToTop";
 import { lazy, Suspense } from "react";
+
+// CRM pages
+const CrmLogin = lazy(() => import("./crm/pages/Login"));
+const CrmLayout = lazy(() => import("./crm/components/CrmLayout"));
+const CrmDashboard = lazy(() => import("./crm/pages/Dashboard"));
+const CrmComplexList = lazy(() => import("./crm/pages/complexes/ComplexList"));
+const CrmComplexForm = lazy(() => import("./crm/pages/complexes/ComplexForm"));
+const CrmApartmentList = lazy(() => import("./crm/pages/apartments/ApartmentList"));
+const CrmApartmentForm = lazy(() => import("./crm/pages/apartments/ApartmentForm"));
+const CrmAttributes = lazy(() => import("./crm/pages/attributes/AttributesPage"));
+const CrmFeed = lazy(() => import("./crm/pages/feed/FeedPage"));
+const CrmSettings = lazy(() => import("./crm/pages/settings/SettingsPage"));
 import Index from "./pages/Index";
 
 // Redesign pages
@@ -25,6 +37,9 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+
+// CRM Auth context
+import { AuthProvider } from "./crm/context/AuthContext";
 
 // Admin pages
 const AdminLayout = lazy(() => import("./admin/layout/AdminLayout"));
@@ -51,6 +66,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <AuthProvider>
         <ScrollToTop />
         <Suspense fallback={<Loading />}>
           <Routes>
@@ -89,9 +105,25 @@ const App = () => (
             </Route>
             <Route path="/admin/editor/:pageId" element={<EditorPage />} />
 
+            {/* CRM routes */}
+            <Route path="/crm/login" element={<CrmLogin />} />
+            <Route path="/crm" element={<CrmLayout />}>
+              <Route index element={<CrmDashboard />} />
+              <Route path="complexes" element={<CrmComplexList />} />
+              <Route path="complexes/new" element={<CrmComplexForm />} />
+              <Route path="complexes/:id/edit" element={<CrmComplexForm />} />
+              <Route path="apartments" element={<CrmApartmentList />} />
+              <Route path="apartments/new" element={<CrmApartmentForm />} />
+              <Route path="apartments/:id/edit" element={<CrmApartmentForm />} />
+              <Route path="attributes" element={<CrmAttributes />} />
+              <Route path="feed" element={<CrmFeed />} />
+              <Route path="settings" element={<CrmSettings />} />
+            </Route>
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
