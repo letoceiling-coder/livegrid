@@ -103,6 +103,11 @@ class DeployCommand extends Command
         Artisan::call('view:cache');
         $this->info('✅ View cache refreshed');
 
+        // Final: Reload PHP-FPM to clear OPcache
+        $this->info('🔃 Reloading PHP-FPM (clearing OPcache)...');
+        $this->executeCommand('systemctl reload php8.2-fpm', 'Failed to reload PHP-FPM (non-critical)');
+        $this->info('✅ PHP-FPM reloaded');
+
         $this->info('✨ Deployment completed successfully!');
         return Command::SUCCESS;
     }
