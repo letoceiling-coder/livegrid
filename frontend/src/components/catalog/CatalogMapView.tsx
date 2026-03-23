@@ -29,7 +29,7 @@ const CatalogMapView = ({ items }: Props) => {
       return;
     }
     const script = document.createElement('script');
-    script.src = 'https://api-maps.yandex.ru/2.1/?lang=ru_RU';
+    script.src = 'https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=a79c56f4-efea-471e-bee5-fe9226cd53fd';
     script.async = true;
     script.onload = () => {
       window.ymaps.ready(() => setReady(true));

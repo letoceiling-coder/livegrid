@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { ChevronDown, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CatalogFilters } from '@/redesign/data/types';
-import { districts, subways, builders, deadlines } from '@/redesign/data/mock-data';
+import type { FiltersData } from '@/hooks/useFilters';
 
 interface Props {
   filters: CatalogFilters;
   onChange: (f: CatalogFilters) => void;
   totalCount: number;
   className?: string;
+  filtersData?: FiltersData | null;
 }
 
 const roomOptions = [0, 1, 2, 3, 4];
@@ -36,7 +37,10 @@ const FilterSection = ({ title, children, defaultOpen = true }: { title: string;
   );
 };
 
-const FilterSidebar = ({ filters, onChange, totalCount, className }: Props) => {
+const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }: Props) => {
+  const districtOptions = filtersData?.districts?.map(d => d.name) ?? [];
+  const subwayOptions   = filtersData?.subways?.map(s => s.name) ?? [];
+  const builderOptions  = filtersData?.builders?.map(b => b.name) ?? [];
   const update = useCallback(<K extends keyof CatalogFilters>(key: K, val: CatalogFilters[K]) => {
     onChange({ ...filters, [key]: val });
   }, [filters, onChange]);
@@ -147,39 +151,51 @@ const FilterSidebar = ({ filters, onChange, totalCount, className }: Props) => {
       </FilterSection>
 
       {/* District */}
-      <FilterSection title="Район" defaultOpen={false}>
-        <div className="space-y-2 max-h-44 overflow-y-auto">
-          {districts.map(d => (
-            <label key={d} className="flex items-center gap-2.5 cursor-pointer text-sm hover:text-foreground transition-colors">
-              <Checkbox checked={filters.district.includes(d)} onCheckedChange={() => toggleArray('district', d)} />
-              {d}
-            </label>
-          ))}
-        </div>
+      <FilterSection title={`Район${districtOptions.length ? ` (${districtOptions.length})` : ''}`} defaultOpen={false}>
+        {districtOptions.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-1">Загрузка…</p>
+        ) : (
+          <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+            {districtOptions.map(d => (
+              <label key={d} className="flex items-center gap-2.5 cursor-pointer text-sm hover:text-foreground transition-colors">
+                <Checkbox checked={filters.district.includes(d)} onCheckedChange={() => toggleArray('district', d)} />
+                {d}
+              </label>
+            ))}
+          </div>
+        )}
       </FilterSection>
 
       {/* Subway */}
-      <FilterSection title="Метро" defaultOpen={false}>
-        <div className="space-y-2 max-h-44 overflow-y-auto">
-          {subways.map(s => (
-            <label key={s} className="flex items-center gap-2.5 cursor-pointer text-sm hover:text-foreground transition-colors">
-              <Checkbox checked={filters.subway.includes(s)} onCheckedChange={() => toggleArray('subway', s)} />
-              {s}
-            </label>
-          ))}
-        </div>
+      <FilterSection title={`Метро${subwayOptions.length ? ` (${subwayOptions.length})` : ''}`} defaultOpen={false}>
+        {subwayOptions.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-1">Загрузка…</p>
+        ) : (
+          <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+            {subwayOptions.map(s => (
+              <label key={s} className="flex items-center gap-2.5 cursor-pointer text-sm hover:text-foreground transition-colors">
+                <Checkbox checked={filters.subway.includes(s)} onCheckedChange={() => toggleArray('subway', s)} />
+                м. {s}
+              </label>
+            ))}
+          </div>
+        )}
       </FilterSection>
 
       {/* Builder */}
-      <FilterSection title="Застройщик" defaultOpen={false}>
-        <div className="space-y-2 max-h-44 overflow-y-auto">
-          {builders.map(b => (
-            <label key={b} className="flex items-center gap-2.5 cursor-pointer text-sm hover:text-foreground transition-colors">
-              <Checkbox checked={filters.builder.includes(b)} onCheckedChange={() => toggleArray('builder', b)} />
-              {b}
-            </label>
-          ))}
-        </div>
+      <FilterSection title={`Застройщик${builderOptions.length ? ` (${builderOptions.length})` : ''}`} defaultOpen={false}>
+        {builderOptions.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-1">Загрузка…</p>
+        ) : (
+          <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+            {builderOptions.map(b => (
+              <label key={b} className="flex items-center gap-2.5 cursor-pointer text-sm hover:text-foreground transition-colors">
+                <Checkbox checked={filters.builder.includes(b)} onCheckedChange={() => toggleArray('builder', b)} />
+                {b}
+              </label>
+            ))}
+          </div>
+        )}
       </FilterSection>
 
       {/* Finishing */}
@@ -197,7 +213,7 @@ const FilterSidebar = ({ filters, onChange, totalCount, className }: Props) => {
       {/* Deadline */}
       <FilterSection title="Срок сдачи" defaultOpen={false}>
         <div className="space-y-2">
-          {deadlines.map(d => (
+          {['2024', '2025', '2026', '2027', '2028', 'Сдан'].map(d => (
             <label key={d} className="flex items-center gap-2.5 cursor-pointer text-sm hover:text-foreground transition-colors">
               <Checkbox checked={filters.deadline.includes(d)} onCheckedChange={() => toggleArray('deadline', d)} />
               {d}

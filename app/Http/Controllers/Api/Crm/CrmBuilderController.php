@@ -11,9 +11,6 @@ class CrmBuilderController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Builder::withCount('complexes' /* alias through Complex */);
-
-        // Use raw count from blocks table since Builder doesn't have a direct hasMany
         $builders = Builder::orderBy('name')->get()->map(fn($b) => [
             'id'   => $b->id,
             'name' => $b->name,

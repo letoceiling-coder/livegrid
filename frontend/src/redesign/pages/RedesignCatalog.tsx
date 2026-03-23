@@ -1,39 +1,81 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { LayoutGrid, List, Map, SlidersHorizontal, X } from 'lucide-react';
+import { LayoutGrid, List, Map, SlidersHorizontal, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import ComplexCard from '@/redesign/components/ComplexCard';
 import FilterSidebar from '@/redesign/components/FilterSidebar';
 import MapSearch from '@/redesign/components/MapSearch';
-import { complexes } from '@/redesign/data/mock-data';
-import { defaultFilters, type CatalogFilters } from '@/redesign/data/types';
+import { defaultFilters, type CatalogFilters, type Complex, type ResidentialComplex } from '@/redesign/data/types';
+import { useBlocks } from '@/hooks/useBlocks';
+import { useFilters } from '@/hooks/useFilters';
 
 type ViewMode = 'grid' | 'list' | 'map';
+
+// Adapter: Complex (API) → ResidentialComplex (UI components)
+function adaptComplex(c: Complex): ResidentialComplex {
+  return {
+    id: c.id,
+    slug: c.slug,
+    name: c.name,
+    description: c.description ?? '',
+    builder: c.builder ?? '',
+    district: c.district ?? '',
+    subway: c.subway ?? '',
+    subwayDistance: c.subway_distance ?? '',
+    address: c.address ?? '',
+    deadline: c.deadline ?? '',
+    status: (c.status ?? 'building') as ResidentialComplex['status'],
+    priceFrom: c.price_from ?? 0,
+    priceTo: c.price_to ?? c.price_from ?? 0,
+    images: c.images?.length ? c.images : ['/placeholder-complex.jpg'],
+    coords: [c.lat ?? 0, c.lng ?? 0],
+    advantages: c.advantages ?? [],
+    infrastructure: c.infrastructure ?? [],
+    buildings: [],
+  };
+}
 
 const RedesignCatalog = () => {
   const [searchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
-  const [view, setView] = useState<ViewMode>('grid');
-  const [filters, setFilters] = useState<CatalogFilters>({ ...defaultFilters, search: initialSearch });
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [mapActive, setMapActive] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    return complexes.filter(c => {
-      const q = filters.search.toLowerCase();
-      if (q && !c.name.toLowerCase().includes(q) && !c.district.toLowerCase().includes(q) && !c.subway.toLowerCase().includes(q) && !c.builder.toLowerCase().includes(q)) return false;
-      if (filters.district.length && !filters.district.includes(c.district)) return false;
-      if (filters.subway.length && !filters.subway.includes(c.subway)) return false;
-      if (filters.builder.length && !filters.builder.includes(c.builder)) return false;
-      if (filters.deadline.length && !filters.deadline.includes(c.deadline)) return false;
-      if (filters.status.length && !filters.status.includes(c.status)) return false;
-      if (filters.priceMin && c.priceTo < filters.priceMin) return false;
-      if (filters.priceMax && c.priceFrom > filters.priceMax) return false;
-      return true;
-    });
-  }, [filters]);
+  const [view, setView]                     = useState<ViewMode>('grid');
+  const [filters, setFilters]               = useState<CatalogFilters>({ ...defaultFilters, search: initialSearch });
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [mapActive, setMapActive]           = useState<string | null>(null);
+  const [page, setPage]                     = useState(1);
+
+  // Reset page when filters change
+  const handleFiltersChange = useCallback((f: CatalogFilters) => {
+    setFilters(f);
+    setPage(1);
+  }, []);
+
+  // Sync URL search param → filter
+  useEffect(() => {
+    const s = searchParams.get('search') || '';
+    if (s !== filters.search) setFilters(f => ({ ...f, search: s }));
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch real data
+  const { data, isLoading, isFetching } = useBlocks(filters, {
+    page,
+    perPage: 24,
+    enabled: view !== 'map',
+  });
+
+  const { data: filtersData } = useFilters();
+
+  const complexes   = data?.complexes ?? [];
+  const meta        = data?.meta;
+  const totalPages  = meta?.lastPage ?? 1;
+  const totalCount  = meta?.total ?? 0;
+
+  // For map view — use all loaded complexes
+  const allForMap = useMemo(() => complexes.map(adaptComplex), [complexes]);
+  const adapted   = useMemo(() => complexes.map(adaptComplex), [complexes]);
 
   return (
     <div className="min-h-screen bg-background pb-16 lg:pb-0">
@@ -44,7 +86,10 @@ const RedesignCatalog = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold">Жилые комплексы</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Найдено {filtered.length} объектов</p>
+            <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
+              {isFetching && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              Найдено {totalCount} объектов
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="lg:hidden h-9" onClick={() => setShowMobileFilters(true)}>
@@ -75,36 +120,72 @@ const RedesignCatalog = () => {
           {view !== 'map' && (
             <aside className="hidden lg:block w-[280px] shrink-0">
               <div className="sticky top-20">
-                <FilterSidebar filters={filters} onChange={setFilters} totalCount={filtered.length} />
+                <FilterSidebar
+                  filters={filters}
+                  onChange={handleFiltersChange}
+                  totalCount={totalCount}
+                  filtersData={filtersData}
+                />
               </div>
             </aside>
           )}
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {view === 'grid' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filtered.map(c => <ComplexCard key={c.id} complex={c} />)}
+            {isLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-            )}
-            {view === 'list' && (
-              <div className="space-y-4">
-                {filtered.map(c => (
-                  <ComplexCard key={c.id} complex={c} variant="list" />
-                ))}
-              </div>
-            )}
-            {view === 'map' && (
-              <MapSearch complexes={filtered} activeSlug={mapActive} onSelect={setMapActive} />
-            )}
-            {filtered.length === 0 && (
-              <div className="text-center py-20">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                  <SlidersHorizontal className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <p className="text-muted-foreground text-sm mb-2">Ничего не найдено</p>
-                <p className="text-muted-foreground text-xs">Попробуйте изменить параметры фильтров</p>
-              </div>
+            ) : (
+              <>
+                {view === 'grid' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {adapted.map(c => <ComplexCard key={c.id} complex={c} />)}
+                  </div>
+                )}
+                {view === 'list' && (
+                  <div className="space-y-4">
+                    {adapted.map(c => (
+                      <ComplexCard key={c.id} complex={c} variant="list" />
+                    ))}
+                  </div>
+                )}
+                {view === 'map' && (
+                  <MapSearch complexes={allForMap} activeSlug={mapActive} onSelect={setMapActive} />
+                )}
+                {adapted.length === 0 && !isLoading && (
+                  <div className="text-center py-20">
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                      <SlidersHorizontal className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <p className="text-muted-foreground text-sm mb-2">Ничего не найдено</p>
+                    <p className="text-muted-foreground text-xs">Попробуйте изменить параметры фильтров</p>
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-8">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="px-4 py-2 rounded-xl border text-sm hover:bg-muted disabled:opacity-40 transition-colors"
+                    >
+                      ← Назад
+                    </button>
+                    <span className="text-sm text-muted-foreground px-2">
+                      {page} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="px-4 py-2 rounded-xl border text-sm hover:bg-muted disabled:opacity-40 transition-colors"
+                    >
+                      Вперёд →
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -120,11 +201,16 @@ const RedesignCatalog = () => {
             </button>
           </div>
           <div className="p-4 pb-24">
-            <FilterSidebar filters={filters} onChange={setFilters} totalCount={filtered.length} />
+            <FilterSidebar
+              filters={filters}
+              onChange={handleFiltersChange}
+              totalCount={totalCount}
+              filtersData={filtersData}
+            />
           </div>
           <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
             <Button className="w-full h-12" onClick={() => setShowMobileFilters(false)}>
-              Показать {filtered.length} объектов
+              Показать {totalCount} объектов
             </Button>
           </div>
         </div>

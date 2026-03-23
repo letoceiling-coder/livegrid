@@ -13,6 +13,35 @@ use Illuminate\Support\Facades\Cache;
 class ReferenceController extends Controller
 {
     /**
+     * Unified filters endpoint — all reference data in one request
+     */
+    public function filters(): JsonResponse
+    {
+        $districts = Cache::remember('references:districts', 3600, fn () =>
+            District::orderBy('name')->get()->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])
+        );
+
+        $subways = Cache::remember('references:subways', 3600, fn () =>
+            Subway::orderBy('name')->get()->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'line' => $s->line ?? null])
+        );
+
+        $builders = Cache::remember('references:builders', 3600, fn () =>
+            Builder::orderBy('name')->get()->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])
+        );
+
+        $finishings = Cache::remember('references:finishings', 3600, fn () =>
+            Finishing::orderBy('name')->get()->map(fn ($f) => ['value' => $f->name, 'label' => $f->name])
+        );
+
+        return response()->json([
+            'districts' => $districts,
+            'subways'   => $subways,
+            'builders'  => $builders,
+            'finishings' => $finishings,
+        ]);
+    }
+
+    /**
      * Справочник районов
      */
     public function districts(): JsonResponse

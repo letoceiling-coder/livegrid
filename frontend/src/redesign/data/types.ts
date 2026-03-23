@@ -1,3 +1,37 @@
+// ─── Unified internal model (returned by useBlocks / useMapObjects) ──────────
+export interface Complex {
+  id: string;
+  slug: string;
+  name: string;
+  lat: number;
+  lng: number;
+  price_from?: number;
+  price_to?: number;
+  district?: string;
+  subway?: string;
+  subway_distance?: string;
+  address?: string;
+  builder?: string;
+  status?: 'building' | 'completed' | 'planned';
+  deadline?: string;
+  description?: string;
+  image?: string;
+  images: string[];
+  advantages: string[];
+  infrastructure: string[];
+  total_available_apartments: number;
+  buildings: any[];
+}
+
+export interface Viewport {
+  lat_min: number;
+  lat_max: number;
+  lng_min: number;
+  lng_max: number;
+  zoom?: number;
+  interactionId?: number;
+}
+
 export interface ResidentialComplex {
   id: string;
   slug: string;

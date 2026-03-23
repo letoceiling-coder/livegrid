@@ -29,7 +29,7 @@ export default function MapPicker({ lat, lng, onChange }: Props) {
       return () => clearInterval(check);
     }
     const s = document.createElement('script');
-    s.src = 'https://api-maps.yandex.ru/2.1/?lang=ru_RU';
+    s.src = 'https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=a79c56f4-efea-471e-bee5-fe9226cd53fd';
     s.async = true;
     s.onload = () => window.ymaps.ready(() => setReady(true));
     document.head.appendChild(s);
