@@ -11,10 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Nullify empty slugs before adding unique constraint
+        \DB::statement("UPDATE blocks SET slug = NULL WHERE slug = '' OR slug IS NULL");
+
         Schema::table('blocks', function (Blueprint $table) {
             // Добавить недостающие поля для frontend
             if (!Schema::hasColumn('blocks', 'slug')) {
-                $table->string('slug')->unique()->after('name');
+                $table->string('slug')->nullable()->after('name');
             }
             if (!Schema::hasColumn('blocks', 'description')) {
                 $table->text('description')->nullable()->after('slug');
