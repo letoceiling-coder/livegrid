@@ -11,6 +11,11 @@ use Illuminate\Http\JsonResponse;
 
 class CrmDashboardController extends Controller
 {
+    public function index(): JsonResponse
+    {
+        return $this->stats();
+    }
+
     public function stats(): JsonResponse
     {
         $totalComplexes  = Complex::count();
