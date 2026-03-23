@@ -44,7 +44,7 @@ class DeployCommand extends Command
         // Step 2: Composer install
         $this->info('📦 Installing composer dependencies...');
         $composerInstall = $this->executeCommand(
-            app()->environment('production') ? 'composer install --no-dev --optimize-autoloader' : 'composer install --optimize-autoloader',
+            'COMPOSER_ALLOW_SUPERUSER=1 composer install --optimize-autoloader',
             'Failed to install composer dependencies'
         );
         if ($composerInstall !== 0) {
