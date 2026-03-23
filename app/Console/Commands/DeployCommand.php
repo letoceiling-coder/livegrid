@@ -66,13 +66,18 @@ class DeployCommand extends Command
         }
         $this->info('✅ Frontend built successfully');
 
-        // Step 4: Run migrations (if not skipped)
+        // Step 4: Fix storage permissions
+        $this->info('🔑 Fixing storage permissions...');
+        $this->executeCommand(
+            'chown -R www-data:www-data ' . base_path('storage') . ' ' . base_path('bootstrap/cache') . ' && chmod -R 775 ' . base_path('storage') . ' ' . base_path('bootstrap/cache'),
+            'Failed to fix permissions (non-critical)'
+        );
+        $this->info('✅ Permissions fixed');
+
+        // Step 5: Run migrations (always with --force to avoid interactive prompt in production)
         if (!$this->option('no-migrate')) {
             $this->info('🗄️  Running database migrations...');
-            $migrateOptions = $this->option('force') ? '--force' : '';
-            $migrate = Artisan::call('migrate', [
-                '--force' => $this->option('force'),
-            ]);
+            $migrate = Artisan::call('migrate', ['--force' => true]);
             if ($migrate !== 0) {
                 $this->error('❌ Migrations failed');
                 return Command::FAILURE;
