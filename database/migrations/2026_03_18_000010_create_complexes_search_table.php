@@ -91,7 +91,7 @@ return new class extends Migration
             $table->index('rooms_4');
             
             // Full-text search (MySQL 5.7+)
-            $table->fullText(['name', 'district_name', 'subway_name', 'builder_name']);
+            $table->fullText(['name', 'district_name', 'subway_name', 'builder_name'], 'cs_fulltext_idx');
         });
         
         // Создать SPATIAL индекс для координат (если поддерживается)
