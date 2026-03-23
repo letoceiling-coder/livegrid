@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('complexes_search')) {
+            return;
+        }
+
         Schema::create('complexes_search', function (Blueprint $table) {
             $table->uuid('complex_id')->primary();
             
