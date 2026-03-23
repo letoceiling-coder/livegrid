@@ -38,13 +38,13 @@ class SearchComplexesRequest extends FormRequest
             'deadline' => 'nullable|array',
             'deadline.*' => 'string',
             'status' => 'nullable|array',
-            'status.*' => 'string|in:building,completed,planned',
+            'status.*' => 'string|in:building,completed,planned,selling',
             'floorMin' => 'nullable|integer|min:1',
             'floorMax' => 'nullable|integer|min:1',
             'sort' => 'nullable|string|in:price,area,name',
             'order' => 'nullable|string|in:asc,desc',
-            'page' => 'nullable|integer|min:1',
-            'perPage' => 'nullable|integer|min:1|max:500',
+            'page' => 'nullable|integer|min:1|max:10000',
+            'perPage' => 'nullable|integer|min:1|max:100',
             'bounds.north' => 'nullable|numeric',
             'bounds.south' => 'nullable|numeric',
             'bounds.east' => 'nullable|numeric',
@@ -60,7 +60,7 @@ class SearchComplexesRequest extends FormRequest
         // Нормализация данных
         $this->merge([
             'page' => $this->input('page', 1),
-            'perPage' => min($this->input('perPage', 20), 500),
+            'perPage' => min((int) $this->input('perPage', 20), 100),
             'sort' => $this->input('sort', 'price'),
             'order' => $this->input('order', 'asc'),
         ]);

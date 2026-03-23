@@ -58,8 +58,7 @@ class SearchService
             ],
         ];
         
-        // Сохранение в кэш (TTL: 60 секунд)
-        Cache::put($cacheKey, $result, 60);
+        Cache::put($cacheKey, $result, 120);
         
         return $result;
     }
@@ -257,29 +256,39 @@ class SearchService
     }
     
     /**
-     * Поиск для карты (упрощенный формат)
+     * Поиск для карты (упрощенный формат) с кэшированием
      */
     public function searchForMap(array $filters): array
     {
-        $query = DB::table('complexes_search')
-            ->where('status', '!=', 'deleted');
-        
-        $this->applyFilters($query, $filters);
-        
-        $complexes = $query->get();
-        
-        return $complexes->map(function ($complex) {
-            return [
-                'id' => $complex->complex_id,
-                'slug' => $complex->slug,
-                'name' => $complex->name,
-                'coords' => [(float) $complex->lat, (float) $complex->lng],
-                'images' => json_decode($complex->images, true) ?? [],
-                'priceFrom' => (int) $complex->price_from,
-                'district' => $complex->district_name,
-                'subway' => $complex->subway_name,
-                'builder' => $complex->builder_name,
-            ];
-        })->toArray();
+        $cacheKey = 'map:complexes:' . md5(serialize($filters));
+
+        return Cache::remember($cacheKey, 120, function () use ($filters) {
+            $query = DB::table('complexes_search')
+                ->where('status', '!=', 'deleted')
+                ->where('available_apartments', '>', 0) // Only complexes with available flats
+                ->whereNotNull('lat')
+                ->whereNotNull('lng')
+                ->where('lat', '!=', 0)
+                ->where('lng', '!=', 0);
+
+            $this->applyFilters($query, $filters);
+
+            // Safety limit: never return more than 2000 pins
+            $complexes = $query->limit(2000)->get();
+
+            return $complexes->map(function ($complex) {
+                return [
+                    'id'       => $complex->complex_id,
+                    'slug'     => $complex->slug,
+                    'name'     => $complex->name,
+                    'coords'   => [(float) $complex->lat, (float) $complex->lng],
+                    'images'   => json_decode($complex->images, true) ?? [],
+                    'priceFrom' => (int) $complex->price_from,
+                    'district' => $complex->district_name,
+                    'subway'   => $complex->subway_name,
+                    'builder'  => $complex->builder_name,
+                ];
+            })->toArray();
+        });
     }
 }

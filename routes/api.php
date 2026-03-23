@@ -23,13 +23,20 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 // ── Public API v1 ────────────────────────────────────────────────────────────
 Route::prefix('v1')->group(function () {
-    Route::get('/complexes', [ComplexController::class, 'index']);
-    Route::get('/complexes/{slug}', [ComplexController::class, 'show']);
-    Route::get('/complexes/{slug}/apartments', [ComplexController::class, 'apartments']);
-    Route::get('/apartments', [ApartmentController::class, 'index']);
-    Route::get('/map/complexes', [MapController::class, 'complexes']);
-    Route::get('/filters', [ReferenceController::class, 'filters']);
-    Route::get('/search/complexes', [SearchComplexesController::class, 'index']);
+    // Rate-limited public endpoints: 120 req/min per IP
+    Route::middleware('throttle:120,1')->group(function () {
+        Route::get('/complexes', [ComplexController::class, 'index']);
+        Route::get('/complexes/{slug}', [ComplexController::class, 'show']);
+        Route::get('/complexes/{slug}/apartments', [ComplexController::class, 'apartments']);
+        Route::get('/apartments', [ApartmentController::class, 'index']);
+        Route::get('/map/complexes', [MapController::class, 'complexes']);
+        Route::get('/search/complexes', [SearchComplexesController::class, 'index']);
+    });
+
+    // Cached reference data: higher limit (300 req/min)
+    Route::middleware('throttle:300,1')->group(function () {
+        Route::get('/filters', [ReferenceController::class, 'filters']);
+    });
 
     Route::get('/health', function () {
         return response()->json(['status' => 'ok', 'timestamp' => now()]);
