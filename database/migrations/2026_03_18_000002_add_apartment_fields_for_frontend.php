@@ -70,9 +70,7 @@ return new class extends Migration
 
     private function hasIndex(string $table, string $index): bool
     {
-        $connection = Schema::getConnection();
-        $doctrineSchemaManager = $connection->getDoctrineSchemaManager();
-        $doctrineTable = $doctrineSchemaManager->listTableDetails($table);
-        return $doctrineTable->hasIndex($index);
+        $results = \DB::select("SHOW INDEX FROM `{$table}` WHERE Key_name = ?", [$index]);
+        return !empty($results);
     }
 };
