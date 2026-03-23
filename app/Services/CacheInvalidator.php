@@ -34,20 +34,41 @@ class CacheInvalidator
         'references:finishings',
     ];
 
-    // ─── Public API ───────────────────────────────────────────────────────────
+    // ─── Partial invalidation API ─────────────────────────────────────────────
 
     /**
-     * Invalidate search + map caches (use after complex or apartment changes).
+     * Bump only the search version (search listings, price aggregates, rooms).
+     * Use when apartment data changes but map pin coordinates are unchanged.
+     */
+    public static function bumpSearch(): void
+    {
+        self::bumpVersion(self::VER_SEARCH);
+        Log::debug('Cache invalidated: search only');
+    }
+
+    /**
+     * Bump only the map version (complex coordinates, available_apartments count).
+     * Use when lat/lng changes or apartment availability changes.
+     */
+    public static function bumpMap(): void
+    {
+        self::bumpVersion(self::VER_MAP);
+        Log::debug('Cache invalidated: map only');
+    }
+
+    /**
+     * Invalidate search + map (use when both search and map data are stale).
      */
     public static function complexSearch(): void
     {
         self::bumpVersion(self::VER_SEARCH);
         self::bumpVersion(self::VER_MAP);
-        Log::debug('Cache invalidated: complexSearch');
+        Log::debug('Cache invalidated: search+map');
     }
 
     /**
-     * Invalidate reference data caches (use after builder / district changes).
+     * Invalidate only reference data (builders, districts, subways, finishings).
+     * Use after builder / district CRUD — does NOT invalidate search/map results.
      */
     public static function references(): void
     {
@@ -58,7 +79,8 @@ class CacheInvalidator
     }
 
     /**
-     * Invalidate everything (use after full import / sync).
+     * Invalidate everything — search, map, and all reference data.
+     * Use after full import / sync command.
      */
     public static function all(): void
     {

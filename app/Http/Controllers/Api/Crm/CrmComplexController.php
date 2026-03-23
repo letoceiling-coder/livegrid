@@ -2,10 +2,9 @@
 
 namespace App\Http\Controllers\Api\Crm;
 
+use App\Events\ComplexSearchNeedsSync;
 use App\Http\Controllers\Controller;
-use App\Jobs\SyncComplexesSearchJob;
 use App\Models\Catalog\Complex;
-use App\Services\CacheInvalidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -88,8 +87,7 @@ class CrmComplexController extends Controller
 
         $complex = Complex::create($validated);
         $complex->load(['builder', 'district']);
-        CacheInvalidator::complexSearch();
-        SyncComplexesSearchJob::dispatch();
+        event(new ComplexSearchNeedsSync('complex_created', $complex->id, array_keys($validated)));
 
         return response()->json(['data' => $this->format($complex)], 201);
     }
@@ -124,8 +122,7 @@ class CrmComplexController extends Controller
 
         $complex->update($validated);
         $complex->load(['builder', 'district']);
-        CacheInvalidator::complexSearch();
-        SyncComplexesSearchJob::dispatch();
+        event(new ComplexSearchNeedsSync('complex_updated', $complex->id, array_keys($validated)));
 
         return response()->json(['data' => $this->format($complex)]);
     }
@@ -134,8 +131,7 @@ class CrmComplexController extends Controller
     {
         $complex = Complex::findOrFail($id);
         $complex->delete();
-        CacheInvalidator::complexSearch();
-        SyncComplexesSearchJob::dispatch();
+        event(new ComplexSearchNeedsSync('complex_deleted'));
 
         return response()->json(['message' => 'Комплекс удалён.']);
     }

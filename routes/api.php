@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\Crm\CrmApartmentController;
 use App\Http\Controllers\Api\Crm\CrmBuilderController;
 use App\Http\Controllers\Api\Crm\CrmDistrictController;
 use App\Http\Controllers\Api\Crm\CrmFeedController;
+use App\Http\Controllers\Api\Crm\CrmMonitoringController;
 use App\Models\Catalog\Building;
 use App\Models\Catalog\Finishing;
 
@@ -60,6 +61,8 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('builders', CrmBuilderController::class);
         Route::apiResource('districts', CrmDistrictController::class);
+
+        Route::get('/monitoring', [CrmMonitoringController::class, 'index']);
 
         Route::get('/feed/status', [CrmFeedController::class, 'status']);
         Route::post('/feed/download', [CrmFeedController::class, 'runDownload']);
