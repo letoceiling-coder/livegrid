@@ -2,8 +2,9 @@
 
 namespace App\Services\Catalog\Search;
 
-use Illuminate\Support\Facades\DB;
+use App\Services\CacheInvalidator;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class SearchService
 {
@@ -243,29 +244,30 @@ class SearchService
     }
     
     /**
-     * Генерация ключа кэша
+     * Генерация ключа кэша (включает версию для мгновенной инвалидации)
      */
     private function generateCacheKey(array $filters, int $page, int $perPage): string
     {
-        // Сортировка массива для стабильного ключа
         ksort($filters);
-        $filtersString = serialize($filters);
-        $hash = md5($filtersString . $page . $perPage);
-        
-        return "search:complexes:{$hash}";
+        $hash = md5(serialize($filters) . $page . $perPage);
+        $ver  = CacheInvalidator::searchVersion();
+
+        return "v{$ver}:search:complexes:{$hash}";
     }
     
     /**
-     * Поиск для карты (упрощенный формат) с кэшированием
+     * Поиск для карты — с BBOX-фильтрацией, zoom-aware лимитом и версионным кэшем
      */
     public function searchForMap(array $filters): array
     {
-        $cacheKey = 'map:complexes:' . md5(serialize($filters));
+        $hasBbox  = !empty($filters['bounds']['north']);
+        $ver      = CacheInvalidator::mapVersion();
+        $cacheKey = "v{$ver}:map:complexes:" . md5(serialize($filters));
 
-        return Cache::remember($cacheKey, 120, function () use ($filters) {
+        return Cache::remember($cacheKey, 120, function () use ($filters, $hasBbox) {
             $query = DB::table('complexes_search')
                 ->where('status', '!=', 'deleted')
-                ->where('available_apartments', '>', 0) // Only complexes with available flats
+                ->where('available_apartments', '>', 0)
                 ->whereNotNull('lat')
                 ->whereNotNull('lng')
                 ->where('lat', '!=', 0)
@@ -273,22 +275,30 @@ class SearchService
 
             $this->applyFilters($query, $filters);
 
-            // Safety limit: never return more than 2000 pins
-            $complexes = $query->limit(2000)->get();
+            if ($hasBbox) {
+                // Zoomed in: return everything inside the viewport (up to 2000 pins)
+                $complexes = $query->limit(2000)->get();
+            } else {
+                // No bbox (zoomed out): return top 500 most active complexes
+                // This approximates a zoom-out view without flooding the map
+                $complexes = $query
+                    ->orderByDesc('available_apartments')
+                    ->limit(500)
+                    ->get();
+            }
 
-            return $complexes->map(function ($complex) {
-                return [
-                    'id'       => $complex->complex_id,
-                    'slug'     => $complex->slug,
-                    'name'     => $complex->name,
-                    'coords'   => [(float) $complex->lat, (float) $complex->lng],
-                    'images'   => json_decode($complex->images, true) ?? [],
-                    'priceFrom' => (int) $complex->price_from,
-                    'district' => $complex->district_name,
-                    'subway'   => $complex->subway_name,
-                    'builder'  => $complex->builder_name,
-                ];
-            })->toArray();
+            return $complexes->map(fn($c) => [
+                'id'        => $c->complex_id,
+                'slug'      => $c->slug,
+                'name'      => $c->name,
+                'coords'    => [(float) $c->lat, (float) $c->lng],
+                'images'    => json_decode($c->images, true) ?? [],
+                'priceFrom' => (int) $c->price_from,
+                'district'  => $c->district_name,
+                'subway'    => $c->subway_name,
+                'builder'   => $c->builder_name,
+                'available' => (int) $c->available_apartments,
+            ])->toArray();
         });
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Crm;
 
 use App\Http\Controllers\Controller;
 use App\Models\Catalog\Builder;
+use App\Services\CacheInvalidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -26,6 +27,7 @@ class CrmBuilderController extends Controller
         ]);
 
         $builder = Builder::create($validated);
+        CacheInvalidator::references();
 
         return response()->json(['data' => ['id' => $builder->id, 'name' => $builder->name]], 201);
     }
@@ -39,6 +41,7 @@ class CrmBuilderController extends Controller
         ]);
 
         $builder->update($validated);
+        CacheInvalidator::references();
 
         return response()->json(['data' => ['id' => $builder->id, 'name' => $builder->name]]);
     }
@@ -55,6 +58,7 @@ class CrmBuilderController extends Controller
         }
 
         $builder->delete();
+        CacheInvalidator::references();
 
         return response()->json(['message' => 'Застройщик удалён.']);
     }

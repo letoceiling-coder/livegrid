@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api\Crm;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SyncComplexesSearchJob;
 use App\Models\Catalog\Apartment;
 use App\Models\Catalog\Building;
+use App\Services\CacheInvalidator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -106,6 +108,8 @@ class CrmApartmentController extends Controller
 
         $apt = Apartment::create($validated);
         $apt->load(['complex', 'finishing']);
+        CacheInvalidator::complexSearch();
+        SyncComplexesSearchJob::dispatch();
 
         return response()->json(['data' => $this->format($apt)], 201);
     }
@@ -145,6 +149,7 @@ class CrmApartmentController extends Controller
 
         $apt->update($validated);
         $apt->load(['complex', 'finishing']);
+        CacheInvalidator::complexSearch();
 
         return response()->json(['data' => $this->format($apt)]);
     }
@@ -191,18 +196,23 @@ class CrmApartmentController extends Controller
                     'locked_fields' => DB::raw("JSON_ARRAY_APPEND(COALESCE(locked_fields, JSON_ARRAY()), '$', 'status')"),
                     'source'        => 'manual',
                 ]);
+                CacheInvalidator::complexSearch();
                 return response()->json(['updated' => $count, 'action' => $action]);
 
             case 'delete':
                 $count = Apartment::whereIn('id', $ids)->delete();
+                CacheInvalidator::complexSearch();
                 return response()->json(['deleted' => $count, 'action' => $action]);
 
             case 'restore':
                 $count = Apartment::withTrashed()->whereIn('id', $ids)->restore();
+                CacheInvalidator::complexSearch();
                 return response()->json(['restored' => $count, 'action' => $action]);
 
             case 'assign_complex':
                 $count = Apartment::whereIn('id', $ids)->update(['block_id' => $validated['complex_id']]);
+                CacheInvalidator::complexSearch();
+                SyncComplexesSearchJob::dispatch();
                 return response()->json(['updated' => $count, 'action' => $action]);
         }
 
@@ -214,6 +224,8 @@ class CrmApartmentController extends Controller
     public function destroy(string $id): JsonResponse
     {
         Apartment::findOrFail($id)->delete();
+        CacheInvalidator::complexSearch();
+
         return response()->json(['message' => 'Квартира удалена (soft delete).']);
     }
 
@@ -221,6 +233,8 @@ class CrmApartmentController extends Controller
     {
         $apt = Apartment::withTrashed()->findOrFail($id);
         $apt->restore();
+        CacheInvalidator::complexSearch();
+
         return response()->json(['message' => 'Квартира восстановлена.']);
     }
 

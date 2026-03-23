@@ -310,13 +310,13 @@ class FeedImporter
             'stats' => $allStats,
         ]);
 
-        // Refresh search index after full import
+        // Dispatch search index rebuild + invalidate caches after full import
         try {
-            Log::info("START: complexes_search sync after import");
-            Artisan::call('complexes:sync-search');
-            Log::info("END: complexes_search sync after import");
+            \App\Services\CacheInvalidator::all();
+            \App\Jobs\SyncComplexesSearchJob::dispatch();
+            Log::info("complexes_search sync job dispatched after import");
         } catch (\Throwable $e) {
-            Log::warning("complexes_search sync failed after import", ['error' => $e->getMessage()]);
+            Log::warning("complexes_search sync dispatch failed", ['error' => $e->getMessage()]);
         }
 
         return $allStats;

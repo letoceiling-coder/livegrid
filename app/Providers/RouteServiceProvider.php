@@ -41,15 +41,13 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting(): void
     {
-        // Global API rate limiter: 300 req/min per authenticated user or IP
-        // Prevents abuse while allowing normal search/filter UX (filter changes etc.)
+        // Authenticated CRM users (Sanctum token): unlimited
+        // Public visitors: 300 req/min per IP
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(300)->by($request->user()?->id ?: $request->ip());
-        });
-
-        // Strict limiter for write/import operations
-        RateLimiter::for('api-strict', function (Request $request) {
-            return Limit::perMinute(30)->by($request->user()?->id ?: $request->ip());
+            if ($request->user()) {
+                return Limit::none();
+            }
+            return Limit::perMinute(300)->by($request->ip());
         });
     }
 }

@@ -12,7 +12,13 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Rebuild complexes_search every 30 minutes, with overlap protection.
+        // withoutOverlapping(5) ensures a stale lock held > 5 minutes is released.
+        $schedule->command('complexes:sync-search')
+            ->everyThirtyMinutes()
+            ->withoutOverlapping(5)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/sync-search.log'));
     }
 
     /**

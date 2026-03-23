@@ -84,15 +84,15 @@ class DeployCommand extends Command
             $this->info('⏭️  Skipping migrations (--no-migrate flag)');
         }
 
-        // Step 5: Sync complexes search index
-        $this->info('🔍 Syncing complexes search index...');
-        $this->executeCommand("{$php} {$artisan} complexes:sync-search", 'Search sync failed (non-critical)');
-        $this->info('✅ Search index synced');
-
-        // Step 5b: Clear application cache (filters etc.)
+        // Step 5: Clear application cache (versioned keys — no session loss)
         $this->info('🧹 Clearing application cache...');
         $this->executeCommand("{$php} {$artisan} cache:clear", 'Cache clear failed (non-critical)');
         $this->info('✅ Cache cleared');
+
+        // Step 5b: Sync search index in background (fast, non-blocking)
+        $this->info('🔍 Syncing complexes search index (background)...');
+        $this->executeCommand("{$php} {$artisan} complexes:sync-search >> " . base_path('storage/logs/sync-search.log') . ' 2>&1 &', 'Search sync dispatch failed (non-critical)');
+        $this->info('✅ Search sync dispatched');
 
         // Step 6: Ensure admin user exists
         $this->info('👤 Ensuring admin user...');

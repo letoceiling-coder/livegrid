@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Services\CacheInvalidator;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -187,8 +187,8 @@ class SyncComplexesSearchCommand extends Command
             $this->info("Удалено устаревших записей: {$deleted}");
         }
 
-        // Invalidate all search/map caches
-        Cache::flush();
+        // Invalidate all search/map/reference caches (versioned — no flush of sessions)
+        CacheInvalidator::all();
 
         $elapsed = round(microtime(true) - $startTime, 1);
         $this->info("Готово за {$elapsed}s. Синхронизировано: {$synced}, Ошибок: {$errors}");
