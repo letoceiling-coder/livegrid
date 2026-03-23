@@ -38,17 +38,21 @@ export default function CrmDashboard() {
 
   if (!stats) return null;
 
+  const s    = stats.stats              ?? { complexes: 0, apartments: 0, builders: 0, districts: 0 };
+  const apt  = stats.apartments_by_status ?? { available: 0, reserved: 0, sold: 0 };
+  const recent = stats.recent_complexes   ?? [];
+
   const mainStats = [
-    { label: 'Жилых комплексов', value: stats.stats.complexes,  icon: Building2, color: 'text-primary',        bg: 'bg-primary/10',      to: '/crm/complexes' },
-    { label: 'Квартир в базе',   value: stats.stats.apartments, icon: BedDouble, color: 'text-blue-600',      bg: 'bg-blue-500/10',     to: '/crm/apartments' },
-    { label: 'Застройщиков',     value: stats.stats.builders,   icon: HardHat,   color: 'text-amber-600',     bg: 'bg-amber-500/10',    to: '/crm/attributes' },
-    { label: 'Районов',          value: stats.stats.districts,  icon: MapPin,    color: 'text-emerald-600',   bg: 'bg-emerald-500/10',  to: '/crm/attributes' },
+    { label: 'Жилых комплексов', value: s.complexes,  icon: Building2, color: 'text-primary',        bg: 'bg-primary/10',      to: '/crm/complexes' },
+    { label: 'Квартир в базе',   value: s.apartments, icon: BedDouble, color: 'text-blue-600',      bg: 'bg-blue-500/10',     to: '/crm/apartments' },
+    { label: 'Застройщиков',     value: s.builders,   icon: HardHat,   color: 'text-amber-600',     bg: 'bg-amber-500/10',    to: '/crm/attributes' },
+    { label: 'Районов',          value: s.districts,  icon: MapPin,    color: 'text-emerald-600',   bg: 'bg-emerald-500/10',  to: '/crm/attributes' },
   ];
 
   const aptStats = [
-    { label: 'Свободно',   value: stats.apartments_by_status.available, icon: CheckCircle2, color: 'text-emerald-600' },
-    { label: 'Резерв',     value: stats.apartments_by_status.reserved,  icon: Clock,        color: 'text-amber-600' },
-    { label: 'Продано',    value: stats.apartments_by_status.sold,      icon: XCircle,      color: 'text-muted-foreground' },
+    { label: 'Свободно',   value: apt.available, icon: CheckCircle2, color: 'text-emerald-600' },
+    { label: 'Резерв',     value: apt.reserved,  icon: Clock,        color: 'text-amber-600' },
+    { label: 'Продано',    value: apt.sold,       icon: XCircle,      color: 'text-muted-foreground' },
   ];
 
   return (
@@ -83,7 +87,7 @@ export default function CrmDashboard() {
           </h2>
           <div className="space-y-3">
             {aptStats.map(s => {
-              const total = stats.stats.apartments || 1;
+              const total = apt.available + apt.reserved + apt.sold || 1;
               const pct   = Math.round((s.value / total) * 100);
               return (
                 <div key={s.label}>
@@ -117,7 +121,7 @@ export default function CrmDashboard() {
             </Link>
           </div>
           <div className="space-y-2">
-            {stats.recent_complexes.map(c => (
+            {recent.map(c => (
               <Link
                 key={c.id}
                 to={`/crm/complexes/${c.id}/edit`}
