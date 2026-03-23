@@ -3,10 +3,16 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Save } from 'lucide-react';
 import { getApartment, createApartment, updateApartment } from '../../api/apartments';
 import { listComplexes } from '../../api/complexes';
+import { api } from '../../api/client';
 import type { CrmApartment, CrmComplex } from '../../api/types';
+
+interface Finishing { id: number; name: string; }
+interface Building  { id: string; name: string; }
 
 type FormState = {
   block_id:     string;
+  building_id:  string;
+  finishing_id: string;
   number:       string;
   floor:        string;
   floors:       string;
@@ -21,7 +27,8 @@ type FormState = {
 };
 
 const empty: FormState = {
-  block_id: '', number: '', floor: '', floors: '', rooms_count: '1',
+  block_id: '', building_id: '', finishing_id: '',
+  number: '', floor: '', floors: '', rooms_count: '1',
   area_total: '', area_kitchen: '', price: '', status: 'available',
   plan_image: '', section: '', is_active: true,
 };
@@ -46,15 +53,39 @@ export default function ApartmentForm() {
   const isEdit  = !!id;
   const navigate = useNavigate();
 
-  const [form,      setForm]      = useState<FormState>(empty);
-  const [loading,   setLoading]   = useState(isEdit);
-  const [saving,    setSaving]    = useState(false);
-  const [error,     setError]     = useState('');
-  const [complexes, setComplexes] = useState<CrmComplex[]>([]);
+  const [form,       setForm]       = useState<FormState>(empty);
+  const [loading,    setLoading]    = useState(isEdit);
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState('');
+  const [complexSearch, setComplexSearch] = useState('');
+  const [complexes,  setComplexes]  = useState<CrmComplex[]>([]);
+  const [buildings,  setBuildings]  = useState<Building[]>([]);
+  const [finishings, setFinishings] = useState<Finishing[]>([]);
 
+  // Load finishings once
   useEffect(() => {
-    listComplexes({ per_page: 100 }).then(r => setComplexes(r.data)).catch(() => null);
+    api.get<{ data: Finishing[] }>('/finishings-list')
+      .then(r => setFinishings(r.data ?? []))
+      .catch(() => null);
   }, []);
+
+  // Search complexes with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      listComplexes({ search: complexSearch || undefined, per_page: 50 })
+        .then(r => setComplexes(r.data))
+        .catch(() => null);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [complexSearch]);
+
+  // Load buildings when complex changes
+  useEffect(() => {
+    if (!form.block_id) { setBuildings([]); return; }
+    api.get<{ data: Building[] }>(`/complexes/${form.block_id}/buildings`)
+      .then(r => setBuildings(r.data ?? []))
+      .catch(() => setBuildings([]));
+  }, [form.block_id]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -63,6 +94,8 @@ export default function ApartmentForm() {
       .then(({ data: a }) => {
         setForm({
           block_id:     a.block_id,
+          building_id:  a.building_id ?? '',
+          finishing_id: a.finishing_id ? String(a.finishing_id) : '',
           number:       a.number ?? '',
           floor:        String(a.floor),
           floors:       a.floors ? String(a.floors) : '',
@@ -90,6 +123,8 @@ export default function ApartmentForm() {
 
     const payload: Partial<CrmApartment> = {
       block_id:     form.block_id,
+      building_id:  form.building_id || null,
+      finishing_id: form.finishing_id || null,
       number:       form.number || null,
       floor:        Number(form.floor),
       floors:       form.floors ? Number(form.floors) : null,
@@ -142,16 +177,32 @@ export default function ApartmentForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Complex */}
+        {/* Complex & building */}
         <div className="bg-background border rounded-2xl p-5 space-y-4">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Принадлежность</h2>
 
           <Field label="Жилой комплекс *">
-            <select required value={form.block_id} onChange={e => set('block_id', e.target.value)} className="input">
+            <input
+              type="text"
+              value={complexSearch}
+              onChange={e => setComplexSearch(e.target.value)}
+              placeholder="Поиск ЖК…"
+              className="input mb-1"
+            />
+            <select required value={form.block_id} onChange={e => { set('block_id', e.target.value); set('building_id', ''); }} className="input">
               <option value="">— Выберите ЖК —</option>
               {complexes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </Field>
+
+          {buildings.length > 0 && (
+            <Field label="Корпус">
+              <select value={form.building_id} onChange={e => set('building_id', e.target.value)} className="input">
+                <option value="">— Не выбран —</option>
+                {buildings.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </Field>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Номер квартиры">
@@ -190,6 +241,15 @@ export default function ApartmentForm() {
               <input type="number" step="0.1" value={form.area_kitchen} onChange={e => set('area_kitchen', e.target.value)} placeholder="12.0" min="0" className="input" />
             </Field>
           </div>
+
+          {finishings.length > 0 && (
+            <Field label="Отделка">
+              <select value={form.finishing_id} onChange={e => set('finishing_id', e.target.value)} className="input">
+                <option value="">— Не указана —</option>
+                {finishings.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </Field>
+          )}
         </div>
 
         {/* Price & Status */}

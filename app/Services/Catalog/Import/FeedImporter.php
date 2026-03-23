@@ -4,6 +4,7 @@ namespace App\Services\Catalog\Import;
 
 use App\Services\Catalog\Import\DTO\ApartmentDTO;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -49,7 +50,8 @@ class FeedImporter
             'completed' => false,
         ];
 
-        $processedExternalIds = [];
+        $processedExternalIds    = [];
+        $allProcessedExternalIds = [];
         $importCompleted = false;
 
         Log::info("Starting apartments import", [
@@ -307,6 +309,15 @@ class FeedImporter
             'avg_time_per_100_records_sec' => $avgTimePer100Records,
             'stats' => $allStats,
         ]);
+
+        // Refresh search index after full import
+        try {
+            Log::info("START: complexes_search sync after import");
+            Artisan::call('complexes:sync-search');
+            Log::info("END: complexes_search sync after import");
+        } catch (\Throwable $e) {
+            Log::warning("complexes_search sync failed after import", ['error' => $e->getMessage()]);
+        }
 
         return $allStats;
     }

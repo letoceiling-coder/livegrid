@@ -93,10 +93,10 @@ export default function ComplexForm() {
     const payload: Partial<CrmComplex> = {
       name:           form.name,
       builder_id:     form.builder_id  ? Number(form.builder_id)  : null,
-      district_id:    form.district_id ? Number(form.district_id) : null,
+      district_id:    form.district_id || null,
       address:        form.address || null,
-      lat:            form.lat ?? undefined,
-      lng:            form.lng ?? undefined,
+      lat:            form.lat,
+      lng:            form.lng,
       status:         form.status,
       deadline:       form.deadline || null,
       description:    form.description || null,

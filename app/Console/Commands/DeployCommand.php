@@ -84,7 +84,17 @@ class DeployCommand extends Command
             $this->info('⏭️  Skipping migrations (--no-migrate flag)');
         }
 
-        // Step 5: Ensure admin user exists
+        // Step 5: Sync complexes search index
+        $this->info('🔍 Syncing complexes search index...');
+        $this->executeCommand("{$php} {$artisan} complexes:sync-search", 'Search sync failed (non-critical)');
+        $this->info('✅ Search index synced');
+
+        // Step 5b: Clear application cache (filters etc.)
+        $this->info('🧹 Clearing application cache...');
+        $this->executeCommand("{$php} {$artisan} cache:clear", 'Cache clear failed (non-critical)');
+        $this->info('✅ Cache cleared');
+
+        // Step 6: Ensure admin user exists
         $this->info('👤 Ensuring admin user...');
         $this->executeCommand("{$php} {$artisan} crm:create-admin", 'Admin user creation failed (non-critical)');
         $this->info('✅ Admin user checked');

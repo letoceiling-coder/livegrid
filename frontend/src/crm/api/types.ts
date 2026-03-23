@@ -22,7 +22,7 @@ export interface CrmComplex {
   slug: string;
   builder_id: number | null;
   builder: string | null;
-  district_id: number | null;
+  district_id: string | null;
   district: string | null;
   address: string | null;
   lat: number | null;
@@ -52,7 +52,7 @@ export interface CrmApartment {
   is_active: boolean;
   plan_image: string | null;
   section: number | null;
-  finishing_id: number | null;
+  finishing_id: string | null;
   finishing: string | null;
 }
 

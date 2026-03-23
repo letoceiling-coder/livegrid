@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\Catalog\District;
+use App\Models\Catalog\Region;
 use App\Models\Catalog\Subway;
 use App\Models\Catalog\Builder;
 use App\Models\Catalog\Finishing;
@@ -18,7 +18,7 @@ class ReferenceController extends Controller
     public function filters(): JsonResponse
     {
         $districts = Cache::remember('references:districts', 3600, fn () =>
-            District::orderBy('name')->get()->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])
+            Region::orderBy('name')->get()->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])
         );
 
         $subways = Cache::remember('references:subways', 3600, fn () =>
@@ -47,7 +47,7 @@ class ReferenceController extends Controller
     public function districts(): JsonResponse
     {
         $districts = Cache::remember('references:districts', 3600, function () {
-            return District::orderBy('name')->get();
+            return Region::orderBy('name')->get();
         });
         
         return response()->json([

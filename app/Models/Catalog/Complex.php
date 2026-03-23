@@ -41,7 +41,7 @@ class Complex extends Model
     // Relationships
     public function district(): BelongsTo
     {
-        return $this->belongsTo(District::class, 'district_id');
+        return $this->belongsTo(Region::class, 'district_id');
     }
     
     public function builder(): BelongsTo

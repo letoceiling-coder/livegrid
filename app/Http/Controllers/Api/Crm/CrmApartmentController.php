@@ -92,7 +92,7 @@ class CrmApartmentController extends Controller
             'status'      => 'required|in:available,reserved,sold',
             'plan_image'  => 'nullable|url',
             'section'     => 'nullable|integer|min:1',
-            'finishing_id'=> 'nullable|integer|exists:finishings,id',
+            'finishing_id'=> 'nullable|string|exists:finishings,id',
         ]);
 
         if (empty($validated['building_id'])) {
@@ -129,7 +129,7 @@ class CrmApartmentController extends Controller
             'status'        => 'sometimes|in:available,reserved,sold',
             'plan_image'    => 'nullable|url',
             'section'       => 'nullable|integer|min:1',
-            'finishing_id'  => 'nullable|integer|exists:finishings,id',
+            'finishing_id'  => 'nullable|string|exists:finishings,id',
             'is_active'     => 'sometimes|boolean',
             'locked_fields' => 'nullable|array',
             'locked_fields.*' => 'string',

@@ -4,7 +4,7 @@ import { MapPin, Search, X } from 'lucide-react';
 interface Props {
   lat: number | null;
   lng: number | null;
-  onChange: (lat: number, lng: number) => void;
+  onChange: (lat: number | null, lng: number | null) => void;
 }
 
 declare global {
@@ -133,7 +133,7 @@ export default function MapPicker({ lat, lng, onChange }: Props) {
                 mapRef.current.geoObjects.remove(placemarkRef.current);
                 placemarkRef.current = null;
               }
-              onChange(0, 0);
+              onChange(null, null);
             }}
             className="px-3 h-9 rounded-xl border text-muted-foreground hover:text-destructive transition-colors"
             title="Очистить координаты"

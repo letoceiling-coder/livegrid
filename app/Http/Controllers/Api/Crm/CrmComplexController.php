@@ -66,7 +66,7 @@ class CrmComplexController extends Controller
         $validated = $request->validate([
             'name'           => 'required|string|max:255',
             'builder_id'     => 'nullable|integer|exists:builders,id',
-            'district_id'    => 'nullable|integer|exists:districts,id',
+            'district_id'    => 'nullable|string|exists:regions,id',
             'address'        => 'nullable|string|max:500',
             'lat'            => 'nullable|numeric|between:-90,90',
             'lng'            => 'nullable|numeric|between:-180,180',
@@ -99,7 +99,7 @@ class CrmComplexController extends Controller
         $validated = $request->validate([
             'name'           => 'sometimes|required|string|max:255',
             'builder_id'     => 'nullable|integer|exists:builders,id',
-            'district_id'    => 'nullable|integer|exists:districts,id',
+            'district_id'    => 'nullable|string|exists:regions,id',
             'address'        => 'nullable|string|max:500',
             'lat'            => 'nullable|numeric|between:-90,90',
             'lng'            => 'nullable|numeric|between:-180,180',

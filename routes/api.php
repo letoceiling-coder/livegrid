@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\Crm\CrmApartmentController;
 use App\Http\Controllers\Api\Crm\CrmBuilderController;
 use App\Http\Controllers\Api\Crm\CrmDistrictController;
 use App\Http\Controllers\Api\Crm\CrmFeedController;
+use App\Models\Catalog\Building;
+use App\Models\Catalog\Finishing;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -61,5 +63,18 @@ Route::prefix('v1')->group(function () {
         Route::get('/feed/status', [CrmFeedController::class, 'status']);
         Route::post('/feed/download', [CrmFeedController::class, 'runDownload']);
         Route::post('/feed/sync', [CrmFeedController::class, 'runSync']);
+
+        // Reference helpers for forms
+        Route::get('/finishings-list', function () {
+            $finishings = Finishing::orderBy('name')->get()
+                ->map(fn($f) => ['id' => $f->id, 'name' => $f->name]);
+            return response()->json(['data' => $finishings]);
+        });
+
+        Route::get('/complexes/{id}/buildings', function (string $id) {
+            $buildings = Building::where('block_id', $id)->orderBy('name')->get()
+                ->map(fn($b) => ['id' => $b->id, 'name' => $b->name]);
+            return response()->json(['data' => $buildings]);
+        });
     });
 });

@@ -3,49 +3,58 @@
 namespace App\Http\Controllers\Api\Crm;
 
 use App\Http\Controllers\Controller;
-use App\Models\Catalog\District;
+use App\Models\Catalog\Region;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class CrmDistrictController extends Controller
 {
     public function index(): JsonResponse
     {
-        $districts = District::orderBy('name')->get()->map(fn($d) => [
+        $regions = Region::orderBy('name')->get()->map(fn($d) => [
             'id'   => $d->id,
             'name' => $d->name,
         ]);
 
-        return response()->json(['data' => $districts]);
+        return response()->json(['data' => $regions]);
     }
 
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:districts,name',
+            'name' => 'required|string|max:255|unique:regions,name',
         ]);
 
-        $district = District::create($validated);
+        $region = Region::create([
+            'id'   => (string) Str::uuid(),
+            'name' => $validated['name'],
+        ]);
 
-        return response()->json(['data' => ['id' => $district->id, 'name' => $district->name]], 201);
+        Cache::forget('references:districts');
+
+        return response()->json(['data' => ['id' => $region->id, 'name' => $region->name]], 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, string $id): JsonResponse
     {
-        $district = District::findOrFail($id);
+        $region = Region::findOrFail($id);
 
         $validated = $request->validate([
-            'name' => "required|string|max:255|unique:districts,name,{$id}",
+            'name' => "required|string|max:255|unique:regions,name,{$id}",
         ]);
 
-        $district->update($validated);
+        $region->update($validated);
 
-        return response()->json(['data' => ['id' => $district->id, 'name' => $district->name]]);
+        Cache::forget('references:districts');
+
+        return response()->json(['data' => ['id' => $region->id, 'name' => $region->name]]);
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy(string $id): JsonResponse
     {
-        $district = District::findOrFail($id);
+        $region = Region::findOrFail($id);
 
         $complexCount = \App\Models\Catalog\Complex::where('district_id', $id)->count();
         if ($complexCount > 0) {
@@ -54,7 +63,9 @@ class CrmDistrictController extends Controller
             ], 422);
         }
 
-        $district->delete();
+        $region->delete();
+
+        Cache::forget('references:districts');
 
         return response()->json(['message' => 'Район удалён.']);
     }
