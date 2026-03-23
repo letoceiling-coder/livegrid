@@ -46,14 +46,14 @@ Route::prefix('v1')->group(function () {
         Route::get('/dashboard', [CrmDashboardController::class, 'index']);
 
         Route::apiResource('complexes', CrmComplexController::class);
-        Route::apiResource('apartments', CrmApartmentController::class);
-        // Bulk + history + soft-delete extras
+        // Extra apartment routes must be declared BEFORE apiResource to avoid {id} collision
         Route::post('/apartments/bulk',          [CrmApartmentController::class, 'bulk']);
         Route::get('/apartments/trashed',        [CrmApartmentController::class, 'trashed']);
         Route::post('/apartments/{id}/restore',  [CrmApartmentController::class, 'restore']);
         Route::get('/apartments/{id}/history',   [CrmApartmentController::class, 'history']);
         Route::post('/apartments/{id}/lock',     [CrmApartmentController::class, 'lock']);
         Route::post('/apartments/{id}/unlock',   [CrmApartmentController::class, 'unlock']);
+        Route::apiResource('apartments', CrmApartmentController::class);
 
         Route::apiResource('builders', CrmBuilderController::class);
         Route::apiResource('districts', CrmDistrictController::class);
