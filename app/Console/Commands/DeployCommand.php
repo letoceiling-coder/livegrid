@@ -66,20 +66,17 @@ class DeployCommand extends Command
         }
         $this->info('✅ Frontend built successfully');
 
-        // Step 4: Fix storage permissions
-        $this->info('🔑 Fixing storage permissions...');
-        $this->executeCommand(
-            'chown -R www-data:www-data ' . base_path('storage') . ' ' . base_path('bootstrap/cache') . ' && chmod -R 775 ' . base_path('storage') . ' ' . base_path('bootstrap/cache'),
-            'Failed to fix permissions (non-critical)'
-        );
-        $this->info('✅ Permissions fixed');
+        $php = PHP_BINARY;
+        $artisan = base_path('artisan');
 
-        // Step 5: Run migrations (always with --force to avoid interactive prompt in production)
+        // Step 4: Run migrations via CLI (avoids Artisan::call bootstrap issues)
         if (!$this->option('no-migrate')) {
             $this->info('🗄️  Running database migrations...');
-            $migrate = Artisan::call('migrate', ['--force' => true]);
+            $migrate = $this->executeCommand(
+                "{$php} {$artisan} migrate --force",
+                'Migrations failed'
+            );
             if ($migrate !== 0) {
-                $this->error('❌ Migrations failed');
                 return Command::FAILURE;
             }
             $this->info('✅ Migrations completed');
@@ -87,26 +84,38 @@ class DeployCommand extends Command
             $this->info('⏭️  Skipping migrations (--no-migrate flag)');
         }
 
-        // Step 4: Cache configuration
+        // Step 5: Ensure admin user exists
+        $this->info('👤 Ensuring admin user...');
+        $this->executeCommand("{$php} {$artisan} crm:create-admin", 'Admin user creation failed (non-critical)');
+        $this->info('✅ Admin user checked');
+
+        // Step 6: Cache configuration, routes, views
         $this->info('⚙️  Caching configuration...');
-        Artisan::call('config:cache');
+        $this->executeCommand("{$php} {$artisan} config:cache", 'Config cache failed');
         $this->info('✅ Configuration cached');
 
-        // Step 5: Cache routes
         $this->info('🛣️  Caching routes...');
-        Artisan::call('route:cache');
+        $this->executeCommand("{$php} {$artisan} route:cache", 'Route cache failed');
         $this->info('✅ Routes cached');
 
-        // Step 6: Restart queue workers
+        $this->info('👁️  Refreshing view cache...');
+        $this->executeCommand("{$php} {$artisan} view:clear", 'View clear failed (non-critical)');
+        $this->executeCommand("{$php} {$artisan} view:cache", 'View cache failed (non-critical)');
+        $this->info('✅ View cache refreshed');
+
         $this->info('🔄 Restarting queue workers...');
-        Artisan::call('queue:restart');
+        $this->executeCommand("{$php} {$artisan} queue:restart", 'Queue restart failed (non-critical)');
         $this->info('✅ Queue workers restarted');
 
-        // Step 7: Clear and cache views (optional but recommended)
-        $this->info('👁️  Clearing view cache...');
-        Artisan::call('view:clear');
-        Artisan::call('view:cache');
-        $this->info('✅ View cache refreshed');
+        // Step 7: Fix storage permissions (after caches are built)
+        $this->info('🔑 Fixing storage permissions...');
+        $storagePath = base_path('storage');
+        $cachePath   = base_path('bootstrap/cache');
+        $this->executeCommand(
+            "chown -R www-data:www-data {$storagePath} {$cachePath} && chmod -R 775 {$storagePath} {$cachePath}",
+            'Failed to fix permissions (non-critical)'
+        );
+        $this->info('✅ Permissions fixed');
 
         // Final: Reload PHP-FPM to clear OPcache
         $this->info('🔃 Reloading PHP-FPM (clearing OPcache)...');
