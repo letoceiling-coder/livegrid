@@ -2,13 +2,15 @@
 
 namespace App\Models\Catalog;
 
+use App\Models\Concerns\LogsChanges;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Apartment extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes, LogsChanges;
 
     protected $fillable = [
         'block_id',
@@ -32,16 +34,18 @@ class Apartment extends Model
         'plan_image',
         'section',
         'last_seen_at',
+        'locked_fields',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
-        'price'     => 'integer',
-        'floor'     => 'integer',
-        'floors'    => 'integer',
-        'rooms_count' => 'integer',
-        'area_total'  => 'float',
-        'area_kitchen' => 'float',
+        'is_active'     => 'boolean',
+        'price'         => 'integer',
+        'floor'         => 'integer',
+        'floors'        => 'integer',
+        'rooms_count'   => 'integer',
+        'area_total'    => 'float',
+        'area_kitchen'  => 'float',
+        'locked_fields' => 'array',
     ];
 
     public function complex(): BelongsTo

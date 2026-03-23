@@ -228,11 +228,16 @@ class UpsertService
                     $existingData = $existing[$key];
                     if ($this->isDataUnchanged($data, $existingData)) {
                         // Data unchanged - track external_id for bulk last_seen_at update later
-                        // Don't update row-by-row - will be done in bulk after all chunks
                         $stats['processed_external_ids'][] = $dto->externalId;
                         $stats['unchanged']++;
                     } else {
-                        // Data changed - full update (includes last_seen_at)
+                        // Data changed — respect locked_fields (manual edits take priority over feed)
+                        $lockedFields = $this->getLockedFields($existingData['id'] ?? $dto->externalId);
+                        foreach ($lockedFields as $lockedField) {
+                            if (isset($existingData[$lockedField])) {
+                                $data[$lockedField] = $existingData[$lockedField]; // restore manual value
+                            }
+                        }
                         unset($data['id']);
                         $apartmentsToUpdate[] = $data;
                         $stats['processed_external_ids'][] = $dto->externalId;
@@ -542,6 +547,17 @@ class UpsertService
                 // Continue with next chunk - don't fail entire import
             }
         }
+    }
+
+    /**
+     * Get locked fields for an existing apartment (feed cannot overwrite these)
+     */
+    private function getLockedFields(string $apartmentId): array
+    {
+        $row = DB::table('apartments')->where('id', $apartmentId)->value('locked_fields');
+        if (!$row) return [];
+        $decoded = json_decode($row, true);
+        return is_array($decoded) ? $decoded : [];
     }
 
     /**

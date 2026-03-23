@@ -28,12 +28,15 @@ type FormState = {
   images: string[];
   advantages: string[];
   infrastructure: string[];
+  seo_title: string;
+  seo_description: string;
 };
 
 const empty: FormState = {
   name: '', builder_id: '', district_id: '', address: '',
   lat: null, lng: null, status: 'selling', deadline: '',
   description: '', images: [], advantages: [], infrastructure: [],
+  seo_title: '', seo_description: '',
 };
 
 export default function ComplexForm() {
@@ -67,10 +70,12 @@ export default function ComplexForm() {
           lng:            c.lng ?? null,
           status:         c.status ?? 'selling',
           deadline:       c.deadline ?? '',
-          description:    c.description ?? '',
-          images:         c.images ?? [],
-          advantages:     c.advantages ?? [],
-          infrastructure: c.infrastructure ?? [],
+          description:     c.description ?? '',
+          images:          c.images ?? [],
+          advantages:      c.advantages ?? [],
+          infrastructure:  c.infrastructure ?? [],
+          seo_title:       (c as any).seo_title ?? '',
+          seo_description: (c as any).seo_description ?? '',
         });
       })
       .catch(e => setError(e.message))
@@ -95,9 +100,11 @@ export default function ComplexForm() {
       status:         form.status,
       deadline:       form.deadline || null,
       description:    form.description || null,
-      images:         form.images,
-      advantages:     form.advantages,
-      infrastructure: form.infrastructure,
+      images:          form.images,
+      advantages:      form.advantages,
+      infrastructure:  form.infrastructure,
+      seo_title:       form.seo_title || null,
+      seo_description: form.seo_description || null,
     } as any;
 
     try {
@@ -243,6 +250,31 @@ export default function ComplexForm() {
             onChange={v => set('infrastructure', v)}
             placeholder="Школа, магазин…"
           />
+        </div>
+
+        {/* SEO */}
+        <div className="bg-background border rounded-2xl p-5 space-y-4">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">SEO</h2>
+          <Field label="SEO Title">
+            <input
+              type="text"
+              value={form.seo_title}
+              onChange={e => set('seo_title', e.target.value)}
+              placeholder="Заголовок страницы для поисковиков"
+              className="input"
+              maxLength={255}
+            />
+          </Field>
+          <Field label="SEO Description">
+            <textarea
+              rows={3}
+              value={form.seo_description}
+              onChange={e => set('seo_description', e.target.value)}
+              placeholder="Мета-описание для поисковиков"
+              className="input resize-y"
+              maxLength={500}
+            />
+          </Field>
         </div>
 
         {/* Actions */}

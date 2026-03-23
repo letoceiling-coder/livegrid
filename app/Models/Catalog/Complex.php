@@ -26,6 +26,8 @@ class Complex extends Model
         'images',
         'advantages',
         'infrastructure',
+        'seo_title',
+        'seo_description',
     ];
     
     protected $casts = [

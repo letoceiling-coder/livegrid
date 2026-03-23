@@ -75,10 +75,12 @@ class CrmComplexController extends Controller
             'description'    => 'nullable|string',
             'images'         => 'nullable|array',
             'images.*'       => 'nullable|string|url',
-            'advantages'     => 'nullable|array',
-            'advantages.*'   => 'nullable|string|max:200',
-            'infrastructure' => 'nullable|array',
+            'advantages'      => 'nullable|array',
+            'advantages.*'    => 'nullable|string|max:200',
+            'infrastructure'  => 'nullable|array',
             'infrastructure.*' => 'nullable|string|max:200',
+            'seo_title'       => 'nullable|string|max:255',
+            'seo_description' => 'nullable|string|max:500',
         ]);
 
         $validated['slug'] = $this->uniqueSlug($validated['name']);
@@ -106,10 +108,12 @@ class CrmComplexController extends Controller
             'description'    => 'nullable|string',
             'images'         => 'nullable|array',
             'images.*'       => 'nullable|string|url',
-            'advantages'     => 'nullable|array',
-            'advantages.*'   => 'nullable|string|max:200',
-            'infrastructure' => 'nullable|array',
+            'advantages'      => 'nullable|array',
+            'advantages.*'    => 'nullable|string|max:200',
+            'infrastructure'  => 'nullable|array',
             'infrastructure.*' => 'nullable|string|max:200',
+            'seo_title'       => 'nullable|string|max:255',
+            'seo_description' => 'nullable|string|max:500',
         ]);
 
         if (isset($validated['name']) && $validated['name'] !== $complex->name) {
@@ -164,6 +168,8 @@ class CrmComplexController extends Controller
             $data['description']    = $c->description;
             $data['advantages']     = $c->advantages ?? [];
             $data['infrastructure'] = $c->infrastructure ?? [];
+            $data['seo_title']       = $c->seo_title;
+            $data['seo_description'] = $c->seo_description;
         }
 
         return $data;
