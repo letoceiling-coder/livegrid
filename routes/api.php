@@ -49,9 +49,9 @@ Route::prefix('v1')->group(function () {
         // Extra apartment routes must be declared BEFORE apiResource to avoid {id} collision
         Route::post('/apartments/bulk',          [CrmApartmentController::class, 'bulk']);
         Route::get('/apartments/trashed',        [CrmApartmentController::class, 'trashed']);
-        // Constrain {apartment} to UUID/numeric IDs so static segments above are not captured
+        // Exclude static segments from the {apartment} parameter
         Route::apiResource('apartments', CrmApartmentController::class)
-              ->where(['apartment' => '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9]+']);
+              ->where(['apartment' => '(?!trashed|bulk)[^/]+']);
         Route::post('/apartments/{id}/restore',  [CrmApartmentController::class, 'restore']);
         Route::get('/apartments/{id}/history',   [CrmApartmentController::class, 'history']);
         Route::post('/apartments/{id}/lock',     [CrmApartmentController::class, 'lock']);
