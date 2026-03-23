@@ -55,8 +55,7 @@ class Complex extends Model
     public function subways(): BelongsToMany
     {
         return $this->belongsToMany(Subway::class, 'block_subway', 'block_id', 'subway_id')
-            ->withPivot('distance_time', 'distance_type')
-            ->withTimestamps();
+            ->withPivot('distance_time', 'distance_type');
     }
     
     public function apartments(): HasMany
