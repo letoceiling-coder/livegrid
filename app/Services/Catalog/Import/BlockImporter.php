@@ -159,6 +159,11 @@ class BlockImporter
                 if ($existing) {
                     // Update existing
                     unset($blockData['id']); // Don't update primary key
+                    unset($blockData['created_at']); // Don't update created_at
+                    // Don't overwrite existing images if feed has none
+                    if ($imagesJson === null && !empty($existing->images)) {
+                        unset($blockData['images']);
+                    }
                     DB::table('blocks')
                         ->where('id', $existing->id)
                         ->update($blockData);
