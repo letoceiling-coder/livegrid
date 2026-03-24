@@ -20,13 +20,13 @@ cd ..
 echo "Building frontend..."
 npm run build
 
-echo "Fixing manifest location..."
-if [ -f "public/build/.vite/manifest.json" ]; then
-    cp public/build/.vite/manifest.json public/build/manifest.json
-fi
+# AppServiceProvider::boot() calls Vite::useManifestFilename('.vite/manifest.json')
+# so Laravel already knows to look in .vite/. No manual copy needed.
 
 echo "Clearing Laravel caches..."
+php artisan config:clear
 php artisan view:clear
 php artisan route:clear
+php artisan cache:clear
 
 echo "Frontend build completed!"
