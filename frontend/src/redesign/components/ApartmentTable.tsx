@@ -47,7 +47,7 @@ const ApartmentTable = ({ apartments, sort, onSort }: Props) => {
             const st = statusLabels[a.status];
             return (
               <TableRow key={a.id} className="group hover:bg-accent/30">
-                <TableCell className="font-medium">{a.rooms === 0 ? 'Ст' : `${a.rooms}к`}</TableCell>
+                <TableCell className="font-medium">{a.roomName || (a.rooms === 0 ? 'Студия' : `${a.rooms}-комн.`)}</TableCell>
                 <TableCell className="font-medium">{a.area} м²</TableCell>
                 <TableCell className="text-muted-foreground">{a.kitchenArea} м²</TableCell>
                 <TableCell>{a.floor}/{a.totalFloors}</TableCell>

@@ -108,15 +108,51 @@ class BlockImporter
                 // Generate UUID for new records
                 $id = $existing ? $existing->id : (string) \Illuminate\Support\Str::uuid();
 
+                // Extract images from renderer (renders of the complex) and plan (floor plan)
+                $images = [];
+                if (!empty($item['renderer']) && is_array($item['renderer'])) {
+                    foreach ($item['renderer'] as $url) {
+                        if (is_string($url) && !empty($url)) {
+                            $images[] = trim($url);
+                        }
+                    }
+                }
+                // Include plan images if no renderer images
+                if (empty($images) && !empty($item['plan']) && is_array($item['plan'])) {
+                    foreach ($item['plan'] as $url) {
+                        if (is_string($url) && !empty($url)) {
+                            $images[] = trim($url);
+                        }
+                    }
+                }
+                $imagesJson = !empty($images) ? json_encode(array_values($images)) : null;
+
+                // Extract address (blocks.address is an array in the feed)
+                $address = null;
+                if (!empty($item['address'])) {
+                    if (is_array($item['address'])) {
+                        $address = implode(', ', array_filter($item['address']));
+                    } elseif (is_string($item['address'])) {
+                        $address = $item['address'];
+                    }
+                }
+
+                // Generate slug from name
+                $slug = \Illuminate\Support\Str::slug($name);
+
                 $blockData = [
                     'id' => $id,
                     'name' => $name,
+                    'slug' => $slug,
+                    'description' => $item['description'] ?? null,
+                    'address' => $address,
                     'district_id' => $districtId,
                     'builder_id' => $builderId,
                     'source_id' => $sourceId,
                     'external_id' => $externalId,
                     'lat' => $lat,
                     'lng' => $lng,
+                    'images' => $imagesJson,
                     'created_at' => now(),
                 ];
 

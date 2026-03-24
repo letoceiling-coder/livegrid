@@ -9,7 +9,15 @@ class RoomType extends Model
 {
     use HasFactory;
 
+    protected $table = 'rooms';
     public $timestamps = false;
+    public $incrementing = false;
+    protected $keyType = 'string';
 
-    protected $fillable = ['name'];
+    protected $fillable = ['id', 'name', 'name_one', 'crm_id', 'room_category'];
+
+    protected $casts = [
+        'crm_id'        => 'integer',
+        'room_category' => 'integer',
+    ];
 }

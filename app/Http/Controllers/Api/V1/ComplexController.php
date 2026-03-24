@@ -86,7 +86,10 @@ class ComplexController extends Controller
                         'area_kitchen', 'floor', 'floors', 'price', 'finishing_id',
                         'status', 'plan_image', 'section',
                     ])
-                    ->with(['finishing:id,name']);
+                    ->with([
+                        'finishing:id,name',
+                        'roomType:id,crm_id,name_one',
+                    ]);
             },
         ];
 

@@ -21,6 +21,7 @@ class ApartmentResource extends JsonResource
             'complexId' => $this->block_id,
             'buildingId' => $this->building_id,
             'rooms' => $this->rooms_count,
+            'roomName' => $this->roomType?->name_one ?? null,
             'area' => (float) $this->area_total,
             'kitchenArea' => $this->area_kitchen ? (float) $this->area_kitchen : null,
             'floor' => $this->floor,

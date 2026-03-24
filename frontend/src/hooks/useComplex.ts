@@ -5,7 +5,7 @@ import type { ResidentialComplex, Building, Apartment } from '@/redesign/data/ty
 // API shapes from ComplexResource + BuildingResource + ApartmentResource
 interface ApiApartment {
   id: string; complexId: string; buildingId: string;
-  rooms: number; area: number; kitchenArea: number | null;
+  rooms: number; roomName: string | null; area: number; kitchenArea: number | null;
   floor: number; totalFloors: number | null;
   price: number; pricePerMeter: number;
   finishing: string | null; status: string; planImage: string | null; section: number | null;
@@ -32,11 +32,14 @@ interface ApiComplex {
 }
 
 function mapApartment(a: ApiApartment, complexId: string, buildingId: string): Apartment {
+  // Fallback room name if API doesn't have it yet
+  const roomName = a.roomName ?? (a.rooms === 0 ? 'Студия' : `${a.rooms}-комн.`);
   return {
     id: a.id,
     complexId,
     buildingId,
     rooms: a.rooms ?? 0,
+    roomName,
     area: a.area ?? 0,
     kitchenArea: a.kitchenArea ?? 0,
     floor: a.floor ?? 1,

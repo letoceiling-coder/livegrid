@@ -65,4 +65,12 @@ class Apartment extends Model
     {
         return $this->belongsTo(Finishing::class);
     }
+
+    /**
+     * Room type lookup via crm_id (apartments.rooms_count = rooms.crm_id)
+     */
+    public function roomType(): BelongsTo
+    {
+        return $this->belongsTo(RoomType::class, 'rooms_count', 'crm_id');
+    }
 }

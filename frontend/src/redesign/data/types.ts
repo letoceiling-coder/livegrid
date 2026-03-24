@@ -68,6 +68,7 @@ export interface Apartment {
   complexId: string;
   buildingId: string;
   rooms: number;
+  roomName: string;
   area: number;
   kitchenArea: number;
   floor: number;

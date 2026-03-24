@@ -36,11 +36,11 @@ const RedesignComplex = () => {
 
   const layouts = useMemo(() => {
     if (!complex) return [];
-    const groups: Record<number, { rooms: number; minArea: number; minPrice: number; planImage: string; count: number }> = {};
+    const groups: Record<number, { rooms: number; roomName: string; minArea: number; minPrice: number; planImage: string; count: number }> = {};
     complex.buildings.flatMap(b => b.apartments)
       .filter(a => a.status === 'available')
       .forEach(a => {
-        if (!groups[a.rooms]) groups[a.rooms] = { rooms: a.rooms, minArea: a.area, minPrice: a.price, planImage: a.planImage, count: 0 };
+        if (!groups[a.rooms]) groups[a.rooms] = { rooms: a.rooms, roomName: a.roomName, minArea: a.area, minPrice: a.price, planImage: a.planImage, count: 0 };
         groups[a.rooms].count++;
         if (a.area < groups[a.rooms].minArea) groups[a.rooms].minArea = a.area;
         if (a.price < groups[a.rooms].minPrice) { groups[a.rooms].minPrice = a.price; groups[a.rooms].planImage = a.planImage; }
@@ -106,7 +106,14 @@ const RedesignComplex = () => {
     );
   }
 
-  const roomCounts = [...new Set(complex.buildings.flatMap(b => b.apartments).filter(a => a.status !== 'sold').map(a => a.rooms))].sort();
+  // Build unique room types with names for the filter buttons
+  const roomTypes = useMemo(() => {
+    const map = new Map<number, string>();
+    complex.buildings.flatMap(b => b.apartments)
+      .filter(a => a.status !== 'sold')
+      .forEach(a => { if (!map.has(a.rooms)) map.set(a.rooms, a.roomName || (a.rooms === 0 ? 'Студия' : `${a.rooms}-комн.`)); });
+    return [...map.entries()].sort((x, y) => x[0] - y[0]);
+  }, [complex]);
 
   return (
     <div className="min-h-screen bg-background pb-16 lg:pb-0">
@@ -146,13 +153,13 @@ const RedesignComplex = () => {
               >
                 Все
               </button>
-              {roomCounts.map(r => (
+              {roomTypes.map(([r, label]) => (
                 <button
                   key={r}
                   onClick={() => setRoomFilter(r)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${roomFilter === r ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:border-primary/50 bg-background'}`}
                 >
-                  {r === 0 ? 'Студия' : `${r}-комн`}
+                  {label}
                 </button>
               ))}
             </div>

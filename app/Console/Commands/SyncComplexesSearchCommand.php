@@ -42,25 +42,27 @@ class SyncComplexesSearchCommand extends Command
                 $ids = $complexes->pluck('id')->toArray();
 
                 // --- Apartment aggregates (single batched query) ---
+                // Join rooms table to map crm_id → room_category (0=studio,1=1-room,...,4=4+)
                 $apStats = DB::table('apartments')
+                    ->leftJoin('rooms', 'rooms.crm_id', '=', 'apartments.rooms_count')
                     ->selectRaw('
-                        block_id,
-                        MIN(CASE WHEN is_active=1 AND status IN ("available","reserved") THEN price END)       AS price_from,
-                        MAX(CASE WHEN is_active=1 AND status IN ("available","reserved") THEN price END)       AS price_to,
-                        COUNT(*)                                                                                AS total,
-                        SUM(CASE WHEN is_active=1 AND status IN ("available","reserved") THEN 1 ELSE 0 END)   AS available,
-                        MIN(CASE WHEN is_active=1 AND status IN ("available","reserved") THEN area_total END)  AS min_area,
-                        MAX(CASE WHEN is_active=1 AND status IN ("available","reserved") THEN area_total END)  AS max_area,
-                        MIN(CASE WHEN is_active=1 AND status IN ("available","reserved") THEN floor END)       AS min_floor,
-                        MAX(CASE WHEN is_active=1 AND status IN ("available","reserved") THEN floor END)       AS max_floor,
-                        MAX(CASE WHEN is_active=1 AND status IN ("available","reserved") AND rooms_count=0 THEN 1 ELSE 0 END) AS rooms_0,
-                        MAX(CASE WHEN is_active=1 AND status IN ("available","reserved") AND rooms_count=1 THEN 1 ELSE 0 END) AS rooms_1,
-                        MAX(CASE WHEN is_active=1 AND status IN ("available","reserved") AND rooms_count=2 THEN 1 ELSE 0 END) AS rooms_2,
-                        MAX(CASE WHEN is_active=1 AND status IN ("available","reserved") AND rooms_count=3 THEN 1 ELSE 0 END) AS rooms_3,
-                        MAX(CASE WHEN is_active=1 AND status IN ("available","reserved") AND rooms_count>=4 THEN 1 ELSE 0 END) AS rooms_4
+                        apartments.block_id,
+                        MIN(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") THEN apartments.price END)                      AS price_from,
+                        MAX(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") THEN apartments.price END)                      AS price_to,
+                        COUNT(*)                                                                                                                               AS total,
+                        SUM(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") THEN 1 ELSE 0 END)                             AS available,
+                        MIN(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") THEN apartments.area_total END)                AS min_area,
+                        MAX(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") THEN apartments.area_total END)                AS max_area,
+                        MIN(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") THEN apartments.floor END)                     AS min_floor,
+                        MAX(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") THEN apartments.floor END)                     AS max_floor,
+                        MAX(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") AND COALESCE(rooms.room_category, apartments.rooms_count)=0 THEN 1 ELSE 0 END) AS rooms_0,
+                        MAX(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") AND COALESCE(rooms.room_category, apartments.rooms_count)=1 THEN 1 ELSE 0 END) AS rooms_1,
+                        MAX(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") AND COALESCE(rooms.room_category, apartments.rooms_count)=2 THEN 1 ELSE 0 END) AS rooms_2,
+                        MAX(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") AND COALESCE(rooms.room_category, apartments.rooms_count)=3 THEN 1 ELSE 0 END) AS rooms_3,
+                        MAX(CASE WHEN apartments.is_active=1 AND apartments.status IN ("available","reserved") AND COALESCE(rooms.room_category, apartments.rooms_count)>=4 THEN 1 ELSE 0 END) AS rooms_4
                     ')
-                    ->whereIn('block_id', $ids)
-                    ->groupBy('block_id')
+                    ->whereIn('apartments.block_id', $ids)
+                    ->groupBy('apartments.block_id')
                     ->get()
                     ->keyBy('block_id');
 

@@ -200,6 +200,7 @@ class FeedImporter
             'builders.json' => 'builders',
             'finishings.json' => 'finishings',
             'buildingtypes.json' => 'building_types',
+            'room.json' => 'rooms',
         ];
 
         $referenceTotalProcessed = 0;
