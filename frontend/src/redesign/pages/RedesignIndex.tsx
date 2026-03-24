@@ -29,7 +29,7 @@ function adaptComplex(c: Complex): ResidentialComplex {
     address: c.address ?? '', deadline: c.deadline ?? '',
     status: (c.status ?? 'building') as ResidentialComplex['status'],
     priceFrom: c.price_from ?? 0, priceTo: c.price_to ?? c.price_from ?? 0,
-    images: c.images?.length ? c.images : ['/placeholder-complex.jpg'],
+    images: c.images?.length ? c.images : ['/placeholder-complex.svg'],
     coords: [c.lat ?? 0, c.lng ?? 0],
     advantages: c.advantages ?? [], infrastructure: c.infrastructure ?? [],
     buildings: [],

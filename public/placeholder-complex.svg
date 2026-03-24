@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" fill="none">
+  <rect width="800" height="500" fill="#f1f5f9"/>
+  <!-- Background sky gradient area -->
+  <rect width="800" height="320" fill="#e8eef4"/>
+  <!-- Ground -->
+  <rect y="400" width="800" height="100" fill="#e2e8f0"/>
+  <!-- Building 1 (tallest, center-right) -->
+  <rect x="380" y="120" width="160" height="280" fill="#d4dde6" stroke="#c5cfd8" stroke-width="1.5"/>
+  <!-- Windows B1 -->
+  <rect x="395" y="140" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="435" y="140" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="475" y="140" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="515" y="140" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="395" y="185" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="435" y="185" width="28" height="28" fill="#c8daea" rx="2"/>
+  <rect x="475" y="185" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="515" y="185" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="395" y="230" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="435" y="230" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="475" y="230" width="28" height="28" fill="#c8daea" rx="2"/>
+  <rect x="515" y="230" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="395" y="275" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="435" y="275" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="475" y="275" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="515" y="275" width="28" height="28" fill="#c8daea" rx="2"/>
+  <rect x="395" y="320" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="435" y="320" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="475" y="320" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <rect x="515" y="320" width="28" height="28" fill="#b8c9d8" rx="2"/>
+  <!-- Building 2 (left) -->
+  <rect x="180" y="200" width="120" height="200" fill="#cdd8e3" stroke="#c5cfd8" stroke-width="1.5"/>
+  <rect x="195" y="218" width="24" height="24" fill="#b8c9d8" rx="2"/>
+  <rect x="228" y="218" width="24" height="24" fill="#b8c9d8" rx="2"/>
+  <rect x="261" y="218" width="24" height="24" fill="#c8daea" rx="2"/>
+  <rect x="195" y="257" width="24" height="24" fill="#c8daea" rx="2"/>
+  <rect x="228" y="257" width="24" height="24" fill="#b8c9d8" rx="2"/>
+  <rect x="261" y="257" width="24" height="24" fill="#b8c9d8" rx="2"/>
+  <rect x="195" y="296" width="24" height="24" fill="#b8c9d8" rx="2"/>
+  <rect x="228" y="296" width="24" height="24" fill="#b8c9d8" rx="2"/>
+  <rect x="261" y="296" width="24" height="24" fill="#b8c9d8" rx="2"/>
+  <rect x="195" y="335" width="24" height="24" fill="#b8c9d8" rx="2"/>
+  <rect x="228" y="335" width="24" height="24" fill="#c8daea" rx="2"/>
+  <rect x="261" y="335" width="24" height="24" fill="#b8c9d8" rx="2"/>
+  <!-- Building 3 (mid-left) -->
+  <rect x="300" y="170" width="80" height="230" fill="#c8d4de" stroke="#c5cfd8" stroke-width="1.5"/>
+  <rect x="312" y="186" width="20" height="20" fill="#b8c9d8" rx="2"/>
+  <rect x="342" y="186" width="20" height="20" fill="#b8c9d8" rx="2"/>
+  <rect x="312" y="220" width="20" height="20" fill="#c8daea" rx="2"/>
+  <rect x="342" y="220" width="20" height="20" fill="#b8c9d8" rx="2"/>
+  <rect x="312" y="254" width="20" height="20" fill="#b8c9d8" rx="2"/>
+  <rect x="342" y="254" width="20" height="20" fill="#b8c9d8" rx="2"/>
+  <rect x="312" y="288" width="20" height="20" fill="#b8c9d8" rx="2"/>
+  <rect x="342" y="288" width="20" height="20" fill="#c8daea" rx="2"/>
+  <rect x="312" y="322" width="20" height="20" fill="#b8c9d8" rx="2"/>
+  <rect x="342" y="322" width="20" height="20" fill="#b8c9d8" rx="2"/>
+  <!-- Building 4 (right) -->
+  <rect x="560" y="220" width="100" height="180" fill="#cdd8e3" stroke="#c5cfd8" stroke-width="1.5"/>
+  <rect x="572" y="236" width="22" height="22" fill="#b8c9d8" rx="2"/>
+  <rect x="604" y="236" width="22" height="22" fill="#b8c9d8" rx="2"/>
+  <rect x="636" y="236" width="22" height="22" fill="#c8daea" rx="2"/>
+  <rect x="572" y="272" width="22" height="22" fill="#b8c9d8" rx="2"/>
+  <rect x="604" y="272" width="22" height="22" fill="#c8daea" rx="2"/>
+  <rect x="636" y="272" width="22" height="22" fill="#b8c9d8" rx="2"/>
+  <rect x="572" y="308" width="22" height="22" fill="#c8daea" rx="2"/>
+  <rect x="604" y="308" width="22" height="22" fill="#b8c9d8" rx="2"/>
+  <rect x="636" y="308" width="22" height="22" fill="#b8c9d8" rx="2"/>
+  <!-- Foreground ground line -->
+  <rect y="398" width="800" height="3" fill="#c5cfd8"/>
+  <!-- Trees -->
+  <ellipse cx="130" cy="390" rx="35" ry="45" fill="#c8d8c8"/>
+  <rect x="126" y="400" width="8" height="20" fill="#b0c0b0"/>
+  <ellipse cx="700" cy="385" rx="30" ry="40" fill="#c8d8c8"/>
+  <rect x="696" y="398" width="8" height="18" fill="#b0c0b0"/>
+  <!-- LiveGrid icon placeholder -->
+  <rect x="350" y="440" width="100" height="4" fill="#d1dae3" rx="2"/>
+</svg>

@@ -19,7 +19,7 @@ class BuildingResource extends JsonResource
             'name' => $this->name,
             'floors' => $this->floors ?? 0,
             'sections' => $this->sections ?? 0,
-            'deadline' => $this->deadline ? $this->deadline->format('Y-m-d') : null,
+            'deadline' => $this->deadline ? (string) $this->deadline : null,
             'apartments' => ApartmentResource::collection($this->whenLoaded('apartments')),
         ];
     }

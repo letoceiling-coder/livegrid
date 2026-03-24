@@ -31,7 +31,8 @@ class SearchService
         
         // Построение запроса
         $query = DB::table('complexes_search')
-            ->where('status', '!=', 'deleted'); // Базовый фильтр (если есть статус deleted)
+            ->where('status', '!=', 'deleted')
+            ->where('available_apartments', '>', 0);
         
         // Применение фильтров
         $this->applyFilters($query, $filters);
@@ -119,19 +120,19 @@ class SearchService
             });
         }
         
-        // Фильтр по району
+        // Фильтр по району (frontend sends names)
         if (!empty($filters['district']) && is_array($filters['district'])) {
-            $query->whereIn('district_id', $filters['district']);
+            $query->whereIn('district_name', $filters['district']);
         }
-        
-        // Фильтр по метро
+
+        // Фильтр по метро (frontend sends names)
         if (!empty($filters['subway']) && is_array($filters['subway'])) {
-            $query->whereIn('subway_id', $filters['subway']);
+            $query->whereIn('subway_name', $filters['subway']);
         }
-        
-        // Фильтр по застройщику
+
+        // Фильтр по застройщику (frontend sends names)
         if (!empty($filters['builder']) && is_array($filters['builder'])) {
-            $query->whereIn('builder_id', $filters['builder']);
+            $query->whereIn('builder_name', $filters['builder']);
         }
         
         // Фильтр по отделке (через boolean колонки)
@@ -200,10 +201,10 @@ class SearchService
             'slug' => $complex->slug,
             'name' => $complex->name,
             'description' => $complex->description,
-            'district' => [
+            'district' => $complex->district_id ? [
                 'id' => $complex->district_id,
                 'name' => $complex->district_name,
-            ],
+            ] : null,
             'subway' => $complex->subway_id ? [
                 'id' => $complex->subway_id,
                 'name' => $complex->subway_name,
@@ -211,7 +212,7 @@ class SearchService
             ] : null,
             'subwayDistance' => $complex->subway_distance,
             'builder' => $complex->builder_id ? [
-                'id' => $complex->builder_id,
+                'id'   => $complex->builder_id,
                 'name' => $complex->builder_name,
             ] : null,
             'address' => $complex->address,

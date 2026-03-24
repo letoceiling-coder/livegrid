@@ -1,3 +1,4 @@
+import React from 'react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import type { Apartment } from '@/redesign/data/types';
@@ -44,8 +45,8 @@ const Chessboard = ({ apartments, floors, sections, buildingName }: Props) => {
           {Array.from({ length: floors }, (_, fi) => {
             const floor = floors - fi;
             return (
-              <>
-                <div key={`f-${floor}`} className="text-xs text-muted-foreground flex items-center justify-center font-medium">{floor}</div>
+              <React.Fragment key={`row-${floor}`}>
+                <div className="text-xs text-muted-foreground flex items-center justify-center font-medium">{floor}</div>
                 {Array.from({ length: sections }, (_, s) => {
                   const apt = grid.get(`${floor}-${s + 1}`);
                   if (!apt) return <div key={`${floor}-${s}`} className="h-14 bg-muted/30 rounded-lg border border-border/30" />;
@@ -65,7 +66,7 @@ const Chessboard = ({ apartments, floors, sections, buildingName }: Props) => {
                     </Link>
                   );
                 })}
-              </>
+              </React.Fragment>
             );
           })}
         </div>

@@ -55,9 +55,9 @@ const ComplexHero = ({ complex }: { complex: ResidentialComplex }) => {
             {complex.status === 'planned' && <span className="px-2.5 py-1 bg-muted text-muted-foreground rounded-full text-xs font-medium">Планируется</span>}
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold mb-1">{complex.name}</h1>
-          <div className="flex items-center gap-1.5 text-sm opacity-90">
+            <div className="flex items-center gap-1.5 text-sm opacity-90">
             <MapPin className="w-4 h-4" />
-            {complex.address} · м. {complex.subway} · {complex.subwayDistance}
+            {complex.address}{complex.subway ? ` · м. ${complex.subway}` : ''}{complex.subwayDistance ? ` · ${complex.subwayDistance}` : ''}
           </div>
         </div>
       </div>

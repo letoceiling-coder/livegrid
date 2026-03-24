@@ -22,7 +22,7 @@ function adaptComplex(c: Complex): ResidentialComplex {
     address: c.address ?? '', deadline: c.deadline ?? '',
     status: (c.status ?? 'building') as ResidentialComplex['status'],
     priceFrom: c.price_from ?? 0, priceTo: c.price_to ?? c.price_from ?? 0,
-    images: c.images?.length ? c.images : ['/placeholder-complex.jpg'],
+    images: c.images?.length ? c.images : ['/placeholder-complex.svg'],
     coords: [c.lat ?? 0, c.lng ?? 0],
     advantages: c.advantages ?? [], infrastructure: c.infrastructure ?? [],
     buildings: [],
@@ -105,9 +105,9 @@ const RedesignMap = () => {
     map.events.add('boundschange', updateViewport);
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update markers when complexes change
+  // Update markers when complexes change or map becomes ready
   useEffect(() => {
-    if (!mapInstance.current || !window.ymaps) return;
+    if (!mapInstance.current || !window.ymaps || !ready) return;
     markersRef.current.forEach(m => mapInstance.current.geoObjects.remove(m));
     markersRef.current = [];
     complexes.forEach(c => {
@@ -120,7 +120,7 @@ const RedesignMap = () => {
       mapInstance.current.geoObjects.add(pm);
       markersRef.current.push(pm);
     });
-  }, [complexes]);
+  }, [complexes, ready]);
 
   const handleFiltersChange = useCallback((f: CatalogFilters) => {
     setFilters(f);

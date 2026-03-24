@@ -45,26 +45,29 @@ class ComplexResource extends JsonResource
             'status' => $this->status,
             'deadline' => $this->deadline,
             'priceFrom' => $this->when(
-                $this->relationLoaded('apartments'),
-                fn() => $this->apartments()->where('is_active', 1)->min('price') ?? 0,
-                fn() => 0
+                $this->relationLoaded('buildings'),
+                function () {
+                    $min = $this->buildings->flatMap->apartments->min('price');
+                    return (int) ($min ?? 0);
+                },
+                0
             ),
             'priceTo' => $this->when(
-                $this->relationLoaded('apartments'),
-                fn() => $this->apartments()->where('is_active', 1)->max('price') ?? 0,
-                fn() => 0
+                $this->relationLoaded('buildings'),
+                function () {
+                    $max = $this->buildings->flatMap->apartments->max('price');
+                    return (int) ($max ?? 0);
+                },
+                0
             ),
             'images' => $this->formatImages($this->images),
             'advantages' => $this->advantages ?? [],
             'infrastructure' => $this->infrastructure ?? [],
             'buildings' => BuildingResource::collection($this->whenLoaded('buildings')),
             'totalAvailableApartments' => $this->when(
-                $this->relationLoaded('apartments'),
-                fn() => $this->apartments()
-                    ->where('is_active', 1)
-                    ->whereIn('status', ['available', 'reserved'])
-                    ->count(),
-                fn() => 0
+                $this->relationLoaded('buildings'),
+                fn() => $this->buildings->sum(fn ($b) => $b->apartments->count()),
+                0
             ),
         ];
     }

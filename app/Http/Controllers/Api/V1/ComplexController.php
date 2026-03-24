@@ -7,6 +7,7 @@ use App\Http\Resources\ComplexResource;
 use App\Models\Catalog\Complex;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ComplexController extends Controller
 {
@@ -72,16 +73,32 @@ class ComplexController extends Controller
      */
     public function show(string $slug): JsonResponse
     {
-        $complex = Complex::with([
+        $with = [
             'district',
             'builder',
             'subways',
             'buildings.apartments' => function ($query) {
                 $query->where('is_active', 1)
-                    ->whereIn('status', ['available', 'reserved']);
+                    ->whereIn('status', ['available', 'reserved'])
+                    ->with('finishing');
             },
-        ])->where('slug', $slug)->firstOrFail();
-        
+        ];
+
+        // Direct lookup by blocks.slug
+        $complex = Complex::with($with)->where('slug', $slug)->first();
+
+        // Fallback: find via complexes_search (blocks.slug may be empty)
+        if (!$complex) {
+            $row = DB::table('complexes_search')->where('slug', $slug)->first();
+            if ($row) {
+                $complex = Complex::with($with)->find($row->complex_id);
+            }
+        }
+
+        if (!$complex) {
+            abort(404);
+        }
+
         return response()->json([
             'data' => new ComplexResource($complex),
         ]);
