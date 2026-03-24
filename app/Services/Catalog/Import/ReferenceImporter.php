@@ -74,7 +74,8 @@ class ReferenceImporter
                 // rooms table has extra fields: crm_id, name_one, room_category
                 if ($tableName === 'rooms') {
                     $crmId = isset($item['crm_id']) ? (int) $item['crm_id'] : null;
-                    $nameOne = $item['name_one'] ?? null;
+                    // TrendAgent feed may not have name_one — fall back to name
+                    $nameOne = $item['name_one'] ?? $item['name'] ?? null;
                     $record['crm_id'] = $crmId;
                     $record['name_one'] = $nameOne;
                     $record['room_category'] = $this->resolveRoomCategory($nameOne, $crmId);
@@ -114,21 +115,63 @@ class ReferenceImporter
     /**
      * Determine standard room category (0-4) from room name or crm_id.
      * 0 = Studio, 1 = 1-room, 2 = 2-room, 3 = 3-room, 4 = 4+
+     *
+     * Handles TrendAgent room types:
+     *   0=Студии, 1=1-к.кв, 2=2-к.кв, 3=3-к.кв, 4+=4-к.кв+
+     *   22=2Е-к.кв(euro 2), 23=3Е-к.кв(euro 3), 24=4Е-к.кв, 25=5Е-к.кв
+     *   30=Коттеджи, 40=Таунхаусы, 60=Своб.план., 100=Комнаты
      */
     private function resolveRoomCategory(?string $nameOne, ?int $crmId): ?int
     {
         if ($nameOne !== null) {
             $lower = mb_strtolower($nameOne);
+
+            // Studio
             if (str_contains($lower, 'студ') || str_contains($lower, 'studio')) return 0;
-            if (preg_match('/^1[-\s]|одн/u', $lower)) return 1;
-            if (preg_match('/^2[-\s]|двух/u', $lower)) return 2;
-            if (preg_match('/^3[-\s]|трёх|трех/u', $lower)) return 3;
-            if (preg_match('/^[4-9]|четыр|свободн|апарт|пентх/u', $lower)) return 4;
+            // Rooms
+            if (str_contains($lower, 'комнат')) return 0;
+            // Free planning — treat as studio/0
+            if (str_contains($lower, 'своб') || str_contains($lower, 'план')) return 0;
+
+            // European room types: "2Е-к.кв", "3Е-к.кв" etc.
+            if (preg_match('/^(\d+)[еeЕE]/iu', $lower, $m)) {
+                $n = (int) $m[1];
+                if ($n <= 1) return 1;
+                if ($n === 2) return 2;
+                if ($n === 3) return 3;
+                return 4;
+            }
+
+            // Standard: "1-к.кв", "2-к.кв", "1 спальня", "2 спальни" etc.
+            if (preg_match('/^(\d+)/u', $lower, $m)) {
+                $n = (int) $m[1];
+                if ($n === 0) return 0;
+                if ($n === 1) return 1;
+                if ($n === 2) return 2;
+                if ($n === 3) return 3;
+                return 4;
+            }
+
+            // Named types
+            if (preg_match('/одн/u', $lower)) return 1;
+            if (preg_match('/двух|двуx/u', $lower)) return 2;
+            if (preg_match('/трёх|трех/u', $lower)) return 3;
+
+            // Cottages, townhouses, commercial = 4+
+            if (preg_match('/котт|таун|ком\.|пом\.|апарт|пентх/u', $lower)) return 4;
         }
 
-        // Fallback: if crm_id <= 4, treat it as room count directly
-        if ($crmId !== null && $crmId >= 0 && $crmId <= 4) {
-            return $crmId;
+        // Fallback via crm_id when no name match
+        if ($crmId !== null) {
+            if ($crmId === 0) return 0;
+            if ($crmId === 1) return 1;
+            if ($crmId === 2) return 2;
+            if ($crmId === 3) return 3;
+            if ($crmId >= 4 && $crmId <= 7) return 4;
+            // European types by crm_id range
+            if ($crmId === 22) return 2;
+            if ($crmId === 23) return 3;
+            if ($crmId >= 24) return 4;
         }
 
         return null;
