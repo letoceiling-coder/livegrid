@@ -2,10 +2,12 @@
 
 namespace App\Http\Resources;
 
+use App\Support\FormatsImages;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ComplexResource extends JsonResource
 {
+    use FormatsImages;
     /**
      * Transform the resource into an array.
      *
@@ -52,7 +54,7 @@ class ComplexResource extends JsonResource
                 fn() => $this->apartments()->where('is_active', 1)->max('price') ?? 0,
                 fn() => 0
             ),
-            'images' => $this->images ?? [],
+            'images' => $this->formatImages($this->images),
             'advantages' => $this->advantages ?? [],
             'infrastructure' => $this->infrastructure ?? [],
             'buildings' => BuildingResource::collection($this->whenLoaded('buildings')),

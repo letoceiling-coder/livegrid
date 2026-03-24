@@ -2,10 +2,12 @@
 
 namespace App\Http\Resources;
 
+use App\Support\FormatsImages;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ApartmentResource extends JsonResource
 {
+    use FormatsImages;
     /**
      * Transform the resource into an array.
      *
@@ -29,7 +31,7 @@ class ApartmentResource extends JsonResource
                 : 0,
             'finishing' => $this->finishing ? $this->finishing->name : null,
             'status' => $this->status,
-            'planImage' => $this->plan_image,
+            'planImage' => $this->formatImage($this->plan_image),
             'section' => $this->section,
         ];
     }

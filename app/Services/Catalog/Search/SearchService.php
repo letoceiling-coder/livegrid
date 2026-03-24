@@ -3,11 +3,13 @@
 namespace App\Services\Catalog\Search;
 
 use App\Services\CacheInvalidator;
+use App\Support\FormatsImages;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class SearchService
 {
+    use FormatsImages;
     /**
      * Поиск комплексов с фильтрацией
      * 
@@ -221,7 +223,7 @@ class SearchService
             'deadline' => $complex->deadline,
             'priceFrom' => (int) $complex->price_from,
             'priceTo' => (int) $complex->price_to,
-            'images' => json_decode($complex->images, true) ?? [],
+            'images' => $this->formatImages($complex->images),
             'advantages' => json_decode($complex->advantages, true) ?? [],
             'infrastructure' => json_decode($complex->infrastructure, true) ?? [],
             'totalAvailableApartments' => (int) $complex->available_apartments,
@@ -292,7 +294,7 @@ class SearchService
                 'slug'      => $c->slug,
                 'name'      => $c->name,
                 'coords'    => [(float) $c->lat, (float) $c->lng],
-                'images'    => json_decode($c->images, true) ?? [],
+                'images'    => $this->formatImages($c->images),
                 'priceFrom' => (int) $c->price_from,
                 'district'  => $c->district_name,
                 'subway'    => $c->subway_name,
