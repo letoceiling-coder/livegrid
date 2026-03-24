@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Complex extends Model
 {
     protected $table = 'blocks';
-    
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'id',
         'name',
