@@ -11,6 +11,9 @@ class Building extends Model
 {
     use HasFactory;
 
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'block_id',
         'project_id',

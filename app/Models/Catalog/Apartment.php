@@ -12,6 +12,9 @@ class Apartment extends Model
 {
     use HasFactory, SoftDeletes, LogsChanges;
 
+    public $incrementing = false;
+    protected $keyType = 'string';
+
     protected $fillable = [
         'block_id',
         'building_id',
