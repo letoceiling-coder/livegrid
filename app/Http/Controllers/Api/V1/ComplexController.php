@@ -40,7 +40,7 @@ class ComplexController extends Controller
             ->withCount(['apartments as available_count' => fn($q) =>
                 $q->where('is_active', 1)->whereIn('status', ['available', 'reserved'])
             ])
-            ->leftJoin('complexes_search as cs', 'cs.block_id', '=', 'blocks.id')
+            ->leftJoin('complexes_search as cs', 'cs.complex_id', '=', 'blocks.id')
             ->addSelect('blocks.*', 'cs.price_from', 'cs.price_to');
 
         $items = $query->orderBy('blocks.name')
@@ -95,7 +95,7 @@ class ComplexController extends Controller
                     ])
                     ->with([
                         'finishing:id,name',
-                        'roomType:id,crm_id,name_one',
+                        'roomType:id,crm_id,name_one,room_category',
                     ]);
             },
         ];
