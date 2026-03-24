@@ -6,7 +6,7 @@ import type { ResidentialComplex } from '@/redesign/data/types';
 import { formatPrice } from '@/redesign/data/mock-data';
 
 const ComplexHero = ({ complex }: { complex: ResidentialComplex }) => {
-  const totalApts = complex.buildings.reduce((s, b) => s + b.apartments.filter(a => a.status === 'available').length, 0);
+  const totalApts = (complex.buildings ?? []).reduce((s, b) => s + (b.apartments ?? []).filter(a => a.status === 'available').length, 0);
   const [imgIdx, setImgIdx] = useState(0);
 
   return (

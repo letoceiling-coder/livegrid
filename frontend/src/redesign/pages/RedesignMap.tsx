@@ -44,7 +44,7 @@ const RedesignMap = () => {
 
   const { data: filtersData } = useFilters();
 
-  // Fetch map complexes
+  // Fetch map complexes — all filters are forwarded to the map API
   const fetchComplexes = useCallback(async (vp: Viewport, f: CatalogFilters) => {
     setLoading(true);
     try {
@@ -54,10 +54,24 @@ const RedesignMap = () => {
         'bounds[east]':  String(vp.lng_max),
         'bounds[west]':  String(vp.lng_min),
       });
-      if (f.search) params.set('search', f.search);
-      f.district?.forEach(d => params.append('district[]', d));
-      f.subway?.forEach(s => params.append('subway[]', s));
-      f.builder?.forEach(b => params.append('builder[]', b));
+
+      // Text / numeric filters
+      if (f.search)    params.set('search',   f.search);
+      if (f.priceMin)  params.set('priceMin', String(f.priceMin));
+      if (f.priceMax)  params.set('priceMax', String(f.priceMax));
+      if (f.areaMin)   params.set('areaMin',  String(f.areaMin));
+      if (f.areaMax)   params.set('areaMax',  String(f.areaMax));
+      if (f.floorMin)  params.set('floorMin', String(f.floorMin));
+      if (f.floorMax)  params.set('floorMax', String(f.floorMax));
+
+      // Array filters
+      f.rooms?.forEach(r     => params.append('rooms[]',     String(r)));
+      f.district?.forEach(d  => params.append('district[]',  d));
+      f.subway?.forEach(s    => params.append('subway[]',    s));
+      f.builder?.forEach(b   => params.append('builder[]',   b));
+      f.finishing?.forEach(fi => params.append('finishing[]', fi));
+      f.status?.forEach(s    => params.append('status[]',    s));
+      f.deadline?.forEach(d  => params.append('deadline[]',  d));
 
       const res = await fetch(`${getApiUrl('map/complexes')}?${params}`, defaultFetchOptions);
       if (!res.ok) return;

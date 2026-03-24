@@ -185,8 +185,8 @@ const RedesignComplex = () => {
 
           {/* Chessboard */}
           <TabsContent value="chess" className="mt-6 space-y-8">
-            {complex.buildings.map(b => (
-              <Chessboard key={b.id} apartments={b.apartments} floors={b.floors} sections={b.sections} buildingName={b.name} />
+            {(Array.isArray(complex.buildings) ? complex.buildings : []).map(b => (
+              <Chessboard key={b.id} apartments={Array.isArray(b.apartments) ? b.apartments : []} floors={b.floors} sections={b.sections} buildingName={b.name} />
             ))}
           </TabsContent>
 
@@ -218,7 +218,7 @@ const RedesignComplex = () => {
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Корпусов</p>
-                  <p className="text-sm font-medium">{complex.buildings.length}</p>
+                  <p className="text-sm font-medium">{(complex.buildings ?? []).length}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Цена</p>
