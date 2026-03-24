@@ -23,10 +23,29 @@ const RedesignComplex = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
 
+  // Build unique room types grouped by room_category (0-4) for filter buttons.
+  // Using room_category ensures "2-к.кв" and "2Е-к.кв" appear as one "2-комн." button.
+  // Must be declared before any early returns to satisfy React's Rules of Hooks.
+  const roomTypes = useMemo(() => {
+    if (!complex) return [];
+    // Map<room_category, label>
+    const map = new Map<number, string>();
+    (complex.buildings ?? []).flatMap(b => b.apartments ?? [])
+      .filter(a => a.status !== 'sold')
+      .forEach(a => {
+        const cat = a.roomCategory ?? a.rooms;
+        if (!map.has(cat)) {
+          map.set(cat, a.roomName || (cat === 0 ? 'Студия' : `${cat}-комн.`));
+        }
+      });
+    return [...map.entries()].sort((x, y) => x[0] - y[0]);
+  }, [complex]);
+
   const allApartments = useMemo(() => {
     if (!complex) return [];
-    let apts = complex.buildings.flatMap(b => b.apartments).filter(a => a.status !== 'sold');
-    if (roomFilter !== null) apts = apts.filter(a => a.rooms === roomFilter);
+    let apts = (complex.buildings ?? []).flatMap(b => b.apartments ?? []).filter(a => a.status !== 'sold');
+    // Filter by room_category so "2Е-к.кв" matches when user selects "2-комн."
+    if (roomFilter !== null) apts = apts.filter(a => (a.roomCategory ?? a.rooms) === roomFilter);
     apts.sort((a, b) => {
       const m = sort.dir === 'asc' ? 1 : -1;
       return (a[sort.field] - b[sort.field]) * m;
@@ -36,14 +55,16 @@ const RedesignComplex = () => {
 
   const layouts = useMemo(() => {
     if (!complex) return [];
+    // Group by room_category for consistent layout grouping
     const groups: Record<number, { rooms: number; roomName: string; minArea: number; minPrice: number; planImage: string; count: number }> = {};
-    complex.buildings.flatMap(b => b.apartments)
+    (complex.buildings ?? []).flatMap(b => b.apartments ?? [])
       .filter(a => a.status === 'available')
       .forEach(a => {
-        if (!groups[a.rooms]) groups[a.rooms] = { rooms: a.rooms, roomName: a.roomName, minArea: a.area, minPrice: a.price, planImage: a.planImage, count: 0 };
-        groups[a.rooms].count++;
-        if (a.area < groups[a.rooms].minArea) groups[a.rooms].minArea = a.area;
-        if (a.price < groups[a.rooms].minPrice) { groups[a.rooms].minPrice = a.price; groups[a.rooms].planImage = a.planImage; }
+        const cat = a.roomCategory ?? a.rooms;
+        if (!groups[cat]) groups[cat] = { rooms: cat, roomName: a.roomName, minArea: a.area, minPrice: a.price, planImage: a.planImage, count: 0 };
+        groups[cat].count++;
+        if (a.area < groups[cat].minArea) groups[cat].minArea = a.area;
+        if (a.price < groups[cat].minPrice) { groups[cat].minPrice = a.price; groups[cat].planImage = a.planImage; }
       });
     return Object.values(groups).map((g, i) => ({ id: String(i), complexId: complex.id, rooms: g.rooms, area: g.minArea, priceFrom: g.minPrice, planImage: g.planImage, availableCount: g.count }));
   }, [complex]);
@@ -105,15 +126,6 @@ const RedesignComplex = () => {
       </div>
     );
   }
-
-  // Build unique room types with names for the filter buttons
-  const roomTypes = useMemo(() => {
-    const map = new Map<number, string>();
-    complex.buildings.flatMap(b => b.apartments)
-      .filter(a => a.status !== 'sold')
-      .forEach(a => { if (!map.has(a.rooms)) map.set(a.rooms, a.roomName || (a.rooms === 0 ? 'Студия' : `${a.rooms}-комн.`)); });
-    return [...map.entries()].sort((x, y) => x[0] - y[0]);
-  }, [complex]);
 
   return (
     <div className="min-h-screen bg-background pb-16 lg:pb-0">

@@ -5,7 +5,8 @@ import type { ResidentialComplex, Building, Apartment } from '@/redesign/data/ty
 // API shapes from ComplexResource + BuildingResource + ApartmentResource
 interface ApiApartment {
   id: string; complexId: string; buildingId: string;
-  rooms: number; roomName: string | null; area: number; kitchenArea: number | null;
+  rooms: number; roomCategory: number | null; roomName: string | null;
+  area: number; kitchenArea: number | null;
   floor: number; totalFloors: number | null;
   price: number; pricePerMeter: number;
   finishing: string | null; status: string; planImage: string | null; section: number | null;
@@ -39,6 +40,7 @@ function mapApartment(a: ApiApartment, complexId: string, buildingId: string): A
     complexId,
     buildingId,
     rooms: a.rooms ?? 0,
+    roomCategory: a.roomCategory ?? null,
     roomName,
     area: a.area ?? 0,
     kitchenArea: a.kitchenArea ?? 0,

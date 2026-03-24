@@ -108,8 +108,12 @@ const RedesignMap = () => {
   // Update markers when complexes change or map becomes ready
   useEffect(() => {
     if (!mapInstance.current || !window.ymaps || !ready) return;
-    markersRef.current.forEach(m => mapInstance.current.geoObjects.remove(m));
+    const map = mapInstance.current;
+
+    // Clear previous markers
+    markersRef.current.forEach(m => map.geoObjects.remove(m));
     markersRef.current = [];
+
     complexes.forEach(c => {
       if (!c.coords[0] && !c.coords[1]) return;
       const pm = new window.ymaps.Placemark(c.coords, {
@@ -117,7 +121,7 @@ const RedesignMap = () => {
         balloonContentBody: `<div>${c.district ? c.district + ' · ' : ''}от ${c.priceFrom ? c.priceFrom.toLocaleString('ru-RU') + ' ₽' : '—'}</div><a href="/complex/${c.slug}" style="color:hsl(206,89%,60%)">Подробнее →</a>`,
       }, { preset: 'islands#blueCircleDotIcon' });
       pm.events.add('click', () => setActive(c.slug));
-      mapInstance.current.geoObjects.add(pm);
+      map.geoObjects.add(pm);
       markersRef.current.push(pm);
     });
   }, [complexes, ready]);

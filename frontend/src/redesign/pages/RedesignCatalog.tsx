@@ -59,11 +59,11 @@ const RedesignCatalog = () => {
     if (s !== filters.search) setFilters(f => ({ ...f, search: s }));
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch real data
+  // Fetch real data — always enabled so map view has data too
+  // In map mode, load up to 500 complexes (no pagination needed)
   const { data, isLoading, isFetching } = useBlocks(filters, {
-    page,
-    perPage: 24,
-    enabled: view !== 'map',
+    page: view === 'map' ? 1 : page,
+    perPage: view === 'map' ? 500 : 24,
   });
 
   const { data: filtersData } = useFilters();

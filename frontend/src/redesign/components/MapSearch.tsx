@@ -43,12 +43,15 @@ const MapSearch = ({ complexes, activeSlug, onSelect, height = '70vh' }: Props) 
   }, [ready]);
 
   useEffect(() => {
-    if (!mapInstance.current) return;
+    if (!mapInstance.current || !ready) return;
     const map = mapInstance.current;
+
+    // Clear previous markers
     markersRef.current.forEach(m => map.geoObjects.remove(m));
     markersRef.current = [];
 
     complexes.forEach(c => {
+      if (!c.coords[0] && !c.coords[1]) return;
       const pm = new window.ymaps.Placemark(c.coords, {
         balloonContentHeader: `<strong>${c.name}</strong>`,
         balloonContentBody: `<div style="max-width:240px"><img src="${c.images[0]}" style="width:100%;height:100px;object-fit:cover;border-radius:8px;margin-bottom:8px" /><div style="font-weight:700;margin-bottom:4px">от ${formatPrice(c.priceFrom)}</div><div style="font-size:12px;color:#666">${c.district} · м.${c.subway}</div><a href="/complex/${c.slug}" style="color:hsl(206,89%,60%);font-size:13px;margin-top:8px;display:block;font-weight:500">Подробнее →</a></div>`,
@@ -57,6 +60,15 @@ const MapSearch = ({ complexes, activeSlug, onSelect, height = '70vh' }: Props) 
       map.geoObjects.add(pm);
       markersRef.current.push(pm);
     });
+
+    // Fit map bounds to show all markers
+    if (markersRef.current.length > 0) {
+      try {
+        map.setBounds(map.geoObjects.getBounds(), { checkZoomRange: true, duration: 300 });
+      } catch (_) {
+        // getBounds may fail if markers have no valid coords
+      }
+    }
   }, [complexes, ready]);
 
   const centerOn = useCallback((slug: string) => {
