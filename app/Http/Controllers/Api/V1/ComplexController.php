@@ -16,29 +16,34 @@ class ComplexController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Complex::with(['district', 'builder', 'subways'])
-            ->withCount(['apartments as available_count' => fn($q) =>
-                $q->where('is_active', 1)->whereIn('status', ['available', 'reserved'])
-            ]);
+        $baseQuery = Complex::query();
 
         if ($search = $request->input('search')) {
-            $query->where('name', 'like', "%{$search}%");
+            $baseQuery->where('name', 'like', "%{$search}%");
         }
         if ($builderId = $request->input('builder_id')) {
-            $query->where('builder_id', $builderId);
+            $baseQuery->where('builder_id', $builderId);
         }
         if ($districtId = $request->input('district_id')) {
-            $query->where('district_id', $districtId);
+            $baseQuery->where('district_id', $districtId);
         }
         if ($status = $request->input('status')) {
-            $query->where('status', $status);
+            $baseQuery->where('status', $status);
         }
 
         $perPage = min((int) $request->input('per_page', 20), 100);
         $page    = max((int) $request->input('page', 1), 1);
-        $total   = $query->count();
+        $total   = (clone $baseQuery)->count();
 
-        $items = $query->orderBy('name')
+        $query = (clone $baseQuery)
+            ->with(['district', 'builder', 'subways'])
+            ->withCount(['apartments as available_count' => fn($q) =>
+                $q->where('is_active', 1)->whereIn('status', ['available', 'reserved'])
+            ])
+            ->leftJoin('complexes_search as cs', 'cs.block_id', '=', 'blocks.id')
+            ->addSelect('blocks.*', 'cs.price_from', 'cs.price_to');
+
+        $items = $query->orderBy('blocks.name')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
             ->get();
@@ -57,6 +62,8 @@ class ComplexController extends Controller
                 'lat'      => (float) $c->lat,
                 'lng'      => (float) $c->lng,
                 'images'   => $c->images ?? [],
+                'price_from' => $c->price_from ? (int) $c->price_from : null,
+                'price_to'   => $c->price_to   ? (int) $c->price_to   : null,
                 'available_apartments' => $c->available_count,
             ]),
             'meta' => [
@@ -126,7 +133,17 @@ class ComplexController extends Controller
         
         // Фильтры
         if ($request->has('rooms')) {
-            $query->where('rooms_count', $request->input('rooms'));
+            // rooms param is a category (0-4); map via rooms table crm_ids
+            $category = (int) $request->input('rooms');
+            $crm_ids = DB::table('rooms')
+                ->where('room_category', $category)
+                ->pluck('crm_id')
+                ->toArray();
+            if (!empty($crm_ids)) {
+                $query->whereIn('rooms_count', $crm_ids);
+            } else {
+                $query->where('rooms_count', $category);
+            }
         }
         
         if ($request->has('areaMin')) {
@@ -168,7 +185,7 @@ class ComplexController extends Controller
         $query->orderBy($sort, $order);
         
         $total = $query->count();
-        $apartments = $query->get();
+        $apartments = $query->with(['roomType:id,crm_id,name_one'])->get();
         
         return response()->json([
             'data' => $apartments->map(function ($apartment) {
@@ -177,6 +194,7 @@ class ComplexController extends Controller
                     'complexId' => $apartment->block_id,
                     'buildingId' => $apartment->building_id,
                     'rooms' => $apartment->rooms_count,
+                    'roomName' => $apartment->roomType?->name_one ?? null,
                     'area' => (float) $apartment->area_total,
                     'kitchenArea' => $apartment->area_kitchen ? (float) $apartment->area_kitchen : null,
                     'floor' => $apartment->floor,
