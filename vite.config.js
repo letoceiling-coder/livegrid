@@ -12,7 +12,10 @@ export default defineConfig({
         react(),
     ],
     build: {
-        manifest: 'manifest.json',
+        // Vite 5 always places the manifest under .vite/manifest.json.
+        // AppServiceProvider::boot() calls Vite::useManifestFilename('.vite/manifest.json')
+        // so Laravel finds it correctly. Do not override the path here.
+        manifest: true,
         outDir: 'public/build',
         emptyOutDir: true,
     },
