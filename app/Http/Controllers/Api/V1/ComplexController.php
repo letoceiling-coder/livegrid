@@ -77,10 +77,16 @@ class ComplexController extends Controller
             'district',
             'builder',
             'subways',
+            'buildings',
             'buildings.apartments' => function ($query) {
                 $query->where('is_active', 1)
                     ->whereIn('status', ['available', 'reserved'])
-                    ->with('finishing');
+                    ->select([
+                        'id', 'block_id', 'building_id', 'rooms_count', 'area_total',
+                        'area_kitchen', 'floor', 'floors', 'price', 'finishing_id',
+                        'status', 'plan_image', 'section',
+                    ])
+                    ->with(['finishing:id,name']);
             },
         ];
 
