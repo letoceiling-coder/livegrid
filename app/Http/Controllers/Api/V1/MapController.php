@@ -49,15 +49,23 @@ class MapController extends Controller
         if ($request->has('priceMax')) {
             $filters['priceMax'] = (int) $request->input('priceMax');
         }
-        
+
         if ($request->has('areaMin')) {
             $filters['areaMin'] = (float) $request->input('areaMin');
         }
-        
+
         if ($request->has('areaMax')) {
             $filters['areaMax'] = (float) $request->input('areaMax');
         }
-        
+
+        if ($request->has('floorMin')) {
+            $filters['floorMin'] = (int) $request->input('floorMin');
+        }
+
+        if ($request->has('floorMax')) {
+            $filters['floorMax'] = (int) $request->input('floorMax');
+        }
+
         if ($request->has('district')) {
             $filters['district'] = $request->input('district');
         }

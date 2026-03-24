@@ -108,16 +108,18 @@ class SearchService
             $query->where('min_floor', '<=', $filters['floorMax']);
         }
         
-        // Фильтр по комнатности (через boolean колонки)
+        // Фильтр по комнатности (через boolean колонки rooms_0..rooms_4)
+        // Cast to int since URL params arrive as strings ("0","1","2"...)
         if (!empty($filters['rooms']) && is_array($filters['rooms'])) {
-            $query->where(function ($q) use ($filters) {
-                foreach ($filters['rooms'] as $room) {
-                    $roomColumn = 'rooms_' . $room;
-                    if (in_array($room, [0, 1, 2, 3, 4])) {
-                        $q->orWhere($roomColumn, true);
+            $rooms = array_map('intval', $filters['rooms']);
+            $validRooms = array_filter($rooms, fn($r) => in_array($r, [0, 1, 2, 3, 4], true));
+            if (!empty($validRooms)) {
+                $query->where(function ($q) use ($validRooms) {
+                    foreach ($validRooms as $room) {
+                        $q->orWhere('rooms_' . $room, true);
                     }
-                }
-            });
+                });
+            }
         }
         
         // Фильтр по району (frontend sends names)
