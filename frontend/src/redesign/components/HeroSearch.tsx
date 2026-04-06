@@ -160,7 +160,6 @@ export default function HeroSearch() {
     const handler = (e: MouseEvent) => {
       const t = e.target as Node;
       if (searchRef.current && !searchRef.current.contains(t)) setSearchFocused(false);
-      if (regionRef.current && !regionRef.current.contains(t)) setRegionOpen(false);
       if (ptRef.current && !ptRef.current.contains(t)) setRoomOpen(false);
       if (dlRef.current && !dlRef.current.contains(t)) setDlOpen(false);
       if (commercialRef.current && !commercialRef.current.contains(t)) setCommercialOpen(false);
