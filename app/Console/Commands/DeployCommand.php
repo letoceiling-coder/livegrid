@@ -100,34 +100,42 @@ class DeployCommand extends Command
             $this->line('   build files: '.$buildFileCount);
 
             if (is_dir($prodPath)) {
-                $this->info('Sync build to production path...');
-                $prodBuild = $prodPath.'/public/build';
-                // Replace prod build entirely (includes .vite/); rm …/* alone can miss dot-dirs and fail on empty globs.
-                $syncRm = $this->executeCommand(
-                    'rm -rf '.escapeshellarg($prodBuild).' && mkdir -p '.escapeshellarg($prodBuild),
-                    'Failed to clear production public/build'
-                );
-                if ($syncRm !== 0) {
-                    return Command::FAILURE;
-                }
-                $syncCp = $this->executeCommand(
-                    'cp -a '.escapeshellarg(rtrim($buildPath, '/')).'/. '.escapeshellarg(rtrim($prodBuild, '/')).'/',
-                    'Failed to copy build to production path'
-                );
-                if ($syncCp !== 0) {
-                    return Command::FAILURE;
-                }
+                $deployRoot = realpath(base_path()) ?: base_path();
+                $prodRoot = realpath($prodPath) ?: $prodPath;
 
-                $prodFileCount = $this->countFilesInDirectory($prodBuild);
-                $this->line('   prod build files (after sync): '.$prodFileCount);
+                if ($deployRoot === $prodRoot) {
+                    $this->info('Production path matches deploy directory; Vite output already at public/build (skip self-copy).');
+                    $this->line('   prod build files: '.$this->countFilesInDirectory($buildPath));
+                } else {
+                    $this->info('Sync build to production path...');
+                    $prodBuild = $prodPath.'/public/build';
+                    // Replace prod build entirely (includes .vite/); rm …/* alone can miss dot-dirs and fail on empty globs.
+                    $syncRm = $this->executeCommand(
+                        'rm -rf '.escapeshellarg($prodBuild).' && mkdir -p '.escapeshellarg($prodBuild),
+                        'Failed to clear production public/build'
+                    );
+                    if ($syncRm !== 0) {
+                        return Command::FAILURE;
+                    }
+                    $syncCp = $this->executeCommand(
+                        'cp -a '.escapeshellarg(rtrim($buildPath, '/')).'/. '.escapeshellarg(rtrim($prodBuild, '/')).'/',
+                        'Failed to copy build to production path'
+                    );
+                    if ($syncCp !== 0) {
+                        return Command::FAILURE;
+                    }
 
-                $this->info('Sync git to production...');
-                $gitProd = $this->executeCommand(
-                    'cd '.escapeshellarg($prodPath).' && git fetch origin && git reset --hard origin/main',
-                    'Failed to sync git on production path'
-                );
-                if ($gitProd !== 0) {
-                    return Command::FAILURE;
+                    $prodFileCount = $this->countFilesInDirectory($prodBuild);
+                    $this->line('   prod build files (after sync): '.$prodFileCount);
+
+                    $this->info('Sync git to production...');
+                    $gitProd = $this->executeCommand(
+                        'cd '.escapeshellarg($prodPath).' && git fetch origin && git reset --hard origin/main',
+                        'Failed to sync git on production path'
+                    );
+                    if ($gitProd !== 0) {
+                        return Command::FAILURE;
+                    }
                 }
             }
         } else {
