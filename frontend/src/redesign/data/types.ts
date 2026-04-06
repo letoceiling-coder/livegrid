@@ -21,6 +21,7 @@ export interface Complex {
   infrastructure: string[];
   total_available_apartments: number;
   buildings: any[];
+  roomsBreakdown?: RoomBreakdown[];
 }
 
 export interface Viewport {
@@ -46,6 +47,8 @@ export interface ResidentialComplex {
   status: 'building' | 'completed' | 'planned';
   priceFrom: number;
   priceTo: number;
+  /** Pre-aggregated count from complexes_search — always correct in catalog view */
+  availableApartments: number;
   images: string[];
   coords: [number, number];
   advantages: string[];
@@ -85,11 +88,20 @@ export interface Apartment {
 export interface LayoutGroup {
   id: string;
   complexId: string;
+  /** ID of the cheapest available apartment in this room-type group */
+  apartmentId: string;
   rooms: number;
   area: number;
   priceFrom: number;
   planImage: string;
   availableCount: number;
+}
+
+export interface RoomBreakdown {
+  rooms: number;
+  count: number;
+  minArea: number;
+  minPrice: number;
 }
 
 export type SortField = 'price' | 'area' | 'floor' | 'rooms';

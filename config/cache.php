@@ -96,6 +96,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Entity list cache (tagged; use redis or memcached)
+    |--------------------------------------------------------------------------
+    |
+    | EntityService list endpoints use Cache::tags(['entity', $typeCode]).
+    | File / database drivers do not support tags — caching is skipped.
+    |
+    */
+    // Optional dedicated store. If unset, uses default cache store.
+    'entity_list_store' => env('ENTITY_LIST_CACHE_STORE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Key Prefix
     |--------------------------------------------------------------------------
     |

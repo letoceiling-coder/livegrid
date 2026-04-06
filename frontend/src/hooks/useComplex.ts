@@ -82,6 +82,7 @@ export function mapApiComplex(api: ApiComplex): ResidentialComplex {
     status: (api.status as ResidentialComplex['status']) ?? 'building',
     priceFrom: api.priceFrom ?? 0,
     priceTo: api.priceTo ?? 0,
+    availableApartments: api.totalAvailableApartments ?? 0,
     images: api.images?.length ? api.images : ['/placeholder-complex.svg'],
     coords: [api.coords?.lat ?? 0, api.coords?.lng ?? 0],
     advantages: api.advantages ?? [],

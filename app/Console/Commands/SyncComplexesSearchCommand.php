@@ -84,8 +84,18 @@ class SyncComplexesSearchCommand extends Command
                     ? DB::table('regions')->whereIn('id', $districtIds)->get()->keyBy('id')
                     : collect();
 
-                // --- Builders (single batched query) ---
-                $builderIds = $complexes->pluck('builder_id')->filter()->unique()->values()->toArray();
+                // --- Builders (from apartments — blocks.builder_id is not populated from feed) ---
+                $builderByBlock = DB::table('apartments')
+                    ->selectRaw('block_id, builder_id')
+                    ->whereIn('block_id', $ids)
+                    ->whereNotNull('builder_id')
+                    ->where('builder_id', '!=', '')
+                    ->groupBy('block_id', 'builder_id')
+                    ->get()
+                    ->groupBy('block_id')
+                    ->map(fn($rows) => $rows->first()->builder_id);
+
+                $builderIds = $builderByBlock->values()->filter()->unique()->toArray();
                 $builders = $builderIds
                     ? DB::table('builders')->whereIn('id', $builderIds)->get()->keyBy('id')
                     : collect();
@@ -103,11 +113,12 @@ class SyncComplexesSearchCommand extends Command
                 // --- Build and upsert rows ---
                 foreach ($complexes as $complex) {
                     try {
-                        $stats     = $apStats->get($complex->id);
-                        $fNames    = $finishingData->get($complex->id, collect())->pluck('finishing_name')->toArray();
-                        $district  = $districts->get($complex->district_id);
-                        $builder   = $builders->get($complex->builder_id);
-                        $subway    = $subwayRows->get($complex->id);
+                        $stats      = $apStats->get($complex->id);
+                        $fNames     = $finishingData->get($complex->id, collect())->pluck('finishing_name')->toArray();
+                        $district   = $districts->get($complex->district_id);
+                        $builderId  = $builderByBlock->get($complex->id);
+                        $builder    = $builderId ? $builders->get($builderId) : null;
+                        $subway     = $subwayRows->get($complex->id);
 
                         $status = in_array($complex->status, self::VALID_STATUSES)
                             ? $complex->status
@@ -127,7 +138,7 @@ class SyncComplexesSearchCommand extends Command
                                 'description'             => $complex->description,
                                 'district_id'             => $complex->district_id,
                                 'district_name'           => $district?->name,
-                                'builder_id'              => $complex->builder_id,
+                                'builder_id'              => $builderId ?? $complex->builder_id,
                                 'builder_name'            => $builder?->name,
                                 'subway_id'               => $subway?->subway_id,
                                 'subway_name'             => $subway?->subway_name,

@@ -119,6 +119,7 @@ class BuildingImporter
                 // Generate UUID for new records
                 $id = $existing ? $existing->id : (string) \Illuminate\Support\Str::uuid();
 
+                // sections and floors are not in the feed — derive them later from apartments
                 $buildingData = [
                     'id' => $id,
                     'block_id' => $blockId,
@@ -128,6 +129,7 @@ class BuildingImporter
                     'source_id' => $sourceId,
                     'external_id' => $externalId,
                     'created_at' => now(),
+                    // floors/sections will be updated in a post-import pass via recalcBuildingDimensions()
                 ];
 
                 if ($existing) {
@@ -160,5 +162,35 @@ class BuildingImporter
         ]);
 
         return $stats;
+    }
+
+    /**
+     * Recalculate floors and sections for all buildings based on actual apartment data.
+     * Call this AFTER apartments have been imported.
+     */
+    public function recalcBuildingDimensions(): int
+    {
+        // Update floors = MAX(floor) from apartments, sections = COUNT(DISTINCT section)
+        // For buildings where apartments have no section data, default to sections = 1
+        $updated = DB::statement("
+            UPDATE buildings b
+            JOIN (
+                SELECT
+                    building_id,
+                    MAX(floor)  AS max_floor,
+                    GREATEST(1, COUNT(DISTINCT CASE WHEN section IS NOT NULL THEN section END)) AS sec_count
+                FROM apartments
+                WHERE is_active = 1
+                GROUP BY building_id
+            ) agg ON agg.building_id = b.id
+            SET b.floors   = agg.max_floor,
+                b.sections = agg.sec_count
+        ");
+
+        Log::info('Recalculated building dimensions');
+
+        return DB::table('buildings')
+            ->where('floors', '>', 0)
+            ->count();
     }
 }

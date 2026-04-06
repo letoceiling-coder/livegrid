@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import type { Apartment } from '@/redesign/data/types';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPrice } from '@/lib/formatPrice';
 
 interface Props {
   apartments: Apartment[];
@@ -18,9 +18,12 @@ const statusBg: Record<string, string> = {
 };
 
 const Chessboard = ({ apartments, floors, sections, buildingName }: Props) => {
+  const effectiveSections = sections > 0 ? sections : 1;
+  const effectiveFloors = floors > 0 ? floors : (apartments.length > 0 ? Math.max(...apartments.map(a => a.floor ?? 1)) : 1);
   const grid = new Map<string, Apartment>();
   apartments.forEach(a => {
-    grid.set(`${a.floor}-${a.section}`, a);
+    const sec = (a.section ?? 1);
+    grid.set(`${a.floor}-${sec}`, a);
   });
 
   return (
@@ -34,20 +37,20 @@ const Chessboard = ({ apartments, floors, sections, buildingName }: Props) => {
         </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-border bg-card p-3">
-        <div className="inline-grid gap-1" style={{ gridTemplateColumns: `48px repeat(${sections}, minmax(90px, 1fr))` }}>
+        <div className="inline-grid gap-1" style={{ gridTemplateColumns: `48px repeat(${effectiveSections}, minmax(90px, 1fr))` }}>
           {/* Header */}
           <div className="text-xs text-muted-foreground font-medium flex items-center justify-center">Эт.</div>
-          {Array.from({ length: sections }, (_, s) => (
+          {Array.from({ length: effectiveSections }, (_, s) => (
             <div key={s} className="text-xs text-muted-foreground font-medium text-center py-1.5">Секц. {s + 1}</div>
           ))}
 
           {/* Floors top to bottom */}
-          {Array.from({ length: floors }, (_, fi) => {
-            const floor = floors - fi;
+          {Array.from({ length: effectiveFloors }, (_, fi) => {
+            const floor = effectiveFloors - fi;
             return (
               <React.Fragment key={`row-${floor}`}>
                 <div className="text-xs text-muted-foreground flex items-center justify-center font-medium">{floor}</div>
-                {Array.from({ length: sections }, (_, s) => {
+                {Array.from({ length: effectiveSections }, (_, s) => {
                   const apt = grid.get(`${floor}-${s + 1}`);
                   if (!apt) return <div key={`${floor}-${s}`} className="h-14 bg-muted/30 rounded-lg border border-border/30" />;
                   return (

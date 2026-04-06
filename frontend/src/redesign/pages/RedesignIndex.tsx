@@ -13,7 +13,7 @@ import CategoryTiles from '@/components/CategoryTiles';
 import LatestNews from '@/components/LatestNews';
 import ContactsSection from '@/components/ContactsSection';
 import FooterSection from '@/components/FooterSection';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPrice } from '@/lib/formatPrice';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useBlocks } from '@/hooks/useBlocks';
@@ -29,6 +29,7 @@ function adaptComplex(c: Complex): ResidentialComplex {
     address: c.address ?? '', deadline: c.deadline ?? '',
     status: (c.status ?? 'building') as ResidentialComplex['status'],
     priceFrom: c.price_from ?? 0, priceTo: c.price_to ?? c.price_from ?? 0,
+    availableApartments: c.total_available_apartments ?? 0,
     images: c.images?.length ? c.images : ['/placeholder-complex.svg'],
     coords: [c.lat ?? 0, c.lng ?? 0],
     advantages: c.advantages ?? [], infrastructure: c.infrastructure ?? [],

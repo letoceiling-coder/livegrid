@@ -3,11 +3,13 @@ import { MapPin, Building2, CalendarDays, Heart, Train } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPrice } from '@/lib/formatPrice';
 
 interface Props {
   complex: ResidentialComplex;
   variant?: 'grid' | 'list';
+  /** When set, card links to apartment detail (e.g. home «hot» block) */
+  apartmentId?: string;
 }
 
 const statusLabels: Record<string, { label: string; className: string }> = {
@@ -16,21 +18,38 @@ const statusLabels: Record<string, { label: string; className: string }> = {
   planned: { label: 'Проект', className: 'bg-muted text-muted-foreground' },
 };
 
-const ComplexCard = ({ complex, variant = 'grid' }: Props) => {
+const ComplexCard = ({ complex, variant = 'grid', apartmentId }: Props) => {
   const [liked, setLiked] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const totalApts = complex.buildings.reduce((s, b) => s + b.apartments.filter(a => a.status === 'available').length, 0);
-  const status = statusLabels[complex.status];
+  // Use pre-aggregated count from complexes_search — buildings are empty in catalog view
+  const totalApts = complex.availableApartments;
+  const status = statusLabels[complex.status] ?? statusLabels.building;
+  const cardTo = apartmentId
+    ? `/apartment/${apartmentId}`
+    : complex.slug
+      ? `/complex/${complex.slug}`
+      : '/catalog';
 
-  // Группировка квартир по типам
-  const availableApts = complex.buildings.flatMap(b => b.apartments.filter(a => a.status === 'available'));
-  const aptTypes = [0, 1, 2, 3].map(rooms => {
-    const apts = availableApts.filter(a => a.rooms === rooms);
-    if (apts.length === 0) return null;
-    const minArea = Math.min(...apts.map(a => a.area));
-    const minPrice = Math.min(...apts.map(a => a.price));
-    return { rooms, area: minArea, price: minPrice, count: apts.length };
-  }).filter(Boolean);
+  // Use pre-aggregated rooms breakdown from API (catalog view)
+  // Falls back to computing from buildings if roomsBreakdown not available (detail view)
+  const aptTypes = (() => {
+    if (complex.roomsBreakdown && complex.roomsBreakdown.length > 0) {
+      return complex.roomsBreakdown.map(r => ({
+        rooms: r.rooms, area: r.minArea, price: r.minPrice, count: r.count,
+      }));
+    }
+    const buildings = Array.isArray(complex.buildings) ? complex.buildings : [];
+    const availableApts = buildings.flatMap((b: any) =>
+      Array.isArray(b.apartments) ? b.apartments.filter((a: { status: string }) => a.status === 'available') : []
+    );
+    return [0, 1, 2, 3].map(rooms => {
+      const apts = availableApts.filter((a: { rooms: number }) => a.rooms === rooms);
+      if (apts.length === 0) return null;
+      const minArea = Math.min(...apts.map((a: { area: number }) => a.area));
+      const minPrice = Math.min(...apts.map((a: { price: number }) => a.price));
+      return { rooms, area: minArea, price: minPrice, count: apts.length };
+    }).filter(Boolean);
+  })();
 
   const roomLabels: Record<number, string> = {
     0: 'Студии',
@@ -42,12 +61,16 @@ const ComplexCard = ({ complex, variant = 'grid' }: Props) => {
   if (variant === 'list') {
     return (
       <Link
-        to={`/complex/${complex.slug}`}
+        to={cardTo}
         className="group flex rounded-2xl overflow-hidden bg-card border border-border transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
       >
         {/* Image */}
         <div className="relative w-[320px] shrink-0 overflow-hidden bg-muted">
-          <img src={complex.images[0]} alt={complex.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+          <img
+            src={complex.images?.[0] || '/placeholder-complex.svg'}
+            alt={complex.name}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
           <div className="absolute top-3 left-3 flex gap-1.5">
             <span className={cn('px-2.5 py-1 rounded-full text-xs font-medium backdrop-blur-sm', status.className)}>
               {status.label}
@@ -84,7 +107,7 @@ const ComplexCard = ({ complex, variant = 'grid' }: Props) => {
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {complex.advantages.slice(0, 3).map((a, i) => (
+              {(complex.advantages ?? []).slice(0, 3).map((a, i) => (
                 <span key={i} className="px-2 py-0.5 rounded-md bg-accent text-accent-foreground text-xs">{a}</span>
               ))}
             </div>
@@ -103,7 +126,7 @@ const ComplexCard = ({ complex, variant = 'grid' }: Props) => {
 
   return (
     <Link
-      to={`/complex/${complex.slug}`}
+      to={cardTo}
       className="group relative flex flex-col rounded-2xl overflow-hidden bg-card border border-border cursor-pointer transition-[transform,box-shadow] duration-200 ease-out hover:shadow-lg hover:-translate-y-0.5"
       style={{ height: '420px', minHeight: '420px' }}
     >
@@ -112,7 +135,7 @@ const ComplexCard = ({ complex, variant = 'grid' }: Props) => {
         data-no-nav="true"
       >
         <img
-          src={complex.images[currentImageIndex] || complex.images[0]}
+          src={complex.images?.[currentImageIndex] || complex.images?.[0] || '/placeholder-complex.svg'}
           alt={complex.name}
           className="w-full h-full object-cover object-center"
         />
@@ -125,9 +148,9 @@ const ComplexCard = ({ complex, variant = 'grid' }: Props) => {
         >
           <Heart className={cn('w-5 h-5', liked ? 'fill-destructive text-destructive' : 'text-muted-foreground')} />
         </button>
-        {complex.images.length > 1 && (
+        {(complex.images?.length ?? 0) > 1 && (
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10" data-no-nav="true">
-            {complex.images.map((_, index) => (
+            {(complex.images ?? []).map((_, index) => (
               <button
                 key={index}
                 type="button"

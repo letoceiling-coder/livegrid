@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPrice } from '@/lib/formatPrice';
 import { MapPin, Building2 } from 'lucide-react';
 
 declare global {

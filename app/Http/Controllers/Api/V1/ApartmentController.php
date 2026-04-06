@@ -88,7 +88,7 @@ class ApartmentController extends Controller
                 'building' => $building ? [
                     'id'       => $building->id,
                     'name'     => $building->name,
-                    'deadline' => $building->deadline?->format('Y-m-d'),
+                    'deadline' => $building->deadline ? (string) $building->deadline : null,
                 ] : null,
             ],
         ]);

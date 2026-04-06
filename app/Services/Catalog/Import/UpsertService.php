@@ -381,6 +381,8 @@ class UpsertService
                 'block_name',
                 'builder_name',
                 'district_name',
+                'plan_image',
+                'section',
             ])
             ->get()
             ->filter(function ($item) use ($lookupMap) {
@@ -424,6 +426,8 @@ class UpsertService
             'block_name',
             'builder_name',
             'district_name',
+            'plan_image',
+            'section',
         ];
 
         foreach ($fieldsToCompare as $field) {

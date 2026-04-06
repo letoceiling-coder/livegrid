@@ -12,16 +12,17 @@ class DeployCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'deploy 
+    protected $signature = 'deploy
                             {--force : Force the operation to run when in production}
-                            {--no-migrate : Skip running migrations}';
+                            {--no-migrate : Skip running migrations}
+                            {--no-build : Skip frontend build (use when assets are already deployed)}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Deploy the application: pull code, install dependencies, run migrations, and cache configs';
+    protected $description = 'Deploy: pull code → composer → npm build → migrate → sync search → cache configs';
 
     /**
      * Execute the console command.
@@ -51,20 +52,41 @@ class DeployCommand extends Command
             return Command::FAILURE;
         }
 
-        // Step 3: Build frontend
-        $this->info('🎨 Installing npm dependencies...');
-        $npmInstall = $this->executeCommand('npm install --legacy-peer-deps', 'Failed to install npm dependencies');
-        if ($npmInstall !== 0) {
-            return Command::FAILURE;
-        }
+        // Step 3: Build frontend (root vite.config.js → public/build/ with frontend/src/main.tsx entry)
+        if (!$this->option('no-build')) {
+            $this->info('🎨 Installing npm dependencies (root)...');
+            $npmInstall = $this->executeCommand('npm install', 'Failed to install npm dependencies');
+            if ($npmInstall !== 0) {
+                return Command::FAILURE;
+            }
 
-        $this->info('🏗️  Building frontend assets...');
-        $npmBuild = $this->executeCommand('npm run build', 'Failed to build frontend');
-        if ($npmBuild !== 0) {
-            $this->error('❌ Frontend build failed');
-            return Command::FAILURE;
+            // Remove stale build so old hashed assets don't accumulate
+            $buildPath = public_path('build');
+            $this->info("🗑️  Removing old build ({$buildPath})...");
+            $this->executeCommand("rm -rf {$buildPath}", 'Failed to remove old build (non-critical)');
+
+            $this->info('🏗️  Building frontend assets (vite.config.js)...');
+            $npmBuild = $this->executeCommand('npx vite build --config vite.config.js', 'Failed to build frontend');
+            if ($npmBuild !== 0) {
+                $this->error('❌ Frontend build failed');
+                return Command::FAILURE;
+            }
+
+            // Verify manifest was generated correctly
+            $manifest = public_path('build/.vite/manifest.json');
+            if (!file_exists($manifest)) {
+                $this->error("❌ Manifest not found at {$manifest}");
+                return Command::FAILURE;
+            }
+            $manifestData = json_decode(file_get_contents($manifest), true);
+            if (!isset($manifestData['frontend/src/main.tsx'])) {
+                $this->error('❌ Manifest does not contain frontend/src/main.tsx entry — check vite.config.js input');
+                return Command::FAILURE;
+            }
+            $this->info('✅ Frontend built successfully (manifest OK)');
+        } else {
+            $this->info('⏭️  Skipping frontend build (--no-build flag)');
         }
-        $this->info('✅ Frontend built successfully');
 
         $php = PHP_BINARY;
         $artisan = base_path('artisan');
@@ -89,9 +111,10 @@ class DeployCommand extends Command
         $this->executeCommand("{$php} {$artisan} cache:clear", 'Cache clear failed (non-critical)');
         $this->info('✅ Cache cleared');
 
-        // Step 5b: Sync search index in background (fast, non-blocking)
+        // Step 5b: Sync search index in background (non-blocking)
+        $syncLog = base_path('storage/logs/sync-search.log');
         $this->info('🔍 Syncing complexes search index (background)...');
-        $this->executeCommand("{$php} {$artisan} complexes:sync-search >> " . base_path('storage/logs/sync-search.log') . ' 2>&1 &', 'Search sync dispatch failed (non-critical)');
+        $this->executeCommand("{$php} {$artisan} complexes:sync-search >> {$syncLog} 2>&1 &", 'Search sync dispatch failed (non-critical)');
         $this->info('✅ Search sync dispatched');
 
         // Step 6: Ensure admin user exists
@@ -117,15 +140,40 @@ class DeployCommand extends Command
         $this->executeCommand("{$php} {$artisan} queue:restart", 'Queue restart failed (non-critical)');
         $this->info('✅ Queue workers restarted');
 
-        // Step 7: Fix storage permissions (after caches are built)
+        // Step 7: Fix storage + build permissions (after caches are built)
         $this->info('🔑 Fixing storage permissions...');
         $storagePath = base_path('storage');
         $cachePath   = base_path('bootstrap/cache');
+        $buildPath   = public_path('build');
         $this->executeCommand(
-            "chown -R www-data:www-data {$storagePath} {$cachePath} && chmod -R 775 {$storagePath} {$cachePath}",
+            "chown -R www-data:www-data {$storagePath} {$cachePath} {$buildPath} && chmod -R 775 {$storagePath} {$cachePath} && chmod -R 755 {$buildPath}",
             'Failed to fix permissions (non-critical)'
         );
         $this->info('✅ Permissions fixed');
+
+        // Step 8: Sync build + views to /var/www/livegrid (dev.livegrid.ru)
+        $devDir = '/var/www/livegrid';
+        if (is_dir($devDir) && realpath(base_path()) !== realpath($devDir)) {
+            $this->info("🔄 Syncing build to dev server ({$devDir})...");
+            $this->executeCommand(
+                "rm -rf {$devDir}/public/build && cp -r {$buildPath} {$devDir}/public/build && chmod -R 755 {$devDir}/public/build",
+                'Failed to sync build to dev server (non-critical)'
+            );
+            $this->executeCommand(
+                "cp " . base_path('resources/views/app.blade.php') . " {$devDir}/resources/views/app.blade.php",
+                'Failed to sync app.blade.php to dev server (non-critical)'
+            );
+            $this->executeCommand(
+                "cp " . base_path('app/Providers/AppServiceProvider.php') . " {$devDir}/app/Providers/AppServiceProvider.php",
+                'Failed to sync AppServiceProvider.php to dev server (non-critical)'
+            );
+            $php = PHP_BINARY;
+            $this->executeCommand(
+                "cd {$devDir} && {$php} artisan optimize:clear && {$php} artisan optimize",
+                'Failed to clear cache on dev server (non-critical)'
+            );
+            $this->info('✅ Dev server synced');
+        }
 
         // Final: Reload PHP-FPM to clear OPcache
         $this->info('🔃 Reloading PHP-FPM (clearing OPcache)...');

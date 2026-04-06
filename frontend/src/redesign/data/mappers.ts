@@ -5,7 +5,7 @@
  * Every hook calls one of these mappers; UI only ever sees Complex.
  */
 
-import type { Complex } from './types';
+import type { Complex, RoomBreakdown } from './types';
 
 // ─── Raw shapes from GET /api/v1/search/complexes ─────────────────────────
 // Nested objects, camelCase, coords as { lat, lng } object.
@@ -29,6 +29,7 @@ export interface ApiSearchComplex {
   advantages?: string[] | null;
   infrastructure?: string[] | null;
   totalAvailableApartments?: number;
+  roomsBreakdown?: { rooms: number; count: number; minPrice: number; minArea: number }[] | null;
 }
 
 export interface ApiSearchResponse {
@@ -54,6 +55,7 @@ export interface ApiMapComplex {
   district?: string;
   subway?: string;
   builder?: string;
+  available?: number;
 }
 
 export interface ApiMapResponse {
@@ -92,6 +94,12 @@ export function mapSearchComplexToModel(api: ApiSearchComplex): Complex {
     infrastructure: api.infrastructure ?? [],
     total_available_apartments: api.totalAvailableApartments ?? 0,
     buildings: [],
+    roomsBreakdown: (api.roomsBreakdown ?? []).map((r): RoomBreakdown => ({
+      rooms: r.rooms,
+      count: r.count,
+      minArea: r.minArea,
+      minPrice: r.minPrice,
+    })),
   };
 }
 
@@ -116,6 +124,8 @@ export function mapMapComplexToModel(api: ApiMapComplex): Complex {
 
     image: images[0],
     images,
+
+    total_available_apartments: api.available ?? 0,
 
     // Fields not provided by map endpoint default to undefined
     buildings: [],

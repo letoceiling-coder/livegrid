@@ -7,7 +7,7 @@ import ComplexHero from '@/redesign/components/ComplexHero';
 import ApartmentTable from '@/redesign/components/ApartmentTable';
 import Chessboard from '@/redesign/components/Chessboard';
 import LayoutGrid from '@/redesign/components/LayoutGrid';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPrice } from '@/lib/formatPrice';
 import type { SortField, SortDir } from '@/redesign/data/types';
 import { useComplex } from '@/hooks/useComplex';
 
@@ -23,51 +23,74 @@ const RedesignComplex = () => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
 
+  // Derive buildings as a stable memoized array — guards against undefined at all call sites.
+  // All downstream memos depend on this, NOT on the whole `complex` object.
+  const buildings = useMemo(
+    () => Array.isArray(complex?.buildings) ? complex!.buildings : [],
+    [complex]
+  );
+
   // Build unique room types grouped by room_category (0-4) for filter buttons.
-  // Using room_category ensures "2-к.кв" and "2Е-к.кв" appear as one "2-комн." button.
   // Must be declared before any early returns to satisfy React's Rules of Hooks.
   const roomTypes = useMemo(() => {
-    if (!complex) return [];
-    // Map<room_category, label>
     const map = new Map<number, string>();
-    (complex.buildings ?? []).flatMap(b => b.apartments ?? [])
-      .filter(a => a.status !== 'sold')
-      .forEach(a => {
+    buildings.flatMap(b => Array.isArray(b.apartments) ? b.apartments : [])
+      .filter((a: { status: string }) => a.status !== 'sold')
+      .forEach((a: { roomCategory: number | null; rooms: number; roomName: string }) => {
         const cat = a.roomCategory ?? a.rooms;
         if (!map.has(cat)) {
           map.set(cat, a.roomName || (cat === 0 ? 'Студия' : `${cat}-комн.`));
         }
       });
     return [...map.entries()].sort((x, y) => x[0] - y[0]);
-  }, [complex]);
+  }, [buildings]);
 
   const allApartments = useMemo(() => {
-    if (!complex) return [];
-    let apts = (complex.buildings ?? []).flatMap(b => b.apartments ?? []).filter(a => a.status !== 'sold');
+    let apts = buildings
+      .flatMap(b => Array.isArray(b.apartments) ? b.apartments : [])
+      .filter((a: { status: string }) => a.status !== 'sold');
     // Filter by room_category so "2Е-к.кв" matches when user selects "2-комн."
-    if (roomFilter !== null) apts = apts.filter(a => (a.roomCategory ?? a.rooms) === roomFilter);
-    apts.sort((a, b) => {
+    if (roomFilter !== null) {
+      apts = apts.filter((a: { roomCategory: number | null; rooms: number }) =>
+        (a.roomCategory ?? a.rooms) === roomFilter
+      );
+    }
+    apts.sort((a: any, b: any) => {
       const m = sort.dir === 'asc' ? 1 : -1;
       return (a[sort.field] - b[sort.field]) * m;
     });
     return apts;
-  }, [complex, sort, roomFilter]);
+  }, [buildings, sort, roomFilter]);
 
   const layouts = useMemo(() => {
     if (!complex) return [];
-    // Group by room_category for consistent layout grouping
-    const groups: Record<number, { rooms: number; roomName: string; minArea: number; minPrice: number; planImage: string; count: number }> = {};
-    (complex.buildings ?? []).flatMap(b => b.apartments ?? [])
-      .filter(a => a.status === 'available')
-      .forEach(a => {
+    const groups: Record<number, {
+      rooms: number; roomName: string; minArea: number; minPrice: number;
+      planImage: string; count: number; apartmentId: string;
+    }> = {};
+    buildings
+      .flatMap(b => Array.isArray(b.apartments) ? b.apartments : [])
+      .filter((a: { status: string }) => a.status === 'available')
+      .forEach((a: { id: string; roomCategory: number | null; rooms: number; roomName: string; area: number; price: number; planImage: string }) => {
         const cat = a.roomCategory ?? a.rooms;
-        if (!groups[cat]) groups[cat] = { rooms: cat, roomName: a.roomName, minArea: a.area, minPrice: a.price, planImage: a.planImage, count: 0 };
+        if (!groups[cat]) {
+          groups[cat] = { rooms: cat, roomName: a.roomName, minArea: a.area, minPrice: a.price, planImage: a.planImage, count: 0, apartmentId: a.id };
+        }
         groups[cat].count++;
         if (a.area < groups[cat].minArea) groups[cat].minArea = a.area;
-        if (a.price < groups[cat].minPrice) { groups[cat].minPrice = a.price; groups[cat].planImage = a.planImage; }
+        if (a.price < groups[cat].minPrice) {
+          groups[cat].minPrice = a.price;
+          groups[cat].planImage = a.planImage;
+          groups[cat].apartmentId = a.id;
+        }
       });
-    return Object.values(groups).map((g, i) => ({ id: String(i), complexId: complex.id, rooms: g.rooms, area: g.minArea, priceFrom: g.minPrice, planImage: g.planImage, availableCount: g.count }));
-  }, [complex]);
+    return Object.values(groups).map((g, i) => ({
+      id: String(i), complexId: complex.id,
+      apartmentId: g.apartmentId,
+      rooms: g.rooms, area: g.minArea, priceFrom: g.minPrice,
+      planImage: g.planImage, availableCount: g.count,
+    }));
+  }, [complex, buildings]);
 
   const handleSort = (field: SortField) => {
     setSort(prev => ({ field, dir: prev.field === field && prev.dir === 'asc' ? 'desc' : 'asc' }));
@@ -180,12 +203,16 @@ const RedesignComplex = () => {
 
           {/* Layouts */}
           <TabsContent value="layouts" className="mt-6">
-            <LayoutGrid layouts={layouts} complexSlug={complex.slug} />
+            {layouts.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">Нет доступных планировок</p>
+            ) : (
+              <LayoutGrid layouts={layouts.filter(l => l.availableCount > 0)} complexSlug={complex.slug} />
+            )}
           </TabsContent>
 
           {/* Chessboard */}
           <TabsContent value="chess" className="mt-6 space-y-8">
-            {(Array.isArray(complex.buildings) ? complex.buildings : []).map(b => (
+            {buildings.map(b => (
               <Chessboard key={b.id} apartments={Array.isArray(b.apartments) ? b.apartments : []} floors={b.floors} sections={b.sections} buildingName={b.name} />
             ))}
           </TabsContent>
@@ -194,7 +221,14 @@ const RedesignComplex = () => {
           <TabsContent value="about" className="mt-6">
             <div className="bg-card rounded-xl border border-border p-6 space-y-5">
               <h3 className="font-semibold text-lg">О комплексе</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{complex.description}</p>
+              {complex.description ? (
+                <div
+                  className="text-sm text-muted-foreground leading-relaxed prose prose-sm max-w-none [&_p]:mb-3 [&_ul]:pl-4 [&_li]:mb-1"
+                  dangerouslySetInnerHTML={{ __html: complex.description }}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">Описание не добавлено</p>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 pt-2">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Адрес</p>
@@ -218,7 +252,7 @@ const RedesignComplex = () => {
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Корпусов</p>
-                  <p className="text-sm font-medium">{(complex.buildings ?? []).length}</p>
+                  <p className="text-sm font-medium">{buildings.length}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Цена</p>

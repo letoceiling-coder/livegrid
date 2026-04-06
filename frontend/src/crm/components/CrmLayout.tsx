@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, BedDouble, Tags, Rss,
-  Settings, ChevronLeft, ChevronRight, LogOut, User,
+  Settings, ChevronLeft, ChevronRight, LogOut, User, Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
   { to: '/crm',            icon: LayoutDashboard, label: 'Дашборд',       end: true },
+  { to: '/crm2',           icon: Database,        label: 'Entity CRM' },
   { to: '/crm/complexes',  icon: Building2,       label: 'Жилые комплексы' },
   { to: '/crm/apartments', icon: BedDouble,       label: 'Квартиры' },
   { to: '/crm/attributes', icon: Tags,            label: 'Атрибуты' },

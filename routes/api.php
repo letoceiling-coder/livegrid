@@ -7,6 +7,10 @@ use App\Http\Controllers\Api\V1\ApartmentController;
 use App\Http\Controllers\Api\V1\MapController;
 use App\Http\Controllers\Api\V1\ReferenceController;
 use App\Http\Controllers\Api\V1\SearchComplexesController;
+use App\Http\Controllers\Api\V1\SuggestController;
+use App\Http\Controllers\Api\V1\HomeController;
+use App\Http\Controllers\Api\V2\EntityController;
+use App\Http\Controllers\Api\V2\EntitySchemaController;
 use App\Http\Controllers\Api\Crm\CrmAuthController;
 use App\Http\Controllers\Api\Crm\CrmDashboardController;
 use App\Http\Controllers\Api\Crm\CrmComplexController;
@@ -29,9 +33,17 @@ Route::prefix('v1')->group(function () {
     Route::get('/complexes/{slug}', [ComplexController::class, 'show']);
     Route::get('/complexes/{slug}/apartments', [ComplexController::class, 'apartments']);
     Route::get('/apartments', [ApartmentController::class, 'index']);
+    Route::get('/apartments/{id}', [ApartmentController::class, 'show']);
     Route::get('/map/complexes', [MapController::class, 'complexes']);
     Route::get('/search/complexes', [SearchComplexesController::class, 'index']);
+    Route::get('/search/suggest',   [SuggestController::class, 'index']);
     Route::get('/filters', [ReferenceController::class, 'filters']);
+
+    Route::prefix('home')->group(function () {
+        Route::get('/blocks', [HomeController::class, 'blocks']);
+        Route::get('/offers', [HomeController::class, 'offers']);
+        Route::get('/news', [HomeController::class, 'news']);
+    });
 
     Route::get('/health', function () {
         return response()->json(['status' => 'ok', 'timestamp' => now()]);
@@ -81,4 +93,27 @@ Route::prefix('v1')->group(function () {
             return response()->json(['data' => $buildings]);
         });
     });
+});
+
+// ── API v2 — Entity System ────────────────────────────────────────────────────
+Route::prefix('v2')->middleware(['auth:sanctum', 'crm.admin'])->group(function () {
+    Route::get('/admin/entity-types', [EntitySchemaController::class, 'index']);
+    Route::post('/entity-types', [EntitySchemaController::class, 'storeType']);
+    Route::put('/entity-types/{entityType}', [EntitySchemaController::class, 'updateType']);
+    Route::post('/entity-types/{entityType}/fields', [EntitySchemaController::class, 'storeField']);
+    Route::put('/entity-fields/{entityField}', [EntitySchemaController::class, 'updateField']);
+    Route::delete('/entity-fields/{entityField}', [EntitySchemaController::class, 'destroyField']);
+
+    Route::get('/entity-types',         [EntityController::class, 'types']);
+    Route::get('/entities/{type}',      [EntityController::class, 'index']);
+    Route::post('/entities/{type}',     [EntityController::class, 'store']);
+    Route::get('/entities/{type}/{id}', [EntityController::class, 'show']);
+    Route::get('/entities/{type}/{id}/history', [EntityController::class, 'history']);
+    Route::get('/entities/{type}/{id}/history/export', [EntityController::class, 'historyExport']);
+    Route::put('/entities/{id}',        [EntityController::class, 'update']);
+    Route::delete('/entity-records/{id}', [EntityController::class, 'destroy']);
+    Route::post('/entity-records/{id}/restore', [EntityController::class, 'restore']);
+    Route::post('/entity-records/bulk-delete', [EntityController::class, 'bulkDestroy']);
+    Route::post('/entity-records/bulk-restore', [EntityController::class, 'bulkRestore']);
+    Route::patch('/entity-records/bulk-update', [EntityController::class, 'bulkUpdate']);
 });

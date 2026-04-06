@@ -3,10 +3,14 @@ import { MapPin, Building2, CalendarDays, Shield, ChevronLeft, ChevronRight, Pho
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPrice } from '@/lib/formatPrice';
 
 const ComplexHero = ({ complex }: { complex: ResidentialComplex }) => {
-  const totalApts = (complex.buildings ?? []).reduce((s, b) => s + (b.apartments ?? []).filter(a => a.status === 'available').length, 0);
+  // Use pre-aggregated count; fall back to summing loaded buildings if available
+  const loadedCount = (complex.buildings ?? []).reduce(
+    (s, b) => s + (Array.isArray(b.apartments) ? b.apartments.filter((a: { status: string }) => a.status === 'available').length : 0), 0
+  );
+  const totalApts = loadedCount > 0 ? loadedCount : complex.availableApartments;
   const [imgIdx, setImgIdx] = useState(0);
 
   return (

@@ -1,14 +1,14 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Phone, Menu, X, Search, MapPin, Building2, Home, LayoutGrid, Map as MapIcon, Heart, LogIn } from 'lucide-react';
+import { Phone, Menu, X, Search, MapPin, Building2, Home, LayoutGrid, Map as MapIcon, Heart, LogIn, Train } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { getApiUrl, defaultFetchOptions } from '@/shared/config/api';
 
-interface SearchResult {
-  id: string; slug: string; name: string;
-  district: string; subway: string; image: string;
-}
+type SuggestItem =
+  | { type: 'complex';  id: string; slug: string; name: string; district: string; subway: string; image: string }
+  | { type: 'metro';    id: string; name: string }
+  | { type: 'district'; id: string; name: string };
 
 const navItems = [
   { label: 'Каталог', href: '/catalog' },
@@ -20,7 +20,7 @@ const RedesignHeader = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<SuggestItem[]>([]);
   const location = useLocation();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLDivElement>(null);
@@ -29,21 +29,31 @@ const RedesignHeader = () => {
   const handleSearch = useCallback((q: string) => {
     setQuery(q);
     clearTimeout(timerRef.current);
-    if (!q.trim()) { setResults([]); return; }
+    if (!q.trim() || q.trim().length < 2) { setResults([]); return; }
     timerRef.current = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ search: q.trim(), perPage: '8' });
-        const res = await fetch(`${getApiUrl('search/complexes')}?${params}`, defaultFetchOptions);
+        const params = new URLSearchParams({ q: q.trim() });
+        const res = await fetch(`${getApiUrl('search/suggest')}?${params}`, defaultFetchOptions);
         if (!res.ok) return;
-        const json = await res.json();
-        setResults((json.data ?? []).map((c: any) => ({
-          id: c.id, slug: c.slug, name: c.name,
-          district: c.district ?? '', subway: c.subway ?? '',
-          image: (c.images ?? [])[0] ?? '',
-        })));
+        const json: SuggestItem[] = await res.json();
+        setResults(json);
       } catch { /* silent */ }
-    }, 250);
+    }, 300);
   }, []);
+
+  const handleSuggestClick = useCallback((item: SuggestItem) => {
+    setSearchOpen(false);
+    setQuery('');
+    setResults([]);
+    if (item.type === 'complex') {
+      if (!item.slug) return;
+      navigate(`/complex/${item.slug}`);
+    } else if (item.type === 'metro') {
+      navigate(`/catalog?search=${encodeURIComponent(item.name)}`);
+    } else {
+      navigate(`/catalog?search=${encodeURIComponent(item.name)}`);
+    }
+  }, [navigate]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -98,19 +108,42 @@ const RedesignHeader = () => {
             />
             {searchOpen && results.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50">
-                {results.map(c => (
-                  <Link
-                    key={c.id}
-                    to={`/complex/${c.slug}`}
-                    onClick={() => { setSearchOpen(false); setQuery(''); setResults([]); }}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border last:border-0"
+                {results.map((item, i) => (
+                  <button
+                    key={`${item.type}-${item.id ?? i}`}
+                    onClick={() => handleSuggestClick(item)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border last:border-0 text-left"
                   >
-                    {c.image ? <img src={c.image} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" /> : <div className="w-10 h-10 rounded-lg bg-muted shrink-0" />}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">{c.district}{c.subway ? ` · м. ${c.subway}` : ''}</p>
-                    </div>
-                  </Link>
+                    {item.type === 'complex' ? (
+                      <>
+                        <img
+                          src={item.image || '/placeholder-complex.svg'}
+                          alt=""
+                          className="w-10 h-10 rounded-lg object-cover shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{item.district}{item.subway ? ` · м. ${item.subway}` : ''}</p>
+                        </div>
+                      </>
+                    ) : item.type === 'metro' ? (
+                      <>
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 shrink-0 flex items-center justify-center"><Train className="w-4 h-4 text-blue-500" /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">м. {item.name}</p>
+                          <p className="text-xs text-muted-foreground">Метро</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 rounded-lg bg-green-50 shrink-0 flex items-center justify-center"><MapPin className="w-4 h-4 text-green-500" /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">Район</p>
+                        </div>
+                      </>
+                    )}
+                  </button>
                 ))}
               </div>
             )}
@@ -168,19 +201,42 @@ const RedesignHeader = () => {
             </div>
             {results.length > 0 && (
               <div className="mt-2 bg-card border border-border rounded-xl overflow-hidden">
-                {results.map(c => (
-                  <Link
-                    key={c.id}
-                    to={`/complex/${c.slug}`}
-                    onClick={() => { setSearchOpen(false); setQuery(''); setResults([]); }}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border last:border-0"
+                {results.map((item, i) => (
+                  <button
+                    key={`${item.type}-${item.id ?? i}`}
+                    onClick={() => handleSuggestClick(item)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border last:border-0 text-left"
                   >
-                    {c.image ? <img src={c.image} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" /> : <div className="w-10 h-10 rounded-lg bg-muted shrink-0" />}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">{c.district}{c.subway ? ` · м. ${c.subway}` : ''}</p>
-                    </div>
-                  </Link>
+                    {item.type === 'complex' ? (
+                      <>
+                        <img
+                          src={item.image || '/placeholder-complex.svg'}
+                          alt=""
+                          className="w-10 h-10 rounded-lg object-cover shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{item.district}{item.subway ? ` · м. ${item.subway}` : ''}</p>
+                        </div>
+                      </>
+                    ) : item.type === 'metro' ? (
+                      <>
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 shrink-0 flex items-center justify-center"><Train className="w-4 h-4 text-blue-500" /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">м. {item.name}</p>
+                          <p className="text-xs text-muted-foreground">Метро</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 rounded-lg bg-green-50 shrink-0 flex items-center justify-center"><MapPin className="w-4 h-4 text-green-500" /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">Район</p>
+                        </div>
+                      </>
+                    )}
+                  </button>
                 ))}
               </div>
             )}

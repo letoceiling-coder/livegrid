@@ -1,16 +1,28 @@
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import LayoutGrid from '@/redesign/components/LayoutGrid';
-import { getComplexBySlug, getLayoutGroups } from '@/redesign/data/mock-data';
 import { useMemo } from 'react';
+import { useComplex } from '@/hooks/useComplex';
+import { buildLayoutGroupsFromComplex } from '@/redesign/lib/buildLayoutGroupsFromComplex';
 
 const RedesignLayouts = () => {
   const { complex: slug } = useParams<{ complex: string }>();
-  const complex = getComplexBySlug(slug || '');
-  const layouts = useMemo(() => complex ? getLayoutGroups(complex.id) : [], [complex]);
+  const { data: complex, isLoading, error } = useComplex(slug);
+  const layouts = useMemo(() => buildLayoutGroupsFromComplex(complex ?? null), [complex]);
 
-  if (!complex) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <RedesignHeader />
+        <div className="max-w-[1400px] mx-auto px-4 py-16 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !complex) {
     return (
       <div className="min-h-screen bg-background">
         <RedesignHeader />

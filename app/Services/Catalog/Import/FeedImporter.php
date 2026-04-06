@@ -312,6 +312,14 @@ class FeedImporter
             'stats' => $allStats,
         ]);
 
+        // Recalculate building floors/sections from actual apartment data
+        try {
+            $this->buildingImporter->recalcBuildingDimensions();
+            Log::info("Building dimensions recalculated after import");
+        } catch (\Throwable $e) {
+            Log::warning("Building dimensions recalc failed", ['error' => $e->getMessage()]);
+        }
+
         // Dispatch search index rebuild + invalidate caches after full import
         try {
             \App\Services\CacheInvalidator::all();

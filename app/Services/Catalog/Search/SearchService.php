@@ -49,10 +49,14 @@ class SearchService
             ->take($perPage)
             ->get();
         
+        // Fetch per-room-type breakdown (single query for all complexes in page)
+        $complexIds = $complexes->pluck('complex_id')->toArray();
+        $roomBreakdown = $this->fetchRoomBreakdown($complexIds);
+
         // Форматирование результата
         $result = [
-            'data' => $complexes->map(function ($complex) {
-                return $this->formatComplex($complex);
+            'data' => $complexes->map(function ($complex) use ($roomBreakdown) {
+                return $this->formatComplex($complex, $roomBreakdown[$complex->complex_id] ?? collect());
             })->toArray(),
             'meta' => [
                 'total' => $total,
@@ -72,22 +76,31 @@ class SearchService
      */
     private function applyFilters($query, array $filters): void
     {
-        // Текстовый поиск (full-text)
+        // Текстовый поиск — LIKE по 5 полям (поддерживает частичные строки "ко", "кот")
         if (!empty($filters['search'])) {
-            $search = $filters['search'];
-            $query->whereRaw(
-                "MATCH(name, district_name, subway_name, builder_name) AGAINST(? IN BOOLEAN MODE)",
-                [$search]
-            );
+            $search = trim($filters['search']);
+            \Illuminate\Support\Facades\Log::debug('[SearchService] search incoming', ['q' => $search]);
+            $query->where(function ($q) use ($search) {
+                $q->where('name',         'LIKE', "%{$search}%")
+                  ->orWhere('address',     'LIKE', "%{$search}%")
+                  ->orWhere('builder_name','LIKE', "%{$search}%")
+                  ->orWhere('district_name','LIKE', "%{$search}%")
+                  ->orWhere('subway_name', 'LIKE', "%{$search}%");
+            });
+            \Illuminate\Support\Facades\Log::debug('[SearchService] search SQL', [
+                'sql'      => $query->toSql(),
+                'bindings' => $query->getBindings(),
+            ]);
         }
         
-        // Фильтр по цене
+        // Фильтр по цене (DB stores rubles; price_from=0 means no price data — exclude from range filter)
         if (isset($filters['priceMin']) && $filters['priceMin'] > 0) {
-            $query->where('price_to', '>=', $filters['priceMin']);
+            $query->where('price_to', '>=', (int) $filters['priceMin']);
         }
-        
+
         if (isset($filters['priceMax']) && $filters['priceMax'] > 0) {
-            $query->where('price_from', '<=', $filters['priceMax']);
+            $query->where('price_from', '>', 0)
+                  ->where('price_from', '<=', (int) $filters['priceMax']);
         }
         
         // Фильтр по площади (через предвычисленные min/max)
@@ -127,14 +140,24 @@ class SearchService
             $query->whereIn('district_name', $filters['district']);
         }
 
-        // Фильтр по метро (frontend sends names)
+        // Фильтр по метро — DB stores "Арбатская (3л)", frontend sends "Арбатская (3л)" (same format)
         if (!empty($filters['subway']) && is_array($filters['subway'])) {
+            \Illuminate\Support\Facades\Log::debug('[SearchService] subway filter', [
+                'raw'  => $filters['subway'],
+            ]);
             $query->whereIn('subway_name', $filters['subway']);
         }
 
-        // Фильтр по застройщику (frontend sends names)
+        // Фильтр по застройщику — LIKE match (handles minor name differences)
         if (!empty($filters['builder']) && is_array($filters['builder'])) {
-            $query->whereIn('builder_name', $filters['builder']);
+            \Illuminate\Support\Facades\Log::debug('[SearchService] builder filter', [
+                'raw' => $filters['builder'],
+            ]);
+            $query->where(function ($q) use ($filters) {
+                foreach ($filters['builder'] as $dev) {
+                    $q->orWhere('builder_name', 'LIKE', '%' . $dev . '%');
+                }
+            });
         }
         
         // Фильтр по отделке (через boolean колонки)
@@ -196,8 +219,24 @@ class SearchService
     /**
      * Форматирование комплекса для ответа
      */
-    private function formatComplex($complex): array
+    private function formatComplex($complex, $roomRows = null): array
     {
+        $breakdown = [];
+        if ($roomRows) {
+            foreach ($roomRows as $row) {
+                $cat = (int) $row->room_cat;
+                if ($cat >= 0 && $cat <= 4) {
+                    $breakdown[] = [
+                        'rooms'    => $cat,
+                        'count'    => (int) $row->cnt,
+                        'minPrice' => (int) $row->min_price,
+                        'minArea'  => (float) $row->min_area,
+                    ];
+                }
+            }
+            usort($breakdown, fn($a, $b) => $a['rooms'] - $b['rooms']);
+        }
+
         return [
             'id' => $complex->complex_id,
             'slug' => $complex->slug,
@@ -230,6 +269,7 @@ class SearchService
             'advantages' => json_decode($complex->advantages, true) ?? [],
             'infrastructure' => json_decode($complex->infrastructure, true) ?? [],
             'totalAvailableApartments' => (int) $complex->available_apartments,
+            'roomsBreakdown' => $breakdown,
         ];
     }
     
@@ -260,6 +300,30 @@ class SearchService
         return "v{$ver}:search:complexes:{$hash}";
     }
     
+    /**
+     * Fetch min price, min area, count per room category for a set of complexes (single query)
+     */
+    private function fetchRoomBreakdown(array $complexIds): \Illuminate\Support\Collection
+    {
+        if (empty($complexIds)) return collect();
+
+        return DB::table('apartments')
+            ->leftJoin('rooms as r', 'r.crm_id', '=', 'apartments.rooms_count')
+            ->selectRaw('
+                apartments.block_id,
+                COALESCE(r.room_category, apartments.rooms_count) AS room_cat,
+                COUNT(*) AS cnt,
+                MIN(apartments.price) AS min_price,
+                MIN(apartments.area_total) AS min_area
+            ')
+            ->whereIn('apartments.block_id', $complexIds)
+            ->where('apartments.is_active', 1)
+            ->whereIn('apartments.status', ['available', 'reserved'])
+            ->groupBy('apartments.block_id', DB::raw('COALESCE(r.room_category, apartments.rooms_count)'))
+            ->get()
+            ->groupBy('block_id');
+    }
+
     /**
      * Поиск для карты — с BBOX-фильтрацией, zoom-aware лимитом и версионным кэшем
      */

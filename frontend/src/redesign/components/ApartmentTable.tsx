@@ -4,7 +4,7 @@ import { ArrowUpDown, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { Apartment, SortField, SortDir } from '@/redesign/data/types';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPrice } from '@/lib/formatPrice';
 
 interface Props {
   apartments: Apartment[];

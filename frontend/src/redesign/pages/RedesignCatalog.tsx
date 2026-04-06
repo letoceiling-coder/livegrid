@@ -13,7 +13,8 @@ import { useFilters } from '@/hooks/useFilters';
 
 type ViewMode = 'grid' | 'list' | 'map';
 
-// Adapter: Complex (API) → ResidentialComplex (UI components)
+// Adapter: Complex (API search) → ResidentialComplex (UI components)
+// Note: buildings is intentionally empty — catalog uses pre-aggregated counts
 function adaptComplex(c: Complex): ResidentialComplex {
   return {
     id: c.id,
@@ -29,6 +30,7 @@ function adaptComplex(c: Complex): ResidentialComplex {
     status: (c.status ?? 'building') as ResidentialComplex['status'],
     priceFrom: c.price_from ?? 0,
     priceTo: c.price_to ?? c.price_from ?? 0,
+    availableApartments: c.total_available_apartments ?? 0,
     images: c.images?.length ? c.images : ['/placeholder-complex.svg'],
     coords: [c.lat ?? 0, c.lng ?? 0],
     advantages: c.advantages ?? [],

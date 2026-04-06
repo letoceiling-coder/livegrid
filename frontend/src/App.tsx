@@ -20,7 +20,7 @@ const CrmSettings = lazy(() => import("./crm/pages/settings/SettingsPage"));
 import Index from "./pages/Index";
 
 // Redesign pages
-const RedesignIndex = lazy(() => import("./redesign/pages/RedesignIndex"));
+const HomeNew = lazy(() => import("./pages/HomeNew"));
 const RedesignCatalog = lazy(() => import("./redesign/pages/RedesignCatalog"));
 const RedesignComplex = lazy(() => import("./redesign/pages/RedesignComplex"));
 const RedesignApartment = lazy(() => import("./redesign/pages/RedesignApartment"));
@@ -40,6 +40,14 @@ import NotFound from "./pages/NotFound";
 
 // CRM Auth context
 import { AuthProvider } from "./crm/context/AuthContext";
+
+// CRM2 — universal entity UI
+const Crm2Layout = lazy(() => import("./crm2/components/Crm2Layout"));
+const Crm2Hub = lazy(() => import("./crm2/pages/EntityHubPage"));
+const Crm2EntityList = lazy(() => import("./crm2/pages/EntityListPage"));
+const Crm2EntityForm = lazy(() => import("./crm2/pages/EntityFormPage"));
+const Crm2TypesBuilder = lazy(() => import("./crm2/pages/EntityTypesBuilderPage"));
+const Crm2EntityHistory = lazy(() => import("./crm2/pages/EntityHistoryPage"));
 
 // Admin pages
 const AdminLayout = lazy(() => import("./admin/layout/AdminLayout"));
@@ -71,7 +79,7 @@ const App = () => (
         <Suspense fallback={<Loading />}>
           <Routes>
             {/* Main routes (redesign) */}
-            <Route path="/" element={<RedesignIndex />} />
+            <Route path="/" element={<HomeNew />} />
             <Route path="/catalog" element={<RedesignCatalog />} />
             <Route path="/complex/:slug" element={<RedesignComplex />} />
             <Route path="/apartment/:id" element={<RedesignApartment />} />
@@ -118,6 +126,16 @@ const App = () => (
               <Route path="attributes" element={<CrmAttributes />} />
               <Route path="feed" element={<CrmFeed />} />
               <Route path="settings" element={<CrmSettings />} />
+            </Route>
+
+            {/* Universal entity CRM (schema-driven) */}
+            <Route path="/crm2" element={<Crm2Layout />}>
+              <Route index element={<Crm2Hub />} />
+              <Route path="types" element={<Crm2TypesBuilder />} />
+              <Route path="entities/:type" element={<Crm2EntityList />} />
+              <Route path="entities/:type/create" element={<Crm2EntityForm />} />
+              <Route path="entities/:type/:id" element={<Crm2EntityForm />} />
+              <Route path="entities/:type/:id/history" element={<Crm2EntityHistory />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

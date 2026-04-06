@@ -102,6 +102,17 @@ class FeedMapper
         $builderName = $rawData['block_builder_name'] ?? '';
         $districtName = $rawData['block_district_name'] ?? '';
 
+        // Extract plan image: feed field 'plan' is an array of URLs
+        $planImage = null;
+        if (!empty($rawData['plan']) && is_array($rawData['plan'])) {
+            $planImage = $rawData['plan'][0] ?? null;
+        } elseif (!empty($rawData['plan']) && is_string($rawData['plan'])) {
+            $planImage = $rawData['plan'];
+        }
+
+        // Extract section (feed may not have it; default null)
+        $section = isset($rawData['section']) ? (int) $rawData['section'] : null;
+
         // Extract dynamic attributes
         $attributes = $this->attributeMapper->extractAttributes($rawData);
 
@@ -124,6 +135,8 @@ class FeedMapper
             blockName: $blockName,
             builderName: $builderName,
             districtName: $districtName,
+            planImage: $planImage,
+            section: $section,
             attributes: $attributes,
         );
     }

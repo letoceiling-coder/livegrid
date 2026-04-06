@@ -174,6 +174,24 @@ class BlockImporter
                     $stats['created']++;
                 }
 
+                // Populate block_subway pivot from feed subway array
+                if (!empty($item['subway']) && is_array($item['subway'])) {
+                    DB::table('block_subway')->where('block_id', $id)->delete();
+                    foreach ($item['subway'] as $entry) {
+                        $feedSubwayId = $entry['subway_id'] ?? null;
+                        if (!$feedSubwayId) continue;
+                        // subways.id = external feed _id (imported by ReferenceImporter)
+                        $exists = DB::table('subways')->where('id', $feedSubwayId)->exists();
+                        if (!$exists) continue;
+                        DB::table('block_subway')->insertOrIgnore([
+                            'block_id'      => $id,
+                            'subway_id'     => $feedSubwayId,
+                            'distance_time' => (int) ($entry['distance_time'] ?? 0),
+                            'distance_type' => (int) ($entry['distance_type'] ?? 1),
+                        ]);
+                    }
+                }
+
                 $stats['processed']++;
             } catch (\Exception $e) {
                 Log::error('Failed to import block', [
