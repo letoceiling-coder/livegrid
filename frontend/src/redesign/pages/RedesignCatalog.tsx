@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { LayoutGrid, List, Map, SlidersHorizontal, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import RedesignHeader from '@/redesign/components/RedesignHeader';
 import ComplexCard from '@/redesign/components/ComplexCard';
 import FilterSidebar from '@/redesign/components/FilterSidebar';
 import MapSearch from '@/redesign/components/MapSearch';
@@ -90,9 +89,7 @@ const RedesignCatalog = () => {
   const adapted   = useMemo(() => complexes.map(adaptComplex), [complexes]);
 
   return (
-    <div className="min-h-screen bg-background pb-16 lg:pb-0">
-      <RedesignHeader />
-
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
       <div className="max-w-[1400px] mx-auto px-4 py-6">
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-6">

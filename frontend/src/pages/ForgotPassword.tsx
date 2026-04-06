@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft } from 'lucide-react';
-import Header from '@/components/Header';
-import FooterSection from '@/components/FooterSection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -16,9 +14,7 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <Header />
-      <div className="flex-1 flex items-center justify-center py-12 px-4">
+    <div className="flex flex-1 flex-col items-center justify-center py-12 px-4 pb-20 lg:pb-12">
         <div className="w-full max-w-md space-y-6">
           <Link to="/login" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-4 h-4" /> Назад ко входу
@@ -56,8 +52,6 @@ const ForgotPassword = () => {
             </div>
           )}
         </div>
-      </div>
-      <FooterSection />
     </div>
   );
 };

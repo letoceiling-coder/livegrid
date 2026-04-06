@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import Header from '@/components/Header';
-import FooterSection from '@/components/FooterSection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -17,9 +15,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <Header />
-      <div className="flex-1 flex items-center justify-center py-12 px-4">
+    <div className="flex flex-1 flex-col items-center justify-center py-12 px-4 pb-20 lg:pb-12">
         <div className="w-full max-w-md space-y-6">
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold">Вход в аккаунт</h1>
@@ -88,8 +84,6 @@ const Login = () => {
             <Link to="/register" className="text-primary hover:underline font-medium">Зарегистрироваться</Link>
           </p>
         </div>
-      </div>
-      <FooterSection />
     </div>
   );
 };

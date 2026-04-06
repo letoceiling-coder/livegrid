@@ -1,11 +1,9 @@
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Heart, ChevronRight, ChevronDown, Building, Layers, Maximize, Play } from 'lucide-react';
-import Header from '@/components/Header';
 import PropertyGridSection from '@/components/PropertyGridSection';
 import AdditionalFeatures from '@/components/AdditionalFeatures';
 import LatestNews from '@/components/LatestNews';
 import ContactsSection from '@/components/ContactsSection';
-import FooterSection from '@/components/FooterSection';
 import ZhkCard, { type ZhkData } from '@/components/ZhkCard';
 import building1 from '@/assets/building1.jpg';
 import building2 from '@/assets/building2.jpg';
@@ -105,9 +103,7 @@ const ZhkDetail = () => {
   const [expandedType, setExpandedType] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
       {/* Hero */}
       <section className="relative">
         <div className="relative h-[320px] md:h-[420px] overflow-hidden">
@@ -413,7 +409,6 @@ const ZhkDetail = () => {
       <AdditionalFeatures />
       <LatestNews />
       <ContactsSection />
-      <FooterSection />
     </div>
   );
 };

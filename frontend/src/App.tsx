@@ -18,6 +18,8 @@ const CrmAttributes = lazy(() => import("./crm/pages/attributes/AttributesPage")
 const CrmFeed = lazy(() => import("./crm/pages/feed/FeedPage"));
 const CrmSettings = lazy(() => import("./crm/pages/settings/SettingsPage"));
 import Index from "./pages/Index";
+import AppLayout from "./layouts/AppLayout";
+import FavoritesPage from "./pages/FavoritesPage";
 
 // Redesign pages
 const HomeNew = lazy(() => import("./pages/HomeNew"));
@@ -78,29 +80,6 @@ const App = () => (
         <ScrollToTop />
         <Suspense fallback={<Loading />}>
           <Routes>
-            {/* Main routes (redesign) */}
-            <Route path="/" element={<HomeNew />} />
-            <Route path="/catalog" element={<RedesignCatalog />} />
-            <Route path="/complex/:slug" element={<RedesignComplex />} />
-            <Route path="/apartment/:id" element={<RedesignApartment />} />
-            <Route path="/map" element={<RedesignMap />} />
-            <Route path="/layouts/:complex" element={<RedesignLayouts />} />
-
-            {/* Old routes (kept for backward compatibility) */}
-            <Route path="/old" element={<Index />} />
-            <Route path="/old/catalog" element={<Catalog />} />
-            <Route path="/old/catalog-zhk" element={<CatalogZhk />} />
-            <Route path="/old/zhk/:slug" element={<ZhkDetail />} />
-            <Route path="/old/object/:slug" element={<ObjectDetail />} />
-            <Route path="/old/news" element={<News />} />
-            <Route path="/old/news/:slug" element={<NewsDetail />} />
-
-            {/* Auth routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-
             {/* Admin routes */}
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboard />} />
@@ -138,7 +117,31 @@ const App = () => (
               <Route path="entities/:type/:id/history" element={<Crm2EntityHistory />} />
             </Route>
 
-            <Route path="*" element={<NotFound />} />
+            {/* Public site: shared header + footer */}
+            <Route element={<AppLayout />}>
+              <Route index element={<HomeNew />} />
+              <Route path="catalog" element={<RedesignCatalog />} />
+              <Route path="complex/:slug" element={<RedesignComplex />} />
+              <Route path="apartment/:id" element={<RedesignApartment />} />
+              <Route path="map" element={<RedesignMap />} />
+              <Route path="layouts/:complex" element={<RedesignLayouts />} />
+              <Route path="favorites" element={<FavoritesPage />} />
+
+              <Route path="old" element={<Index />} />
+              <Route path="old/catalog" element={<Catalog />} />
+              <Route path="old/catalog-zhk" element={<CatalogZhk />} />
+              <Route path="old/zhk/:slug" element={<ZhkDetail />} />
+              <Route path="old/object/:slug" element={<ObjectDetail />} />
+              <Route path="old/news" element={<News />} />
+              <Route path="old/news/:slug" element={<NewsDetail />} />
+
+              <Route path="login" element={<Login />} />
+              <Route path="register" element={<Register />} />
+              <Route path="forgot-password" element={<ForgotPassword />} />
+              <Route path="reset-password" element={<ResetPassword />} />
+
+              <Route path="*" element={<NotFound />} />
+            </Route>
           </Routes>
         </Suspense>
         </AuthProvider>

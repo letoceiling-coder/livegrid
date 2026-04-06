@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import RedesignHeader from '@/redesign/components/RedesignHeader';
 import FilterSidebar from '@/redesign/components/FilterSidebar';
 import { defaultFilters, type CatalogFilters, type ResidentialComplex } from '@/redesign/data/types';
 import { SlidersHorizontal, X, Loader2 } from 'lucide-react';
@@ -83,9 +82,8 @@ const RedesignMap = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col pb-16 lg:pb-0">
-      <RedesignHeader />
-      <div className="flex-1 flex flex-col lg:flex-row">
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
 
         {/* Filters sidebar */}
         <aside className="hidden lg:block w-[280px] border-r border-border p-4 overflow-y-auto">

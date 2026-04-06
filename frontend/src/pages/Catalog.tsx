@@ -1,7 +1,5 @@
 import { useState, useMemo, lazy, Suspense } from 'react';
 import { Search, ChevronDown } from 'lucide-react';
-import Header from '@/components/Header';
-import FooterSection from '@/components/FooterSection';
 import PropertyGridSection from '@/components/PropertyGridSection';
 import QuizSection from '@/components/QuizSection';
 import AboutPlatform from '@/components/AboutPlatform';
@@ -78,9 +76,7 @@ const Catalog = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
       {/* Top bar */}
       <div className="max-w-[1400px] mx-auto px-4 pt-6 pb-4">
         {/* Tabs */}
@@ -235,7 +231,6 @@ const Catalog = () => {
       <AdditionalFeatures />
       <LatestNews />
       <ContactsSection />
-      <FooterSection />
     </div>
   );
 };

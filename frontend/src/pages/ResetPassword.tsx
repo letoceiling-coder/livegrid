@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
-import Header from '@/components/Header';
-import FooterSection from '@/components/FooterSection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -18,9 +16,7 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <Header />
-      <div className="flex-1 flex items-center justify-center py-12 px-4">
+    <div className="flex flex-1 flex-col items-center justify-center py-12 px-4 pb-20 lg:pb-12">
         <div className="w-full max-w-md space-y-6">
           {!done ? (
             <>
@@ -74,8 +70,6 @@ const ResetPassword = () => {
             </div>
           )}
         </div>
-      </div>
-      <FooterSection />
     </div>
   );
 };

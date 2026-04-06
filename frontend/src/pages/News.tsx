@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Eye } from 'lucide-react';
-import Header from '@/components/Header';
-import FooterSection from '@/components/FooterSection';
 import QuizSection from '@/components/QuizSection';
 import AboutPlatform from '@/components/AboutPlatform';
 import AdditionalFeatures from '@/components/AdditionalFeatures';
@@ -39,9 +37,7 @@ const News = () => {
   const paged = allNews.slice((page - 1) * perPage, page * perPage);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
       {/* Breadcrumb */}
       <div className="max-w-[1400px] mx-auto px-4 pt-4 pb-2">
         <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -137,7 +133,6 @@ const News = () => {
       <AboutPlatform />
       <AdditionalFeatures />
       <ContactsSection />
-      <FooterSection />
     </div>
   );
 };

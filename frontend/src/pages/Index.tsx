@@ -1,4 +1,3 @@
-import Header from '@/components/Header';
 import HeroSection from '@/components/HeroSection';
 import CategoryTiles from '@/components/CategoryTiles';
 import NewListings from '@/components/NewListings';
@@ -9,7 +8,6 @@ import AboutPlatform from '@/components/AboutPlatform';
 import AdditionalFeatures from '@/components/AdditionalFeatures';
 import LatestNews from '@/components/LatestNews';
 import ContactsSection from '@/components/ContactsSection';
-import FooterSection from '@/components/FooterSection';
 import { useContentStore } from '@/admin/store/content-store';
 import { useMemo } from 'react';
 
@@ -23,7 +21,6 @@ const sectionComponents: Record<string, React.ComponentType<any>> = {
   additional_features: AdditionalFeatures,
   latest_news: LatestNews,
   contacts: ContactsSection,
-  footer: FooterSection,
 };
 
 const Index = () => {
@@ -36,6 +33,7 @@ const Index = () => {
 
   // Special handling for property_grid which needs props
   const renderSection = (section: any) => {
+    if (section.type === 'footer') return null;
     if (section.type === 'property_grid') {
       return (
         <PropertyGridSection
@@ -52,8 +50,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
       {activeSections.map(renderSection)}
     </div>
   );

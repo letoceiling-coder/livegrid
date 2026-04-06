@@ -2,7 +2,6 @@ import { useParams, Link } from 'react-router-dom';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { ArrowLeft, MapPin, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import RedesignHeader from '@/redesign/components/RedesignHeader';
 import ComplexHero from '@/redesign/components/ComplexHero';
 import ApartmentTable from '@/redesign/components/ApartmentTable';
 import Chessboard from '@/redesign/components/Chessboard';
@@ -127,8 +126,7 @@ const RedesignComplex = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <RedesignHeader />
+      <div className="flex flex-1 flex-col min-h-0 bg-background">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
@@ -138,8 +136,7 @@ const RedesignComplex = () => {
 
   if (error || !complex) {
     return (
-      <div className="min-h-screen bg-background">
-        <RedesignHeader />
+      <div className="flex flex-1 flex-col min-h-0 bg-background">
         <div className="max-w-[1400px] mx-auto px-4 py-16 text-center">
           <p className="text-muted-foreground">
             {(error as any)?.message === 'not_found' ? 'Комплекс не найден' : 'Ошибка загрузки данных'}
@@ -151,8 +148,7 @@ const RedesignComplex = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-16 lg:pb-0">
-      <RedesignHeader />
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
       <div className="max-w-[1400px] mx-auto px-4 py-6">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">

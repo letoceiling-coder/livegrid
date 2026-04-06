@@ -1,7 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Phone, MessageCircle, Calculator, MapPin, Building2, CalendarDays, Ruler, ChefHat, Layers, Paintbrush, Train, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import RedesignHeader from '@/redesign/components/RedesignHeader';
 import { useApartment } from '@/hooks/useApartment';
 
 function formatPrice(p: number): string {
@@ -15,8 +14,7 @@ const RedesignApartment = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <RedesignHeader />
+      <div className="flex flex-1 flex-col min-h-0 bg-background">
         <div className="max-w-[1400px] mx-auto px-4 py-16 flex items-center justify-center">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
@@ -26,8 +24,7 @@ const RedesignApartment = () => {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-background">
-        <RedesignHeader />
+      <div className="flex flex-1 flex-col min-h-0 bg-background">
         <div className="max-w-[1400px] mx-auto px-4 py-16 text-center">
           <p className="text-muted-foreground">
             {(error as any)?.message === 'not_found' ? 'Квартира не найдена' : 'Ошибка загрузки данных'}
@@ -52,8 +49,7 @@ const RedesignApartment = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-16 lg:pb-0">
-      <RedesignHeader />
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
       <div className="max-w-[1400px] mx-auto px-4 py-6">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-5 flex-wrap">

@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { MapPin, ChevronDown, Search, SlidersHorizontal } from 'lucide-react';
-import Header from '@/components/Header';
 import ZhkCard, { type ZhkData } from '@/components/ZhkCard';
 import PropertyGridSection from '@/components/PropertyGridSection';
 import AboutPlatform from '@/components/AboutPlatform';
 import AdditionalFeatures from '@/components/AdditionalFeatures';
 import LatestNews from '@/components/LatestNews';
 import ContactsSection from '@/components/ContactsSection';
-import FooterSection from '@/components/FooterSection';
 import building1 from '@/assets/building1.jpg';
 import building2 from '@/assets/building2.jpg';
 import building3 from '@/assets/building3.jpg';
@@ -116,9 +114,7 @@ const CatalogZhkPage = () => {
   const totalItems = 1784;
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
       {/* Page title + location */}
       <section className="py-6">
         <div className="max-w-[1400px] mx-auto px-4">
@@ -238,9 +234,6 @@ const CatalogZhkPage = () => {
 
       {/* Contacts */}
       <ContactsSection />
-
-      {/* Footer */}
-      <FooterSection />
     </div>
   );
 };

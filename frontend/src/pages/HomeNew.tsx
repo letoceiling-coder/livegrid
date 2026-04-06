@@ -6,10 +6,8 @@ import {
   mapApartmentToComplexCard,
   apartmentCardToResidential,
 } from '@/api/adapters/apartmentToComplex';
-import RedesignHeader from '@/redesign/components/RedesignHeader';
 import ComplexCard from '@/redesign/components/ComplexCard';
 import HeroSearch from '@/redesign/components/HeroSearch';
-import FooterSection from '@/components/FooterSection';
 
 export default function HomeNew() {
   const { data, loading, error } = useHomeBlocks();
@@ -23,11 +21,9 @@ export default function HomeNew() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-16 lg:pb-0">
-      <RedesignHeader />
-
-      <section className="relative bg-background overflow-visible">
-        <div className="max-w-[1400px] mx-auto px-0 pt-4 sm:pt-6 pb-2 sm:pb-4">
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
+      <section className="relative bg-background overflow-x-hidden min-w-0">
+        <div className="max-w-[1400px] mx-auto min-w-0 px-0 pt-4 sm:pt-6 pb-2 sm:pb-4">
           <HeroSearch />
         </div>
       </section>
@@ -95,8 +91,6 @@ export default function HomeNew() {
           </div>
         </Link>
       </section>
-
-      <FooterSection />
     </div>
   );
 }

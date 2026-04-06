@@ -1,7 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
 import { ChevronRight, Eye, MapPin, Calendar } from 'lucide-react';
-import Header from '@/components/Header';
-import FooterSection from '@/components/FooterSection';
 import LatestNews from '@/components/LatestNews';
 import AboutPlatform from '@/components/AboutPlatform';
 import AdditionalFeatures from '@/components/AdditionalFeatures';
@@ -23,9 +21,7 @@ const NewsDetail = () => {
   const { slug } = useParams();
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
       {/* Breadcrumb */}
       <div className="max-w-[1400px] mx-auto px-4 pt-4 pb-2">
         <nav className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
@@ -160,7 +156,6 @@ const NewsDetail = () => {
       <AboutPlatform />
       <AdditionalFeatures />
       <ContactsSection />
-      <FooterSection />
     </div>
   );
 };
