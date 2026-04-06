@@ -438,7 +438,7 @@ export default function HeroSearch() {
           </h1>
         </div>
 
-        <div className="flex flex-wrap gap-2 w-full mb-4 justify-center">
+        <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide w-full min-w-0 mb-4 justify-center">
           {objectTabs.map(tab => {
             const Icon = tab.icon;
             return (
@@ -447,7 +447,7 @@ export default function HeroSearch() {
                 type="button"
                 onClick={() => setMode(tab.value)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 border',
+                  'shrink-0 flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 border',
                   mode === tab.value
                     ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                     : 'bg-background border-border hover:bg-secondary hover:border-primary/30',
