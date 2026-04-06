@@ -29,22 +29,11 @@ export default function HomeNew() {
       <RedesignHeader />
 
       <section className="relative bg-background overflow-hidden">
-        <div className="max-w-[1400px] mx-auto px-4 py-8 sm:py-12 relative">
-          <div className="text-center">
-            <h1 className="text-2xl md:text-4xl font-bold mb-4 leading-tight">
-              <span className="text-primary italic">Live Grid.</span>
-              {stats ? (
-                <>
-                  {' '}
-                  {stats.apartments?.toLocaleString('ru-RU') ?? '—'} квартир в{' '}
-                  {stats.complexes?.toLocaleString('ru-RU') ?? '—'} комплексах
-                </>
-              ) : (
-                <> Квартиры и ЖК по всей России</>
-              )}
-            </h1>
-            <HeroSearch />
-          </div>
+        <div className="max-w-[1400px] mx-auto px-0 pt-4 sm:pt-6 pb-2 sm:pb-4">
+          <HeroSearch
+            statsApartments={stats?.apartments}
+            statsComplexes={stats?.complexes}
+          />
         </div>
       </section>
 

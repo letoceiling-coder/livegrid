@@ -24,12 +24,17 @@ class DeployCommand extends Command
      */
     protected $description = 'Deploy: pull code → composer → npm build → migrate → sync search → cache configs';
 
+    /** Production document root (livegrid.ru). */
+    private string $prodPath = '/var/www/livegrid.ru';
+
     /**
      * Execute the console command.
      */
     public function handle(): int
     {
         $this->info('🚀 Starting deployment...');
+
+        $prodPath = $this->prodPath;
 
         // Step 1: Git pull
         $this->info('📥 Pulling latest code from repository...');
@@ -42,10 +47,11 @@ class DeployCommand extends Command
             }
         }
 
-        // Step 2: Composer install
+        // Step 2: Composer install (--no-dev for production)
         $this->info('📦 Installing composer dependencies...');
+        putenv('COMPOSER_ALLOW_SUPERUSER=1');
         $composerInstall = $this->executeCommand(
-            'COMPOSER_ALLOW_SUPERUSER=1 composer install --optimize-autoloader',
+            'composer install --no-dev --optimize-autoloader',
             'Failed to install composer dependencies'
         );
         if ($composerInstall !== 0) {
@@ -55,7 +61,7 @@ class DeployCommand extends Command
         // Step 3: Build frontend (root vite.config.js → public/build/ with frontend/src/main.tsx entry)
         if (!$this->option('no-build')) {
             $this->info('🎨 Installing npm dependencies (root)...');
-            $npmInstall = $this->executeCommand('npm install', 'Failed to install npm dependencies');
+            $npmInstall = $this->executeCommand('npm install --legacy-peer-deps', 'Failed to install npm dependencies');
             if ($npmInstall !== 0) {
                 return Command::FAILURE;
             }
@@ -72,18 +78,58 @@ class DeployCommand extends Command
                 return Command::FAILURE;
             }
 
-            // Verify manifest was generated correctly
-            $manifest = public_path('build/.vite/manifest.json');
-            if (!file_exists($manifest)) {
-                $this->error("❌ Manifest not found at {$manifest}");
+            if (!file_exists(public_path('build/.vite/manifest.json'))) {
+                $this->error('Build failed: manifest missing');
+
                 return Command::FAILURE;
             }
+
+            // Verify manifest was generated correctly
+            $manifest = public_path('build/.vite/manifest.json');
             $manifestData = json_decode(file_get_contents($manifest), true);
             if (!isset($manifestData['frontend/src/main.tsx'])) {
                 $this->error('❌ Manifest does not contain frontend/src/main.tsx entry — check vite.config.js input');
                 return Command::FAILURE;
             }
             $this->info('✅ Frontend built successfully (manifest OK)');
+
+            $buildFileCount = $this->countFilesInDirectory($buildPath);
+            $this->info('📋 Deploy build summary:');
+            $this->line('   build path: '.$buildPath);
+            $this->line('   prod path:  '.$prodPath);
+            $this->line('   build files: '.$buildFileCount);
+
+            if (is_dir($prodPath)) {
+                $this->info('Sync build to production path...');
+                $prodBuild = $prodPath.'/public/build';
+                // Replace prod build entirely (includes .vite/); rm …/* alone can miss dot-dirs and fail on empty globs.
+                $syncRm = $this->executeCommand(
+                    'rm -rf '.escapeshellarg($prodBuild).' && mkdir -p '.escapeshellarg($prodBuild),
+                    'Failed to clear production public/build'
+                );
+                if ($syncRm !== 0) {
+                    return Command::FAILURE;
+                }
+                $syncCp = $this->executeCommand(
+                    'cp -a '.escapeshellarg(rtrim($buildPath, '/')).'/. '.escapeshellarg(rtrim($prodBuild, '/')).'/',
+                    'Failed to copy build to production path'
+                );
+                if ($syncCp !== 0) {
+                    return Command::FAILURE;
+                }
+
+                $prodFileCount = $this->countFilesInDirectory($prodBuild);
+                $this->line('   prod build files (after sync): '.$prodFileCount);
+
+                $this->info('Sync git to production...');
+                $gitProd = $this->executeCommand(
+                    'cd '.escapeshellarg($prodPath).' && git fetch origin && git reset --hard origin/main',
+                    'Failed to sync git on production path'
+                );
+                if ($gitProd !== 0) {
+                    return Command::FAILURE;
+                }
+            }
         } else {
             $this->info('⏭️  Skipping frontend build (--no-build flag)');
         }
@@ -209,5 +255,24 @@ class DeployCommand extends Command
         }
 
         return $exitCode;
+    }
+
+    private function countFilesInDirectory(string $dir): int
+    {
+        if (!is_dir($dir)) {
+            return 0;
+        }
+
+        $count = 0;
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile()) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 }
