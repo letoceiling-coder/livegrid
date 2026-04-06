@@ -22,18 +22,13 @@ export default function HomeNew() {
     return <div className="p-10 text-center">Ошибка загрузки данных</div>;
   }
 
-  const stats = data?.stats;
-
   return (
     <div className="min-h-screen bg-background pb-16 lg:pb-0">
       <RedesignHeader />
 
       <section className="relative bg-background overflow-visible">
         <div className="max-w-[1400px] mx-auto px-0 pt-4 sm:pt-6 pb-2 sm:pb-4">
-          <HeroSearch
-            statsApartments={stats?.apartments}
-            statsComplexes={stats?.complexes}
-          />
+          <HeroSearch />
         </div>
       </section>
 

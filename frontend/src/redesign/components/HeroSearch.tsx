@@ -19,7 +19,9 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useSuggest } from '@/api/hooks/useSuggest';
+import { useSearchCount } from '@/api/hooks/useSearchCount';
 import RegionModal from '@/redesign/components/RegionModal';
+import { AVAILABLE_REGIONS, regionLabel, type RegionId } from '@/redesign/lib/regions';
 import {
   type SearchMode,
   type HeroFilters,
@@ -34,18 +36,6 @@ const objectTabs: { label: string; icon: typeof Building2; value: SearchMode }[]
   { label: 'Дома', icon: Home, value: 'house' },
   { label: 'Участки', icon: TreePine, value: 'land' },
   { label: 'Коммерция', icon: Store, value: 'commercial' },
-];
-
-const regions = [
-  'Москва и МО',
-  'Санкт-Петербург и ЛО',
-  'Краснодарский край',
-  'Московская область',
-  'Ленинградская область',
-  'Татарстан',
-  'Крым',
-  'Сочи',
-  'Другой регион',
 ];
 
 const propertyTypes = ['Тип квартиры', 'Студия', '1-комнатная', '2-комнатная', '3-комнатная', '4+ комнат'];
@@ -89,19 +79,13 @@ type SuggestItem =
   | { type: 'metro'; id: string | number; name: string }
   | { type: 'district'; id: string | number; name: string };
 
-type HeroSearchProps = {
-  statsApartments?: number;
-  statsComplexes?: number;
-};
-
-export default function HeroSearch({ statsApartments, statsComplexes }: HeroSearchProps) {
+export default function HeroSearch() {
   const [mode, setMode] = useState<SearchMode>('apartment');
   const [filters, setFilters] = useState<HeroFilters>(defaultHeroFilters);
 
   const [staticSuggest, setStaticSuggest] = useState<Suggestion[]>([]);
   const [searchFocused, setSearchFocused] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState('Москва и МО');
-  const [regionOpen, setRegionOpen] = useState(false);
+  const [region, setRegion] = useState<RegionId>('moscow');
   const [roomOpen, setRoomOpen] = useState(false);
   const [dlOpen, setDlOpen] = useState(false);
   const [commercialOpen, setCommercialOpen] = useState(false);
@@ -110,7 +94,6 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
 
   const navigate = useNavigate();
   const searchRef = useRef<HTMLDivElement>(null);
-  const regionRef = useRef<HTMLDivElement>(null);
   const ptRef = useRef<HTMLDivElement>(null);
   const dlRef = useRef<HTMLDivElement>(null);
   const commercialRef = useRef<HTMLDivElement>(null);
@@ -190,10 +173,12 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
     searchFocused &&
     (staticSuggest.length > 0 || apiMetroDistrict.length > 0 || apiComplexes.length > 0);
 
+  const { data: count, error: countError } = useSearchCount(filters, mode);
+
   const ctaLabel =
-    statsApartments != null && statsComplexes != null
-      ? `Показать ${statsApartments.toLocaleString('ru-RU')} квартир в ${statsComplexes.toLocaleString('ru-RU')} ЖК →`
-      : 'Показать 58 728 квартир в 370 ЖК →';
+    mode === 'apartment' && count != null && !countError
+      ? `Показать ${count.apartments.toLocaleString('ru-RU')} квартир в ${count.complexes.toLocaleString('ru-RU')} ЖК →`
+      : 'Показать результаты →';
 
   const dropdownClass =
     'absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-[100] min-w-[180px] animate-in fade-in-0 zoom-in-95 duration-150';
@@ -427,43 +412,23 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
     <section className="relative bg-background overflow-visible">
       <div className="max-w-[1400px] mx-auto px-4 pt-4 pb-5 sm:pt-6 sm:pb-5 overflow-visible">
         <div className="flex flex-col items-center gap-1 mb-3 overflow-visible">
-          <div className="relative w-fit z-[30]" ref={regionRef}>
+          <div className="relative w-fit z-[30]">
             <button
               type="button"
-              onClick={() => setRegionOpen(!regionOpen)}
+              onClick={() => setRegionModalOpen(true)}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border',
-                regionOpen
+                regionModalOpen
                   ? 'border-primary bg-accent text-primary'
                   : 'border-border bg-muted/50 text-muted-foreground hover:text-foreground hover:border-primary/40',
               )}
             >
               <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-              <span>{selectedRegion}</span>
-              <ChevronDown className={cn('w-3 h-3 shrink-0 transition-transform duration-200', regionOpen && 'rotate-180')} />
+              <span>{regionLabel(region)}</span>
+              <ChevronDown
+                className={cn('w-3 h-3 shrink-0 transition-transform duration-200', regionModalOpen && 'rotate-180')}
+              />
             </button>
-            {regionOpen && (
-              <ul className="absolute top-full left-0 mt-1.5 py-1.5 bg-card border border-border rounded-xl shadow-lg z-[100] min-w-[220px] max-h-[300px] overflow-y-auto animate-in fade-in-0 zoom-in-95 duration-150">
-                {regions.map(r => (
-                  <li key={r}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedRegion(r);
-                        setRegionOpen(false);
-                      }}
-                      className={cn(
-                        'w-full text-left px-4 py-2 text-sm hover:bg-muted/50 transition-colors flex items-center gap-2',
-                        selectedRegion === r && 'text-primary font-medium',
-                      )}
-                    >
-                      {selectedRegion === r && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
-                      {r}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
 
           <h1 className="text-xl sm:text-2xl md:text-4xl font-extrabold leading-tight text-center">
@@ -493,17 +458,15 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
               </button>
             );
           })}
-          <div className="w-px h-6 bg-border shrink-0 mx-0.5 hidden sm:block" />
-          <button
-            type="button"
-            onClick={() => setRegionModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 shrink-0 bg-[#F97316] text-white hover:bg-[#EA580C] shadow-sm"
-          >
-            🏙 Белгород
-          </button>
         </div>
 
-        <RegionModal open={regionModalOpen} onOpenChange={setRegionModalOpen} />
+        <RegionModal
+          open={regionModalOpen}
+          onOpenChange={setRegionModalOpen}
+          regions={AVAILABLE_REGIONS}
+          selectedId={region}
+          onSelect={setRegion}
+        />
 
         <div className="w-full max-w-[900px] mx-auto bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.10)] px-5 sm:px-6 py-5 overflow-visible relative z-20">
           <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-0 lg:h-[52px] overflow-visible">

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\ApartmentController;
 use App\Http\Controllers\Api\V1\MapController;
 use App\Http\Controllers\Api\V1\ReferenceController;
 use App\Http\Controllers\Api\V1\SearchComplexesController;
+use App\Http\Controllers\Api\V1\SearchCountController;
 use App\Http\Controllers\Api\V1\SuggestController;
 use App\Http\Controllers\Api\V1\HomeController;
 use App\Http\Controllers\Api\V2\EntityController;
@@ -36,6 +37,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/apartments/{id}', [ApartmentController::class, 'show']);
     Route::get('/map/complexes', [MapController::class, 'complexes']);
     Route::get('/search/complexes', [SearchComplexesController::class, 'index']);
+    Route::get('/search/count', [SearchCountController::class, 'index']);
     Route::get('/search/suggest',   [SuggestController::class, 'index']);
     Route::get('/filters', [ReferenceController::class, 'filters']);
 

@@ -70,7 +70,32 @@ class SearchService
         
         return $result;
     }
-    
+
+    /**
+     * Агрегаты по тем же фильтрам, что и список ЖК: число комплексов и сумма доступных квартир.
+     *
+     * @return array{complexes: int, apartments: int}
+     */
+    public function countSearch(array $filters): array
+    {
+        $makeBase = function () use ($filters) {
+            $q = DB::table('complexes_search')
+                ->where('status', '!=', 'deleted')
+                ->where('available_apartments', '>', 0);
+            $this->applyFilters($q, $filters);
+
+            return $q;
+        };
+
+        $complexes = (int) $makeBase()->count();
+        $apartments = (int) $makeBase()->sum('available_apartments');
+
+        return [
+            'complexes'  => $complexes,
+            'apartments' => $apartments,
+        ];
+    }
+
     /**
      * Применение фильтров к запросу
      */
