@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -19,10 +19,19 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useSuggest } from '@/api/hooks/useSuggest';
+import RegionModal from '@/redesign/components/RegionModal';
+import {
+  type SearchMode,
+  type HeroFilters,
+  type HeroFilterKey,
+  filterConfig,
+  buildQuery,
+  defaultHeroFilters,
+} from '@/redesign/lib/searchQuery';
 
-const objectTabs = [
-  { label: 'Квартиры', icon: Building2, value: 'apartments' },
-  { label: 'Дома', icon: Home, value: 'houses' },
+const objectTabs: { label: string; icon: typeof Building2; value: SearchMode }[] = [
+  { label: 'Квартиры', icon: Building2, value: 'apartment' },
+  { label: 'Дома', icon: Home, value: 'house' },
   { label: 'Участки', icon: TreePine, value: 'land' },
   { label: 'Коммерция', icon: Store, value: 'commercial' },
 ];
@@ -41,6 +50,7 @@ const regions = [
 
 const propertyTypes = ['Тип квартиры', 'Студия', '1-комнатная', '2-комнатная', '3-комнатная', '4+ комнат'];
 const deadlines = ['Срок сдачи', 'Сдан', '2026', '2027', '2028', '2029+'];
+const commercialTypes = ['Тип объекта', 'Офис', 'Торговое', 'Склад', 'Производство'];
 
 type Suggestion = { label: string; type: 'metro' | 'district' | 'complex' | 'street' | 'builder' | 'bank'; icon: typeof Train };
 const staticSuggestions: Suggestion[] = [
@@ -80,48 +90,44 @@ type SuggestItem =
   | { type: 'district'; id: string | number; name: string };
 
 type HeroSearchProps = {
-  /** Подставить в CTA вместо захардкоженных чисел из шаблона */
   statsApartments?: number;
   statsComplexes?: number;
 };
 
 export default function HeroSearch({ statsApartments, statsComplexes }: HeroSearchProps) {
-  const [activeTab, setActiveTab] = useState('apartments');
-  const [filters, setFilters] = useState<{
-    type: string | null;
-    priceFrom: string | null;
-    priceTo: string | null;
-    completion: string | null;
-    search: string;
-  }>({
-    type: null,
-    priceFrom: null,
-    priceTo: null,
-    completion: null,
-    search: '',
-  });
+  const [mode, setMode] = useState<SearchMode>('apartment');
+  const [filters, setFilters] = useState<HeroFilters>(defaultHeroFilters);
 
   const [staticSuggest, setStaticSuggest] = useState<Suggestion[]>([]);
   const [searchFocused, setSearchFocused] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState('Москва и МО');
   const [regionOpen, setRegionOpen] = useState(false);
-  const [ptOpen, setPtOpen] = useState(false);
+  const [roomOpen, setRoomOpen] = useState(false);
   const [dlOpen, setDlOpen] = useState(false);
+  const [commercialOpen, setCommercialOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [regionModalOpen, setRegionModalOpen] = useState(false);
 
   const navigate = useNavigate();
   const searchRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<HTMLDivElement>(null);
   const ptRef = useRef<HTMLDivElement>(null);
   const dlRef = useRef<HTMLDivElement>(null);
+  const commercialRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const apiSuggest = useSuggest(filters.search) as SuggestItem[];
 
-  const propertyTypeLabel = filters.type === null ? 'Тип квартиры' : filters.type;
+  const roomLabel = filters.roomType === null ? 'Тип квартиры' : filters.roomType;
   const deadlineLabel = filters.completion === null ? 'Срок сдачи' : filters.completion;
+  const commercialLabel =
+    filters.commercialType === null ? 'Тип объекта' : filters.commercialType;
   const priceFromVal = filters.priceFrom ?? '';
   const priceToVal = filters.priceTo ?? '';
+  const areaFromVal = filters.areaFrom ?? '';
+  const areaToVal = filters.areaTo ?? '';
+  const floorsFromVal = filters.floorsFrom ?? '';
+  const floorsToVal = filters.floorsTo ?? '';
 
   const apiComplexes = useMemo(
     () => apiSuggest.filter((x): x is Extract<SuggestItem, { type: 'complex' }> => x.type === 'complex'),
@@ -142,17 +148,8 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
   }, []);
 
   const navigateToCatalog = (searchOverride?: string) => {
-    const q = searchOverride ?? filters.search;
-    const params = new URLSearchParams();
-    if (q) params.set('search', q);
-    if (activeTab !== 'apartments') params.set('type', activeTab);
-    else params.set('type', 'apartments');
-
-    if (filters.type) params.set('rooms', filters.type);
-    if (filters.completion) params.set('deadline', filters.completion);
-    if (filters.priceFrom) params.set('priceFrom', filters.priceFrom);
-    if (filters.priceTo) params.set('priceTo', filters.priceTo);
-    navigate(`/catalog?${params.toString()}`);
+    const qs = buildQuery({ mode, filters, searchOverride }).toString();
+    navigate(`/catalog?${qs}`);
   };
 
   const doSearch = () => navigateToCatalog();
@@ -167,16 +164,23 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
       return;
     }
     if (item.type === 'metro' || item.type === 'district') {
-      navigate(`/catalog?search=${encodeURIComponent(item.name)}`);
+      const qs = buildQuery({
+        mode,
+        filters: { ...filters, search: item.name },
+        searchOverride: item.name,
+      }).toString();
+      navigate(`/catalog?${qs}`);
     }
   };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchFocused(false);
-      if (regionRef.current && !regionRef.current.contains(e.target as Node)) setRegionOpen(false);
-      if (ptRef.current && !ptRef.current.contains(e.target as Node)) setPtOpen(false);
-      if (dlRef.current && !dlRef.current.contains(e.target as Node)) setDlOpen(false);
+      const t = e.target as Node;
+      if (searchRef.current && !searchRef.current.contains(t)) setSearchFocused(false);
+      if (regionRef.current && !regionRef.current.contains(t)) setRegionOpen(false);
+      if (ptRef.current && !ptRef.current.contains(t)) setRoomOpen(false);
+      if (dlRef.current && !dlRef.current.contains(t)) setDlOpen(false);
+      if (commercialRef.current && !commercialRef.current.contains(t)) setCommercialOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -191,11 +195,239 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
       ? `Показать ${statsApartments.toLocaleString('ru-RU')} квартир в ${statsComplexes.toLocaleString('ru-RU')} ЖК →`
       : 'Показать 58 728 квартир в 370 ЖК →';
 
+  const dropdownClass =
+    'absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-[100] min-w-[180px] animate-in fade-in-0 zoom-in-95 duration-150';
+
+  const renderDesktopFilter = (key: HeroFilterKey) => {
+    switch (key) {
+      case 'rooms':
+        return (
+          <div ref={ptRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setRoomOpen(!roomOpen)}
+              className={cn(
+                'h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50',
+                filters.roomType !== null ? 'text-primary font-medium' : 'text-foreground',
+              )}
+            >
+              {roomLabel === 'Тип квартиры' ? 'Тип' : roomLabel}
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', roomOpen && 'rotate-180')} />
+            </button>
+            {roomOpen && (
+              <ul className={dropdownClass}>
+                {propertyTypes.map(t => (
+                  <li key={t}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilters(f => ({
+                          ...f,
+                          roomType: t === 'Тип квартиры' ? null : t,
+                        }));
+                        setRoomOpen(false);
+                      }}
+                      className={cn(
+                        'w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors',
+                        (t === 'Тип квартиры' ? filters.roomType === null : filters.roomType === t) &&
+                          'text-primary font-medium',
+                      )}
+                    >
+                      {t}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      case 'price':
+        return (
+          <div className="flex items-center h-[52px]">
+            <input
+              type="text"
+              placeholder="Цена от"
+              className="w-[100px] h-full px-3 text-sm bg-transparent outline-none border-none"
+              value={priceFromVal}
+              onChange={e =>
+                setFilters(f => ({
+                  ...f,
+                  priceFrom: e.target.value.replace(/\D/g, '') || null,
+                }))
+              }
+            />
+            <span className="text-muted-foreground text-sm">—</span>
+            <input
+              type="text"
+              placeholder="до, ₽"
+              className="w-[100px] h-full px-3 text-sm bg-transparent outline-none border-none"
+              value={priceToVal}
+              onChange={e =>
+                setFilters(f => ({
+                  ...f,
+                  priceTo: e.target.value.replace(/\D/g, '') || null,
+                }))
+              }
+            />
+          </div>
+        );
+      case 'metro':
+        return null;
+      case 'completion':
+        return (
+          <div ref={dlRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setDlOpen(!dlOpen)}
+              className={cn(
+                'h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50',
+                filters.completion !== null ? 'text-primary font-medium' : 'text-foreground',
+              )}
+            >
+              {deadlineLabel}
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', dlOpen && 'rotate-180')} />
+            </button>
+            {dlOpen && (
+              <ul className={cn(dropdownClass, 'min-w-[140px]')}>
+                {deadlines.map(d => (
+                  <li key={d}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilters(f => ({
+                          ...f,
+                          completion: d === 'Срок сдачи' ? null : d,
+                        }));
+                        setDlOpen(false);
+                      }}
+                      className={cn(
+                        'w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors',
+                        (d === 'Срок сдачи' ? filters.completion === null : filters.completion === d) &&
+                          'text-primary font-medium',
+                      )}
+                    >
+                      {d}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      case 'area':
+        return (
+          <div className="flex items-center h-[52px]">
+            <input
+              type="text"
+              placeholder="Пл. от"
+              className="w-[88px] h-full px-2 text-sm bg-transparent outline-none border-none"
+              value={areaFromVal}
+              onChange={e =>
+                setFilters(f => ({
+                  ...f,
+                  areaFrom: e.target.value.replace(/\D/g, '') || null,
+                }))
+              }
+            />
+            <span className="text-muted-foreground text-sm">—</span>
+            <input
+              type="text"
+              placeholder="до м²"
+              className="w-[88px] h-full px-2 text-sm bg-transparent outline-none border-none"
+              value={areaToVal}
+              onChange={e =>
+                setFilters(f => ({
+                  ...f,
+                  areaTo: e.target.value.replace(/\D/g, '') || null,
+                }))
+              }
+            />
+          </div>
+        );
+      case 'floors':
+        return (
+          <div className="flex items-center h-[52px]">
+            <input
+              type="text"
+              placeholder="Эт. от"
+              className="w-[72px] h-full px-2 text-sm bg-transparent outline-none border-none"
+              value={floorsFromVal}
+              onChange={e =>
+                setFilters(f => ({
+                  ...f,
+                  floorsFrom: e.target.value.replace(/\D/g, '') || null,
+                }))
+              }
+            />
+            <span className="text-muted-foreground text-sm">—</span>
+            <input
+              type="text"
+              placeholder="до"
+              className="w-[72px] h-full px-2 text-sm bg-transparent outline-none border-none"
+              value={floorsToVal}
+              onChange={e =>
+                setFilters(f => ({
+                  ...f,
+                  floorsTo: e.target.value.replace(/\D/g, '') || null,
+                }))
+              }
+            />
+          </div>
+        );
+      case 'type':
+        return (
+          <div ref={commercialRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setCommercialOpen(!commercialOpen)}
+              className={cn(
+                'h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50',
+                filters.commercialType !== null ? 'text-primary font-medium' : 'text-foreground',
+              )}
+            >
+              {commercialLabel === 'Тип объекта' ? 'Тип' : commercialLabel}
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', commercialOpen && 'rotate-180')} />
+            </button>
+            {commercialOpen && (
+              <ul className={dropdownClass}>
+                {commercialTypes.map(t => (
+                  <li key={t}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilters(f => ({
+                          ...f,
+                          commercialType: t === 'Тип объекта' ? null : t,
+                        }));
+                        setCommercialOpen(false);
+                      }}
+                      className={cn(
+                        'w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors',
+                        (t === 'Тип объекта'
+                          ? filters.commercialType === null
+                          : filters.commercialType === t) && 'text-primary font-medium',
+                      )}
+                    >
+                      {t}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const mobileSuggestOpen = roomOpen || dlOpen || commercialOpen;
+
   return (
-    <section className="relative bg-background">
-      <div className="max-w-[1400px] mx-auto px-4 pt-4 pb-5 sm:pt-6 sm:pb-5">
-        <div className="flex flex-col items-center gap-1 mb-3">
-          <div className="relative w-fit" ref={regionRef}>
+    <section className="relative bg-background overflow-visible">
+      <div className="max-w-[1400px] mx-auto px-4 pt-4 pb-5 sm:pt-6 sm:pb-5 overflow-visible">
+        <div className="flex flex-col items-center gap-1 mb-3 overflow-visible">
+          <div className="relative w-fit z-[30]" ref={regionRef}>
             <button
               type="button"
               onClick={() => setRegionOpen(!regionOpen)}
@@ -211,7 +443,7 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
               <ChevronDown className={cn('w-3 h-3 shrink-0 transition-transform duration-200', regionOpen && 'rotate-180')} />
             </button>
             {regionOpen && (
-              <ul className="absolute top-full left-0 mt-1.5 py-1.5 bg-card border border-border rounded-xl shadow-lg z-50 min-w-[220px] max-h-[300px] overflow-y-auto animate-in fade-in-0 zoom-in-95 duration-150">
+              <ul className="absolute top-full left-0 mt-1.5 py-1.5 bg-card border border-border rounded-xl shadow-lg z-[100] min-w-[220px] max-h-[300px] overflow-y-auto animate-in fade-in-0 zoom-in-95 duration-150">
                 {regions.map(r => (
                   <li key={r}>
                     <button
@@ -248,13 +480,10 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
               <button
                 key={tab.value}
                 type="button"
-                onClick={() => {
-                  setActiveTab(tab.value);
-                  navigate(`/catalog?type=${tab.value}`);
-                }}
+                onClick={() => setMode(tab.value)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 border shrink-0',
-                  activeTab === tab.value
+                  mode === tab.value
                     ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                     : 'bg-background border-border hover:bg-secondary hover:border-primary/30',
                 )}
@@ -267,16 +496,18 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
           <div className="w-px h-6 bg-border shrink-0 mx-0.5 hidden sm:block" />
           <button
             type="button"
-            onClick={() => navigate('/belgorod')}
+            onClick={() => setRegionModalOpen(true)}
             className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 shrink-0 bg-[#F97316] text-white hover:bg-[#EA580C] shadow-sm"
           >
             🏙 Белгород
           </button>
         </div>
 
-        <div className="w-full max-w-[900px] mx-auto bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.10)] px-5 sm:px-6 py-5">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-0 lg:h-[52px]">
-            <div ref={searchRef} className="relative flex-1 lg:min-w-0">
+        <RegionModal open={regionModalOpen} onOpenChange={setRegionModalOpen} />
+
+        <div className="w-full max-w-[900px] mx-auto bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.10)] px-5 sm:px-6 py-5 overflow-visible relative z-20">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-0 lg:h-[52px] overflow-visible">
+            <div ref={searchRef} className="relative flex-1 lg:min-w-0 z-[25]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
                 type="text"
@@ -291,7 +522,7 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
                 autoComplete="off"
               />
               {hasAutocomplete && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50 max-h-[300px] sm:max-h-[360px] overflow-y-auto animate-in fade-in-0 slide-in-from-top-1 duration-150">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg z-[100] max-h-[300px] sm:max-h-[360px] overflow-y-auto animate-in fade-in-0 slide-in-from-top-1 duration-150">
                   {staticSuggest.length > 0 && (
                     <div className="py-1">
                       {staticSuggest.map((s, i) => {
@@ -381,116 +612,16 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
               )}
             </div>
 
-            <div className="hidden lg:flex items-center">
+            <div className="hidden lg:flex items-center overflow-visible">
               <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
-              <div ref={ptRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setPtOpen(!ptOpen)}
-                  className={cn(
-                    'h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50',
-                    filters.type !== null ? 'text-primary font-medium' : 'text-foreground',
-                  )}
-                >
-                  {propertyTypeLabel === 'Тип квартиры' ? 'Тип' : propertyTypeLabel}
-                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', ptOpen && 'rotate-180')} />
-                </button>
-                {ptOpen && (
-                  <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-50 min-w-[180px] animate-in fade-in-0 zoom-in-95 duration-150">
-                    {propertyTypes.map(t => (
-                      <li key={t}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFilters(f => ({
-                              ...f,
-                              type: t === 'Тип квартиры' ? null : t,
-                            }));
-                            setPtOpen(false);
-                          }}
-                          className={cn(
-                            'w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors',
-                            (t === 'Тип квартиры' ? filters.type === null : filters.type === t) &&
-                              'text-primary font-medium',
-                          )}
-                        >
-                          {t}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
-              <div className="flex items-center h-[52px]">
-                <input
-                  type="text"
-                  placeholder="Цена от"
-                  className="w-[100px] h-full px-3 text-sm bg-transparent outline-none border-none"
-                  value={priceFromVal}
-                  onChange={e =>
-                    setFilters(f => ({
-                      ...f,
-                      priceFrom: e.target.value.replace(/\D/g, '') || null,
-                    }))
-                  }
-                />
-                <span className="text-muted-foreground text-sm">—</span>
-                <input
-                  type="text"
-                  placeholder="до, ₽"
-                  className="w-[100px] h-full px-3 text-sm bg-transparent outline-none border-none"
-                  value={priceToVal}
-                  onChange={e =>
-                    setFilters(f => ({
-                      ...f,
-                      priceTo: e.target.value.replace(/\D/g, '') || null,
-                    }))
-                  }
-                />
-              </div>
-
-              <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
-              <div ref={dlRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setDlOpen(!dlOpen)}
-                  className={cn(
-                    'h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50',
-                    filters.completion !== null ? 'text-primary font-medium' : 'text-foreground',
-                  )}
-                >
-                  {deadlineLabel}
-                  <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', dlOpen && 'rotate-180')} />
-                </button>
-                {dlOpen && (
-                  <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-50 min-w-[140px] animate-in fade-in-0 zoom-in-95 duration-150">
-                    {deadlines.map(d => (
-                      <li key={d}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFilters(f => ({
-                              ...f,
-                              completion: d === 'Срок сдачи' ? null : d,
-                            }));
-                            setDlOpen(false);
-                          }}
-                          className={cn(
-                            'w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors',
-                            (d === 'Срок сдачи' ? filters.completion === null : filters.completion === d) &&
-                              'text-primary font-medium',
-                          )}
-                        >
-                          {d}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
+              {filterConfig[mode]
+                .filter(k => k !== 'metro')
+                .map((key, index) => (
+                  <Fragment key={key}>
+                    {index > 0 && <div className="w-px h-6 bg-[#e2e8f0] mx-2" />}
+                    {renderDesktopFilter(key)}
+                  </Fragment>
+                ))}
               <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
               <button
                 type="button"
@@ -503,29 +634,55 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
             </div>
           </div>
 
-          <div className="flex lg:hidden gap-1.5 mt-2 overflow-x-auto scrollbar-hide">
-            <button
-              type="button"
-              onClick={() => setPtOpen(!ptOpen)}
-              className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] flex items-center gap-1 whitespace-nowrap shrink-0"
-            >
-              {propertyTypeLabel === 'Тип квартиры' ? 'Тип' : propertyTypeLabel}
-              <ChevronDown className="w-2.5 h-2.5" />
-            </button>
-            <button
-              type="button"
-              className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] whitespace-nowrap shrink-0"
-            >
-              Цена
-            </button>
-            <button
-              type="button"
-              onClick={() => setDlOpen(!dlOpen)}
-              className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] flex items-center gap-1 whitespace-nowrap shrink-0"
-            >
-              {deadlineLabel}
-              <ChevronDown className="w-2.5 h-2.5" />
-            </button>
+          <div className="flex lg:hidden gap-1.5 mt-2 overflow-x-auto scrollbar-hide overflow-y-visible">
+            {mode === 'apartment' && (
+              <button
+                type="button"
+                onClick={() => setRoomOpen(!roomOpen)}
+                className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] flex items-center gap-1 whitespace-nowrap shrink-0"
+              >
+                {roomLabel === 'Тип квартиры' ? 'Тип' : roomLabel}
+                <ChevronDown className="w-2.5 h-2.5" />
+              </button>
+            )}
+            {(mode === 'apartment' || mode === 'house' || mode === 'land' || mode === 'commercial') && (
+              <button
+                type="button"
+                className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] whitespace-nowrap shrink-0"
+              >
+                Цена
+              </button>
+            )}
+            {mode === 'apartment' && (
+              <button
+                type="button"
+                onClick={() => setDlOpen(!dlOpen)}
+                className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] flex items-center gap-1 whitespace-nowrap shrink-0"
+              >
+                {deadlineLabel}
+                <ChevronDown className="w-2.5 h-2.5" />
+              </button>
+            )}
+            {(mode === 'house' || mode === 'land' || mode === 'commercial') && (
+              <button type="button" className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] shrink-0">
+                Площадь
+              </button>
+            )}
+            {mode === 'house' && (
+              <button type="button" className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] shrink-0">
+                Этажи
+              </button>
+            )}
+            {mode === 'commercial' && (
+              <button
+                type="button"
+                onClick={() => setCommercialOpen(!commercialOpen)}
+                className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] flex items-center gap-1 whitespace-nowrap shrink-0"
+              >
+                {commercialLabel === 'Тип объекта' ? 'Тип' : commercialLabel}
+                <ChevronDown className="w-2.5 h-2.5" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setFiltersOpen(!filtersOpen)}
@@ -535,6 +692,56 @@ export default function HeroSearch({ statsApartments, statsComplexes }: HeroSear
               Ещё
             </button>
           </div>
+
+          {mobileSuggestOpen && (
+            <div className="lg:hidden relative z-[100] mt-1 border border-border rounded-xl bg-card shadow-lg max-h-[240px] overflow-y-auto">
+              {roomOpen &&
+                mode === 'apartment' &&
+                propertyTypes.map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50"
+                    onClick={() => {
+                      setFilters(f => ({ ...f, roomType: t === 'Тип квартиры' ? null : t }));
+                      setRoomOpen(false);
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              {dlOpen &&
+                mode === 'apartment' &&
+                deadlines.map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50"
+                    onClick={() => {
+                      setFilters(f => ({ ...f, completion: d === 'Срок сдачи' ? null : d }));
+                      setDlOpen(false);
+                    }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              {commercialOpen &&
+                mode === 'commercial' &&
+                commercialTypes.map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50"
+                    onClick={() => {
+                      setFilters(f => ({ ...f, commercialType: t === 'Тип объекта' ? null : t }));
+                      setCommercialOpen(false);
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+            </div>
+          )}
 
           <div className="flex items-center justify-between mt-3.5 gap-2">
             <button

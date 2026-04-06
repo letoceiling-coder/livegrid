@@ -10,6 +10,7 @@ import MapSearch from '@/redesign/components/MapSearch';
 import { defaultFilters, type CatalogFilters, type Complex, type ResidentialComplex } from '@/redesign/data/types';
 import { useBlocks } from '@/hooks/useBlocks';
 import { useFilters } from '@/hooks/useFilters';
+import { urlTypeToSearchMode, type SearchMode } from '@/redesign/lib/searchQuery';
 
 type ViewMode = 'grid' | 'list' | 'map';
 
@@ -39,9 +40,18 @@ function adaptComplex(c: Complex): ResidentialComplex {
   };
 }
 
+const catalogTitles: Record<SearchMode, string> = {
+  apartment: 'Жилые комплексы',
+  house: 'Дома',
+  land: 'Участки',
+  commercial: 'Коммерческая недвижимость',
+};
+
 const RedesignCatalog = () => {
   const [searchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
+  const catalogMode = urlTypeToSearchMode(searchParams.get('type'));
+  const blocksEnabled = catalogMode === 'apartment';
 
   const [view, setView]                     = useState<ViewMode>('grid');
   const [filters, setFilters]               = useState<CatalogFilters>({ ...defaultFilters, search: initialSearch });
@@ -61,19 +71,19 @@ const RedesignCatalog = () => {
     if (s !== filters.search) setFilters(f => ({ ...f, search: s }));
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch real data — always enabled so map view has data too
-  // In map mode, load up to 500 complexes (no pagination needed)
+  // Квартиры/ЖК: текущий API — только apartment; иначе список пустой (без «ложных» квартир)
   const { data, isLoading, isFetching } = useBlocks(filters, {
     page: view === 'map' ? 1 : page,
     perPage: view === 'map' ? 500 : 24,
+    enabled: blocksEnabled,
   });
 
   const { data: filtersData } = useFilters();
 
-  const complexes   = data?.complexes ?? [];
-  const meta        = data?.meta;
+  const complexes   = blocksEnabled ? (data?.complexes ?? []) : [];
+  const meta        = blocksEnabled ? data?.meta : undefined;
   const totalPages  = meta?.lastPage ?? 1;
-  const totalCount  = meta?.total ?? 0;
+  const totalCount  = blocksEnabled ? (meta?.total ?? 0) : 0;
 
   // For map view — use all loaded complexes
   const allForMap = useMemo(() => complexes.map(adaptComplex), [complexes]);
@@ -87,10 +97,12 @@ const RedesignCatalog = () => {
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold">Жилые комплексы</h1>
+            <h1 className="text-xl font-bold">{catalogTitles[catalogMode]}</h1>
             <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
-              {isFetching && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              Найдено {totalCount} объектов
+              {blocksEnabled && isFetching && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {blocksEnabled
+                ? `Найдено ${totalCount} объектов`
+                : 'Данные для этого раздела появятся позже'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -134,7 +146,7 @@ const RedesignCatalog = () => {
 
           {/* Content */}
           <div className="flex-1 min-w-0">
-            {isLoading ? (
+            {blocksEnabled && isLoading ? (
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
@@ -155,13 +167,19 @@ const RedesignCatalog = () => {
                 {view === 'map' && (
                   <MapSearch complexes={allForMap} activeSlug={mapActive} onSelect={setMapActive} />
                 )}
-                {adapted.length === 0 && !isLoading && (
+                {adapted.length === 0 && (!blocksEnabled || !isLoading) && (
                   <div className="text-center py-20">
                     <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
                       <SlidersHorizontal className="w-6 h-6 text-muted-foreground" />
                     </div>
-                    <p className="text-muted-foreground text-sm mb-2">Ничего не найдено</p>
-                    <p className="text-muted-foreground text-xs">Попробуйте изменить параметры фильтров</p>
+                    <p className="text-muted-foreground text-sm mb-2">
+                      {!blocksEnabled ? 'Раздел в подготовке' : 'Ничего не найдено'}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {!blocksEnabled
+                        ? 'Каталог квартир в ЖК доступен во вкладке «Квартиры».'
+                        : 'Попробуйте изменить параметры фильтров'}
+                    </p>
                   </div>
                 )}
 
