@@ -4,28 +4,43 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  server: {
-    host: "::",
-    port: 8080,
-    hmr: {
-      overlay: false,
+// При build root = корень репозитория, чтобы manifest.json содержал ключ "frontend/src/main.tsx"
+// (совпадает с @vite(['frontend/src/main.tsx']) в Laravel). При dev root = frontend (index.html).
+export default defineConfig(({ mode, command }) => {
+  const projectRoot = path.resolve(__dirname, "..");
+  const isBuild = command === "build";
+
+  return {
+    root: isBuild ? projectRoot : __dirname,
+    publicDir: isBuild ? path.join(__dirname, "public") : "public",
+    server: {
+      host: "::",
+      port: 8080,
+      hmr: {
+        overlay: false,
+      },
     },
-  },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+    plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
-  build: {
-    outDir: "../public/build",
-    emptyOutDir: true,
-    manifest: true,
-    rollupOptions: {
-      input: path.resolve(__dirname, "index.html"),
+    build: {
+      outDir: isBuild ? "public/build" : "../public/build",
+      emptyOutDir: true,
+      manifest: true,
+      rollupOptions: {
+        input: {
+          "frontend/src/main.tsx": path.resolve(__dirname, "src/main.tsx"),
+        },
+        output: {
+          entryFileNames: "assets/main-[hash].js",
+          chunkFileNames: "assets/[name]-[hash].js",
+          assetFileNames: "assets/[name]-[hash][extname]",
+        },
+      },
     },
-  },
-  base: "/build/",
-  publicDir: "public",
-}));
+    base: "/build/",
+  };
+});
