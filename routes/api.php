@@ -1,44 +1,46 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\V1\ComplexController;
+use App\Http\Controllers\Api\Crm\CrmApartmentController;
+use App\Http\Controllers\Api\Crm\CrmAuthController;
+use App\Http\Controllers\Api\Crm\CrmBuilderController;
+use App\Http\Controllers\Api\Crm\CrmComplexController;
+use App\Http\Controllers\Api\Crm\CrmDashboardController;
+use App\Http\Controllers\Api\Crm\CrmDistrictController;
+use App\Http\Controllers\Api\Crm\CrmFeedController;
+use App\Http\Controllers\Api\Crm\CrmMonitoringController;
 use App\Http\Controllers\Api\V1\ApartmentController;
+use App\Http\Controllers\Api\V1\ComplexController;
+use App\Http\Controllers\Api\V1\HomeController;
 use App\Http\Controllers\Api\V1\MapController;
 use App\Http\Controllers\Api\V1\ReferenceController;
 use App\Http\Controllers\Api\V1\SearchComplexesController;
 use App\Http\Controllers\Api\V1\SearchCountController;
 use App\Http\Controllers\Api\V1\SuggestController;
-use App\Http\Controllers\Api\V1\HomeController;
 use App\Http\Controllers\Api\V2\EntityController;
 use App\Http\Controllers\Api\V2\EntitySchemaController;
-use App\Http\Controllers\Api\Crm\CrmAuthController;
-use App\Http\Controllers\Api\Crm\CrmDashboardController;
-use App\Http\Controllers\Api\Crm\CrmComplexController;
-use App\Http\Controllers\Api\Crm\CrmApartmentController;
-use App\Http\Controllers\Api\Crm\CrmBuilderController;
-use App\Http\Controllers\Api\Crm\CrmDistrictController;
-use App\Http\Controllers\Api\Crm\CrmFeedController;
-use App\Http\Controllers\Api\Crm\CrmMonitoringController;
 use App\Models\Catalog\Building;
 use App\Models\Catalog\Finishing;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
 // ── Public API v1 ────────────────────────────────────────────────────────────
-// Global throttle:api (300 req/min per IP) is applied by the api middleware group
+// throttle:api (300/min per IP) + GET /apartments* throttle:apartments (120/min per IP)
 Route::prefix('v1')->group(function () {
     Route::get('/complexes', [ComplexController::class, 'index']);
     Route::get('/complexes/{slug}', [ComplexController::class, 'show']);
     Route::get('/complexes/{slug}/apartments', [ComplexController::class, 'apartments']);
-    Route::get('/apartments', [ApartmentController::class, 'index']);
-    Route::get('/apartments/{id}', [ApartmentController::class, 'show']);
+    Route::middleware('throttle:apartments')->group(function () {
+        Route::get('/apartments', [ApartmentController::class, 'index']);
+        Route::get('/apartments/{id}', [ApartmentController::class, 'show']);
+    });
     Route::get('/map/complexes', [MapController::class, 'complexes']);
     Route::get('/search/complexes', [SearchComplexesController::class, 'index']);
     Route::get('/search/count', [SearchCountController::class, 'index']);
-    Route::get('/search/suggest',   [SuggestController::class, 'index']);
+    Route::get('/search/suggest', [SuggestController::class, 'index']);
     Route::get('/filters', [ReferenceController::class, 'filters']);
 
     Route::prefix('home')->group(function () {
@@ -65,13 +67,13 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('complexes', CrmComplexController::class);
         // Extra apartment routes must be declared BEFORE apiResource to avoid {id} collision
-        Route::post('/apartments/bulk',          [CrmApartmentController::class, 'bulk']);
-        Route::get('/apartments-deleted',        [CrmApartmentController::class, 'trashed']);
+        Route::post('/apartments/bulk', [CrmApartmentController::class, 'bulk']);
+        Route::get('/apartments-deleted', [CrmApartmentController::class, 'trashed']);
         Route::apiResource('apartments', CrmApartmentController::class);
-        Route::post('/apartments/{id}/restore',  [CrmApartmentController::class, 'restore']);
-        Route::get('/apartments/{id}/history',   [CrmApartmentController::class, 'history']);
-        Route::post('/apartments/{id}/lock',     [CrmApartmentController::class, 'lock']);
-        Route::post('/apartments/{id}/unlock',   [CrmApartmentController::class, 'unlock']);
+        Route::post('/apartments/{id}/restore', [CrmApartmentController::class, 'restore']);
+        Route::get('/apartments/{id}/history', [CrmApartmentController::class, 'history']);
+        Route::post('/apartments/{id}/lock', [CrmApartmentController::class, 'lock']);
+        Route::post('/apartments/{id}/unlock', [CrmApartmentController::class, 'unlock']);
 
         Route::apiResource('builders', CrmBuilderController::class);
         Route::apiResource('districts', CrmDistrictController::class);
@@ -85,13 +87,15 @@ Route::prefix('v1')->group(function () {
         // Reference helpers for forms
         Route::get('/finishings-list', function () {
             $finishings = Finishing::orderBy('name')->get()
-                ->map(fn($f) => ['id' => $f->id, 'name' => $f->name]);
+                ->map(fn ($f) => ['id' => $f->id, 'name' => $f->name]);
+
             return response()->json(['data' => $finishings]);
         });
 
         Route::get('/complexes/{id}/buildings', function (string $id) {
             $buildings = Building::where('block_id', $id)->orderBy('name')->get()
-                ->map(fn($b) => ['id' => $b->id, 'name' => $b->name]);
+                ->map(fn ($b) => ['id' => $b->id, 'name' => $b->name]);
+
             return response()->json(['data' => $buildings]);
         });
     });
@@ -106,13 +110,13 @@ Route::prefix('v2')->middleware(['auth:sanctum', 'crm.admin'])->group(function (
     Route::put('/entity-fields/{entityField}', [EntitySchemaController::class, 'updateField']);
     Route::delete('/entity-fields/{entityField}', [EntitySchemaController::class, 'destroyField']);
 
-    Route::get('/entity-types',         [EntityController::class, 'types']);
-    Route::get('/entities/{type}',      [EntityController::class, 'index']);
-    Route::post('/entities/{type}',     [EntityController::class, 'store']);
+    Route::get('/entity-types', [EntityController::class, 'types']);
+    Route::get('/entities/{type}', [EntityController::class, 'index']);
+    Route::post('/entities/{type}', [EntityController::class, 'store']);
     Route::get('/entities/{type}/{id}', [EntityController::class, 'show']);
     Route::get('/entities/{type}/{id}/history', [EntityController::class, 'history']);
     Route::get('/entities/{type}/{id}/history/export', [EntityController::class, 'historyExport']);
-    Route::put('/entities/{id}',        [EntityController::class, 'update']);
+    Route::put('/entities/{id}', [EntityController::class, 'update']);
     Route::delete('/entity-records/{id}', [EntityController::class, 'destroy']);
     Route::post('/entity-records/{id}/restore', [EntityController::class, 'restore']);
     Route::post('/entity-records/bulk-delete', [EntityController::class, 'bulkDestroy']);

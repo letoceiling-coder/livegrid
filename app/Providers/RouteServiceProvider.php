@@ -45,10 +45,15 @@ class RouteServiceProvider extends ServiceProvider
             if ($user = $request->user()) {
                 // Authenticated CRM users: 1000 req/min per user account
                 // High enough for intensive CRM use, low enough to catch runaway scripts
-                return Limit::perMinute(1000)->by('crm:' . $user->id);
+                return Limit::perMinute(1000)->by('crm:'.$user->id);
             }
+
             // Public visitors: 300 req/min per IP
             return Limit::perMinute(300)->by($request->ip());
+        });
+
+        RateLimiter::for('apartments', function (Request $request) {
+            return Limit::perMinute(120)->by($request->ip());
         });
     }
 }
