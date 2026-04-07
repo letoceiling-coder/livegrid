@@ -9,9 +9,9 @@ class DeployCommand extends Command
     protected $signature = 'deploy
                             {--force : Required in production; also passed to migrate --force}
                             {--no-migrate : Skip database migrations}
-                            {--no-build : Skip frontend npm ci and Vite build (manifest must already exist)}';
+                            {--no-build : Skip frontend npm install and Vite build (manifest must already exist)}';
 
-    protected $description = 'Production deploy on /var/www/livegrid.ru: git reset → composer → frontend npm ci/build → caches → php-fpm';
+    protected $description = 'Production deploy on /var/www/livegrid.ru: git reset → composer → frontend npm install/build → caches → php-fpm';
 
     /** Single production app root — deploy aborts if base_path() does not match (after realpath). */
     private const DEPLOY_ROOT = '/var/www/livegrid.ru';
@@ -59,13 +59,13 @@ class DeployCommand extends Command
             return Command::FAILURE;
         }
 
-        // 3–4. Frontend: npm ci + vite build (outDir = public/build via frontend/vite.config.ts)
+        // 3–4. Frontend: npm install + vite build (outDir = public/build via frontend/vite.config.ts)
         if (!$this->option('no-build')) {
             $frontend = base_path('frontend');
             $this->info('Building frontend...');
             if ($this->executeCommand(
-                'cd '.escapeshellarg($frontend).' && npm ci',
-                'npm ci failed (frontend)'
+                'cd '.escapeshellarg($frontend).' && npm install --legacy-peer-deps',
+                'npm install failed (frontend)'
             ) !== 0) {
                 return Command::FAILURE;
             }
