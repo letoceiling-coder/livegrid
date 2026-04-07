@@ -22,7 +22,7 @@ export default function HomeNew() {
 
   return (
     <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
-      <section className="relative bg-background overflow-x-hidden min-w-0">
+      <section className="relative bg-background overflow-visible min-w-0">
         <div className="max-w-[1400px] mx-auto min-w-0 px-0 pt-4 sm:pt-6 pb-2 sm:pb-4">
           <HeroSearch />
         </div>
