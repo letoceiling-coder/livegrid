@@ -408,7 +408,7 @@ export default function HeroSearch() {
   const mobileSuggestOpen = roomOpen || dlOpen || commercialOpen;
 
   return (
-    <section className="relative bg-background overflow-x-hidden min-w-0">
+    <section className="relative bg-background min-w-0">
       <div className="max-w-[1400px] mx-auto min-w-0 pt-4 pb-5 sm:pt-6 sm:pb-5">
         <div className="max-w-full overflow-x-hidden px-4">
           <div className="flex flex-col items-center gap-1 mb-3">
