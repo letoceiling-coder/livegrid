@@ -438,7 +438,7 @@ export default function HeroSearch() {
           </h1>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide w-full min-w-0 px-4 mb-4">
+        <div className="flex justify-start sm:justify-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide w-full min-w-0 px-4 mb-4">
           {objectTabs.map(tab => {
             const Icon = tab.icon;
             return (
