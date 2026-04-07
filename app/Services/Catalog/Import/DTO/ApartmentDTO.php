@@ -25,6 +25,7 @@ class ApartmentDTO
         public readonly string $districtName = '',
         public readonly ?string $planImage = null,
         public readonly ?int $section = null,
+        public readonly ?string $finishingId = null,
         public readonly array $attributes = [], // Dynamic attributes: ['wc_count' => 2, 'height' => 2.8]
     ) {
     }
@@ -55,6 +56,7 @@ class ApartmentDTO
             'district_name' => $this->districtName,
             'plan_image' => $this->planImage,
             'section' => $this->section,
+            'finishing_id' => $this->finishingId,
         ];
     }
 

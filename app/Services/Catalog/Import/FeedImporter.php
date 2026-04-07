@@ -320,6 +320,13 @@ class FeedImporter
             Log::warning("Building dimensions recalc failed", ['error' => $e->getMessage()]);
         }
 
+        try {
+            app(ApartmentsSearchRefresher::class)->refresh();
+            Log::info('apartments_search materialized table refreshed after import');
+        } catch (\Throwable $e) {
+            Log::warning('apartments_search refresh failed', ['error' => $e->getMessage()]);
+        }
+
         // Dispatch search index rebuild + invalidate caches after full import
         try {
             \App\Services\CacheInvalidator::all();

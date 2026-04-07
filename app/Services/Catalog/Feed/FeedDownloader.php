@@ -3,6 +3,7 @@
 namespace App\Services\Catalog\Feed;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -113,6 +114,15 @@ class FeedDownloader
                 Storage::put($storagePath, $response->body());
                 $size = Storage::size($storagePath);
 
+                try {
+                    App::make(FeedRawPersister::class)->persistFromDownloadedFile($filename, $filePath);
+                } catch (\Throwable $e) {
+                    Log::warning('Feed raw persist failed', [
+                        'file' => $filename,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+
                 return [
                     'endpoint' => $endpoint,
                     'success' => true,
@@ -158,6 +168,15 @@ class FeedDownloader
 
             if ($response->successful() && file_exists($filePath)) {
                 $size = filesize($filePath);
+
+                try {
+                    App::make(FeedRawPersister::class)->persistFromDownloadedFile(basename($endpoint), $filePath);
+                } catch (\Throwable $e) {
+                    Log::warning('Feed raw persist failed', [
+                        'file' => basename($endpoint),
+                        'error' => $e->getMessage(),
+                    ]);
+                }
 
                 return [
                     'endpoint' => $endpoint,

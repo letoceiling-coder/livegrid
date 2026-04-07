@@ -20,15 +20,42 @@ class ApartmentController extends Controller
             ->where('is_active', 1)
             ->whereIn('status', ['available', 'reserved']);
 
-        if ($v = $request->input('block_id'))    $query->where('block_id', $v);
-        if ($v = $request->input('rooms'))       $query->where('rooms_count', (int) $v);
-        if ($v = $request->input('status'))      $query->where('status', $v);
-        if ($v = $request->input('price_min'))   $query->where('price', '>=', (int) $v);
-        if ($v = $request->input('price_max'))   $query->where('price', '<=', (int) $v);
-        if ($v = $request->input('area_min'))    $query->where('area_total', '>=', (float) $v);
-        if ($v = $request->input('area_max'))    $query->where('area_total', '<=', (float) $v);
-        if ($v = $request->input('floor_min'))   $query->where('floor', '>=', (int) $v);
-        if ($v = $request->input('floor_max'))   $query->where('floor', '<=', (int) $v);
+        if ($v = $request->input('block_id')) {
+            $query->where('block_id', $v);
+        }
+        if ($v = $request->input('rooms')) {
+            $query->where('rooms_count', (int) $v);
+        }
+        if ($v = $request->input('status')) {
+            $query->where('status', $v);
+        }
+        if ($v = $request->input('price_min', $request->input('price_from'))) {
+            $query->where('price', '>=', (int) $v);
+        }
+        if ($v = $request->input('price_max', $request->input('price_to'))) {
+            $query->where('price', '<=', (int) $v);
+        }
+        if ($v = $request->input('area_min', $request->input('area_from'))) {
+            $query->where('area_total', '>=', (float) $v);
+        }
+        if ($v = $request->input('area_max', $request->input('area_to'))) {
+            $query->where('area_total', '<=', (float) $v);
+        }
+        if ($v = $request->input('floor_min', $request->input('floor_from'))) {
+            $query->where('floor', '>=', (int) $v);
+        }
+        if ($v = $request->input('floor_max', $request->input('floor_to'))) {
+            $query->where('floor', '<=', (int) $v);
+        }
+        if ($v = $request->input('finishing_id')) {
+            $query->where('finishing_id', $v);
+        }
+        if ($v = $request->input('district_id')) {
+            $query->whereHas('complex', fn ($q) => $q->where('district_id', $v));
+        }
+        if ($v = $request->input('deadline_from')) {
+            $query->whereHas('building', fn ($q) => $q->whereDate('deadline', '>=', $v));
+        }
 
         $perPage = min((int) $request->input('per_page', 20), 100);
 

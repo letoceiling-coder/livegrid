@@ -39,6 +39,14 @@ class UpsertService
         $data['created_at'] = now();
         $data['updated_at'] = now();
 
+        if ($dto->finishingId) {
+            $data['finishing_id'] = DB::table('finishings')
+                ->where('id', $dto->finishingId)
+                ->value('id');
+        } else {
+            $data['finishing_id'] = null;
+        }
+
         // Check if exists
         $existing = DB::table('apartments')
             ->where('source_id', $dto->sourceId)
@@ -150,6 +158,7 @@ class UpsertService
         // Prepare data arrays
         $apartmentsToInsert = [];
         $apartmentsToUpdate = [];
+        $attributesByApartment = [];
 
         // Pre-fetch existing apartments for this chunk in single query (with all comparison fields)
         $existing = $this->prefetchExisting($dtos);
@@ -212,7 +221,15 @@ class UpsertService
                         ->value('id');
                     $data['builder_id'] = $builderId;
                 }
-                
+
+                if ($dto->finishingId) {
+                    $data['finishing_id'] = DB::table('finishings')
+                        ->where('id', $dto->finishingId)
+                        ->value('id');
+                } else {
+                    $data['finishing_id'] = null;
+                }
+
                 $data['is_active'] = true;
                 $data['last_seen_at'] = $importTime;
                 $data['updated_at'] = $now;
@@ -222,6 +239,7 @@ class UpsertService
                     $data['id'] = $dto->externalId; // Use external_id as primary key
                     $data['created_at'] = $now;
                     $apartmentsToInsert[] = $data;
+                    $attributesByApartment[$dto->externalId] = $dto->attributes;
                     $stats['processed_external_ids'][] = $dto->externalId;
                 } else {
                     // Check if data has changed
@@ -240,6 +258,7 @@ class UpsertService
                         }
                         unset($data['id']);
                         $apartmentsToUpdate[] = $data;
+                        $attributesByApartment[$dto->externalId] = $dto->attributes;
                         $stats['processed_external_ids'][] = $dto->externalId;
                     }
                 }
@@ -311,8 +330,7 @@ class UpsertService
         // Note: last_seen_at update for unchanged records is done in bulk after all chunks
         // See FeedImporter::updateLastSeenAtForProcessed() method
 
-        // TEMPORARILY DISABLED: Skip attributes upsert for speed
-        // $this->bulkUpsertAttributes($existingIds);
+        $this->bulkUpsertAttributes($attributesByApartment);
 
         $chunkDurationMs = round((microtime(true) - $chunkStartTime) * 1000, 2);
         $chunkDurationSec = round($chunkDurationMs / 1000, 3);
@@ -383,6 +401,7 @@ class UpsertService
                 'district_name',
                 'plan_image',
                 'section',
+                'finishing_id',
             ])
             ->get()
             ->filter(function ($item) use ($lookupMap) {
@@ -428,6 +447,7 @@ class UpsertService
             'district_name',
             'plan_image',
             'section',
+            'finishing_id',
         ];
 
         foreach ($fieldsToCompare as $field) {
@@ -500,6 +520,8 @@ class UpsertService
                     'value_string',
                     'value_bool',
                     'value_json',
+                    'attr_key',
+                    'attr_value',
                     'updated_at',
                 ]
             );
@@ -540,6 +562,8 @@ class UpsertService
                         'value_string',
                         'value_bool',
                         'value_json',
+                        'attr_key',
+                        'attr_value',
                         'updated_at',
                     ]
                 );

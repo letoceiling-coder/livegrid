@@ -4,7 +4,6 @@ namespace App\Services\Catalog\Import;
 
 use App\Services\Catalog\Import\DTO\ApartmentDTO;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 /**
  * Maps raw JSON feed data to ApartmentDTO
@@ -113,6 +112,11 @@ class FeedMapper
         // Extract section (feed may not have it; default null)
         $section = isset($rawData['section']) ? (int) $rawData['section'] : null;
 
+        $finishingId = null;
+        if (! empty($rawData['finishing'])) {
+            $finishingId = (string) $rawData['finishing'];
+        }
+
         // Extract dynamic attributes
         $attributes = $this->attributeMapper->extractAttributes($rawData);
 
@@ -137,6 +141,7 @@ class FeedMapper
             districtName: $districtName,
             planImage: $planImage,
             section: $section,
+            finishingId: $finishingId,
             attributes: $attributes,
         );
     }

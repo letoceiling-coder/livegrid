@@ -90,7 +90,29 @@ class BuildingImporter
                 }
 
                 $name = $item['name'] ?? '';
-                
+
+                $address = null;
+                if (!empty($item['address']) && is_array($item['address'])) {
+                    $parts = array_filter([
+                        $item['address']['street'] ?? null,
+                        $item['address']['house'] ?? null,
+                        $item['address']['housing'] ?? null,
+                    ]);
+                    $address = $parts !== [] ? implode(', ', $parts) : null;
+                }
+
+                $lat = null;
+                $lng = null;
+                if (!empty($item['geometry']['coordinates'][0]) && is_array($item['geometry']['coordinates'][0])) {
+                    $ring = $item['geometry']['coordinates'][0];
+                    if (isset($ring[0][0], $ring[0][1])) {
+                        $lng = (float) $ring[0][0];
+                        $lat = (float) $ring[0][1];
+                    }
+                }
+
+                $queue = isset($item['queue']) ? (string) $item['queue'] : null;
+
                 // Find building_type_id - in reference tables, id = external_id (feed _id)
                 $buildingTypeId = null;
                 $feedBuildingTypeId = $item['building_type'] ?? $item['building_type_id'] ?? null;
@@ -125,6 +147,10 @@ class BuildingImporter
                     'block_id' => $blockId,
                     'building_type_id' => $buildingTypeId,
                     'name' => $name,
+                    'address' => $address,
+                    'lat' => $lat,
+                    'lng' => $lng,
+                    'queue' => $queue,
                     'deadline' => $deadline,
                     'source_id' => $sourceId,
                     'external_id' => $externalId,

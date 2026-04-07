@@ -127,6 +127,13 @@ class BlockImporter
                 }
                 $imagesJson = !empty($images) ? json_encode(array_values($images)) : null;
 
+                $planJson = !empty($item['plan']) && is_array($item['plan'])
+                    ? json_encode(array_values($item['plan']))
+                    : null;
+                $rendererJson = !empty($item['renderer']) && is_array($item['renderer'])
+                    ? json_encode(array_values($item['renderer']))
+                    : null;
+
                 // Extract address (blocks.address is an array in the feed)
                 $address = null;
                 if (!empty($item['address'])) {
@@ -150,9 +157,12 @@ class BlockImporter
                     'builder_id' => $builderId,
                     'source_id' => $sourceId,
                     'external_id' => $externalId,
+                    'crm_id' => isset($item['crm_id']) ? (string) $item['crm_id'] : null,
                     'lat' => $lat,
                     'lng' => $lng,
                     'images' => $imagesJson,
+                    'plan' => $planJson,
+                    'renderer' => $rendererJson,
                     'created_at' => now(),
                 ];
 
@@ -163,6 +173,12 @@ class BlockImporter
                     // Don't overwrite existing images if feed has none
                     if ($imagesJson === null && !empty($existing->images)) {
                         unset($blockData['images']);
+                    }
+                    if ($planJson === null && !empty($existing->plan)) {
+                        unset($blockData['plan']);
+                    }
+                    if ($rendererJson === null && !empty($existing->renderer)) {
+                        unset($blockData['renderer']);
                     }
                     DB::table('blocks')
                         ->where('id', $existing->id)

@@ -156,6 +156,15 @@ class AttributeMapper
                     break;
             }
 
+            $record['attr_key'] = $attr['code'];
+            $record['attr_value'] = match ($attr['type']) {
+                'int' => (string) (int) $attr['value'],
+                'float' => (string) (float) $attr['value'],
+                'bool' => ((bool) $attr['value']) ? '1' : '0',
+                'json' => is_string($attr['value']) ? $attr['value'] : json_encode($attr['value']),
+                default => (string) $attr['value'],
+            };
+
             $records[] = $record;
         }
 
