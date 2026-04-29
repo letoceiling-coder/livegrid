@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Calculator, UserSearch, Building2, UserCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { getApiUrl } from '@/shared/config/api';
 
 const features = [
   {
@@ -48,7 +49,26 @@ const features = [
 const AdditionalFeatures = () => {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: '', phone: '', comment: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '+7', comment: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const formatPhoneMask = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').replace(/^8/, '7').replace(/^9/, '79').slice(0, 11);
+    if (!digits) return '+7';
+    const core = digits.startsWith('7') ? digits.slice(1) : digits;
+    const p1 = core.slice(0, 3);
+    const p2 = core.slice(3, 6);
+    const p3 = core.slice(6, 8);
+    const p4 = core.slice(8, 10);
+    let out = '+7';
+    if (p1) out += ` (${p1}`;
+    if (p1.length === 3) out += ')';
+    if (p2) out += ` ${p2}`;
+    if (p3) out += `-${p3}`;
+    if (p4) out += `-${p4}`;
+    return out;
+  };
 
   const handleAction = (action: string) => {
     switch (action) {
@@ -116,10 +136,46 @@ const AdditionalFeatures = () => {
           </DialogHeader>
           <form
             className="space-y-4 mt-2"
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              setModalOpen(false);
-              setFormData({ name: '', phone: '', comment: '' });
+              setMessage('');
+              const cleanName = formData.name.trim();
+              const digits = formData.phone.replace(/\D/g, '');
+              if (cleanName.length < 2) {
+                setMessage('Укажите имя');
+                return;
+              }
+              if (digits.length < 11) {
+                setMessage('Укажите корректный телефон');
+                return;
+              }
+              setSubmitting(true);
+              try {
+                const response = await fetch(getApiUrl('requests'), {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                  },
+                  credentials: 'same-origin',
+                  body: JSON.stringify({
+                    name: cleanName,
+                    phone: formData.phone,
+                    kind: 'Подобрать объект',
+                    objectName: 'Индивидуальный подбор',
+                    objectUrl: typeof window !== 'undefined' ? window.location.href : 'https://livegrid.ru',
+                    meta: formData.comment ? { comment: formData.comment } : undefined,
+                  }),
+                });
+                if (!response.ok) throw new Error('Ошибка отправки заявки');
+                setMessage('Заявка отправлена');
+                setFormData({ name: '', phone: '+7', comment: '' });
+                setTimeout(() => setModalOpen(false), 700);
+              } catch (err) {
+                setMessage(err instanceof Error ? err.message : 'Ошибка отправки заявки');
+              } finally {
+                setSubmitting(false);
+              }
             }}
           >
             <input
@@ -133,7 +189,7 @@ const AdditionalFeatures = () => {
               type="tel"
               placeholder="Телефон"
               value={formData.phone}
-              onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
+              onChange={(e) => setFormData((p) => ({ ...p, phone: formatPhoneMask(e.target.value) }))}
               className="w-full border border-border rounded-xl px-4 py-3 text-sm bg-background outline-none focus:ring-2 focus:ring-primary/30"
             />
             <textarea
@@ -143,9 +199,10 @@ const AdditionalFeatures = () => {
               rows={3}
               className="w-full border border-border rounded-xl px-4 py-3 text-sm bg-background outline-none focus:ring-2 focus:ring-primary/30 resize-none"
             />
-            <Button type="submit" className="w-full rounded-xl h-12">
-              Отправить заявку
+            <Button type="submit" className="w-full rounded-xl h-12" disabled={submitting}>
+              {submitting ? 'Отправка...' : 'Отправить заявку'}
             </Button>
+            {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
           </form>
         </DialogContent>
       </Dialog>

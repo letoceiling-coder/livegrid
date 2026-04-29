@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Image, Users, Settings, ChevronLeft,
-  ChevronRight, Palette
+  ChevronRight, Palette, Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/admin/pages', icon: FileText, label: 'Страницы' },
   { to: '/admin/media', icon: Image, label: 'Медиа' },
   { to: '/admin/users', icon: Users, label: 'Пользователи' },
+  { to: '/admin/roles', icon: Shield, label: 'Роли и права' },
   { to: '/admin/tokens', icon: Palette, label: 'Токены' },
   { to: '/admin/settings', icon: Settings, label: 'Настройки' },
 ];

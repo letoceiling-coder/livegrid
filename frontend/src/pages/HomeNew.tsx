@@ -9,16 +9,25 @@ import {
 import ComplexCard from '@/redesign/components/ComplexCard';
 import HeroSearch from '@/redesign/components/HeroSearch';
 
+function SectionSkeleton({ title }: { title: string }) {
+  return (
+    <section className="max-w-[1400px] mx-auto px-4 py-12">
+      <h2 className="text-xl font-bold mb-4">{title}</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-[280px] rounded-xl bg-muted/70 animate-pulse"
+            style={{ animationDelay: `${i * 50}ms` }}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function HomeNew() {
   const { data, loading, error } = useHomeBlocks();
-
-  if (loading) {
-    return <div className="p-10 text-center">Загрузка...</div>;
-  }
-
-  if (error) {
-    return <div className="p-10 text-center">Ошибка загрузки данных</div>;
-  }
 
   return (
     <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
@@ -28,51 +37,69 @@ export default function HomeNew() {
         </div>
       </section>
 
-      <section className="max-w-[1400px] mx-auto px-4 py-12">
-        <h2 className="text-xl font-bold mb-4">Популярные ЖК</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {data?.popular?.length ? (
-            data.popular.map((item: any) => (
-              <ComplexCard key={`popular-${item.id}`} complex={homeComplexCardToResidential(item)} />
-            ))
-          ) : (
-            <div className="text-center text-gray-500 col-span-full">Нет объектов</div>
-          )}
-        </div>
-      </section>
+      {loading && (
+        <>
+          <SectionSkeleton title="Популярные ЖК" />
+          <SectionSkeleton title="Горячие предложения" />
+          <SectionSkeleton title="Старт продаж" />
+        </>
+      )}
 
-      <section className="max-w-[1400px] mx-auto px-4 py-12">
-        <h2 className="text-xl font-bold mb-4">Горячие предложения</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {data?.hot?.length ? (
-            data.hot.map((item: any) => {
-              const mapped = mapApartmentToComplexCard(item);
-              return (
-                <ComplexCard
-                  key={`hot-${item.id}`}
-                  complex={apartmentCardToResidential(mapped)}
-                  apartmentId={String(item.id)}
-                />
-              );
-            })
-          ) : (
-            <div className="text-center text-gray-500 col-span-full">Нет объектов</div>
-          )}
+      {!loading && error && (
+        <div className="max-w-[1400px] mx-auto px-4 py-10 text-center text-sm text-destructive">
+          Не удалось загрузить блоки главной. Обновите страницу.
         </div>
-      </section>
+      )}
 
-      <section className="max-w-[1400px] mx-auto px-4 py-12">
-        <h2 className="text-xl font-bold mb-4">Старт продаж</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {data?.start?.length ? (
-            data.start.map((item: any) => (
-              <ComplexCard key={`start-${item.id}`} complex={homeComplexCardToResidential(item)} />
-            ))
-          ) : (
-            <div className="text-center text-gray-500 col-span-full">Нет объектов</div>
-          )}
-        </div>
-      </section>
+      {!loading && !error && (
+        <>
+          <section className="max-w-[1400px] mx-auto px-4 py-12 animate-in fade-in duration-300">
+            <h2 className="text-xl font-bold mb-4">Популярные ЖК</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {data?.popular?.length ? (
+                data.popular.map((item: any) => (
+                  <ComplexCard key={`popular-${item.id}`} complex={homeComplexCardToResidential(item)} />
+                ))
+              ) : (
+                <div className="text-center text-gray-500 col-span-full">Нет объектов</div>
+              )}
+            </div>
+          </section>
+
+          <section className="max-w-[1400px] mx-auto px-4 py-12 animate-in fade-in duration-300">
+            <h2 className="text-xl font-bold mb-4">Горячие предложения</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {data?.hot?.length ? (
+                data.hot.map((item: any) => {
+                  const mapped = mapApartmentToComplexCard(item);
+                  return (
+                    <ComplexCard
+                      key={`hot-${item.id}`}
+                      complex={apartmentCardToResidential(mapped)}
+                      apartmentId={String(item.id)}
+                    />
+                  );
+                })
+              ) : (
+                <div className="text-center text-gray-500 col-span-full">Нет объектов</div>
+              )}
+            </div>
+          </section>
+
+          <section className="max-w-[1400px] mx-auto px-4 py-12 animate-in fade-in duration-300">
+            <h2 className="text-xl font-bold mb-4">Старт продаж</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {data?.start?.length ? (
+                data.start.map((item: any) => (
+                  <ComplexCard key={`start-${item.id}`} complex={homeComplexCardToResidential(item)} />
+                ))
+              ) : (
+                <div className="text-center text-gray-500 col-span-full">Нет объектов</div>
+              )}
+            </div>
+          </section>
+        </>
+      )}
 
       <section className="max-w-[1400px] mx-auto px-4 pb-12">
         <Link

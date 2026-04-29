@@ -22,6 +22,13 @@ export interface FiltersData {
   subways: SubwayOption[];
   builders: FilterOption[];
   finishings: FinishingOption[];
+  buildingTypes: FilterOption[];
+  queues: string[];
+  wcOptions: number[];
+  ceilingHeight: {
+    min: number | null;
+    max: number | null;
+  };
 }
 
 async function fetchFilters(): Promise<FiltersData> {

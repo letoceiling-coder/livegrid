@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { ArrowUpDown, Eye } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { Apartment, SortField, SortDir } from '@/redesign/data/types';
 import { formatPrice } from '@/lib/formatPrice';
@@ -18,7 +18,16 @@ const statusLabels: Record<string, { label: string; className: string }> = {
   sold: { label: 'Продана', className: 'text-muted-foreground line-through' },
 };
 
+function roomLabel(a: Apartment): string {
+  const category =
+    a.roomCategory !== null && a.roomCategory !== undefined
+      ? a.roomCategory
+      : (typeof a.roomName === 'string' && /студ/i.test(a.roomName) ? 0 : a.rooms);
+  return a.roomName || (category === 0 ? 'Студия' : `${category}-комн.`);
+}
+
 const ApartmentTable = ({ apartments, sort, onSort }: Props) => {
+  const navigate = useNavigate();
   const SortBtn = ({ field, label }: { field: SortField; label: string }) => (
     <button className="flex items-center gap-1 hover:text-foreground transition-colors group" onClick={() => onSort(field)}>
       {label}
@@ -45,9 +54,17 @@ const ApartmentTable = ({ apartments, sort, onSort }: Props) => {
         <TableBody>
           {apartments.map(a => {
             const st = statusLabels[a.status];
+            const canOpen = a.status !== 'sold';
+            const open = () => {
+              if (canOpen) navigate(`/apartment/${a.id}`);
+            };
             return (
-              <TableRow key={a.id} className="group hover:bg-accent/30">
-                <TableCell className="font-medium">{a.roomName || (a.rooms === 0 ? 'Студия' : `${a.rooms}-комн.`)}</TableCell>
+              <TableRow
+                key={a.id}
+                className={cn('group hover:bg-accent/30', canOpen && 'cursor-pointer')}
+                onClick={open}
+              >
+                <TableCell className="font-medium">{roomLabel(a)}</TableCell>
                 <TableCell className="font-medium">{a.area} м²</TableCell>
                 <TableCell className="text-muted-foreground">{a.kitchenArea} м²</TableCell>
                 <TableCell>{a.floor}/{a.totalFloors}</TableCell>
@@ -56,8 +73,11 @@ const ApartmentTable = ({ apartments, sort, onSort }: Props) => {
                 <TableCell className="text-muted-foreground capitalize text-xs">{a.finishing}</TableCell>
                 <TableCell className={st.className}>{st.label}</TableCell>
                 <TableCell>
-                  {a.status !== 'sold' && (
-                    <Link to={`/apartment/${a.id}`}>
+                  {canOpen && (
+                    <Link
+                      to={`/apartment/${a.id}`}
+                      onClick={e => e.stopPropagation()}
+                    >
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Eye className="w-4 h-4" />
                       </Button>

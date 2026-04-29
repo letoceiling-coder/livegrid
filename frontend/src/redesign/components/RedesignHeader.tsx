@@ -1,14 +1,33 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Phone, Menu, X, Search, MapPin, Building2, Home, LayoutGrid, Map as MapIcon, Heart, LogIn, Train } from 'lucide-react';
+import {
+  Phone,
+  Menu,
+  X,
+  Search,
+  MapPin,
+  Building2,
+  Home,
+  LayoutGrid,
+  Map as MapIcon,
+  Heart,
+  LogIn,
+  Train,
+  Route,
+  HardHat,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { getApiUrl, defaultFetchOptions } from '@/shared/config/api';
+import { parseSuggestResponse } from '@/api/suggestTypes';
+import { buildQuery, defaultHeroFilters } from '@/redesign/lib/searchQuery';
 
 type SuggestItem =
-  | { type: 'complex';  id: string; slug: string; name: string; district: string; subway: string; image: string }
-  | { type: 'metro';    id: string; name: string }
-  | { type: 'district'; id: string; name: string };
+  | { type: 'complex'; id: string; slug: string; name: string; district: string; subway: string; image: string }
+  | { type: 'metro'; id: string; name: string }
+  | { type: 'district'; id: string; name: string }
+  | { type: 'street'; id: string; name: string }
+  | { type: 'builder'; id: string; name: string };
 
 const navItems = [
   { label: 'Каталог', href: '/catalog' },
@@ -35,8 +54,15 @@ const RedesignHeader = () => {
         const params = new URLSearchParams({ q: q.trim() });
         const res = await fetch(`${getApiUrl('search/suggest')}?${params}`, defaultFetchOptions);
         if (!res.ok) return;
-        const json: SuggestItem[] = await res.json();
-        setResults(json);
+        const grouped = parseSuggestResponse(await res.json());
+        const flat: SuggestItem[] = [
+          ...grouped.complexes,
+          ...grouped.metros.map(m => ({ type: 'metro' as const, id: String(m.id), name: m.name })),
+          ...grouped.districts.map(d => ({ type: 'district' as const, id: String(d.id), name: d.name })),
+          ...grouped.streets.map(s => ({ type: 'street' as const, id: String(s.id), name: s.name })),
+          ...grouped.builders.map(b => ({ type: 'builder' as const, id: String(b.id), name: b.name })),
+        ];
+        setResults(flat);
       } catch { /* silent */ }
     }, 300);
   }, []);
@@ -48,11 +74,24 @@ const RedesignHeader = () => {
     if (item.type === 'complex') {
       if (!item.slug) return;
       navigate(`/complex/${item.slug}`);
-    } else if (item.type === 'metro') {
-      navigate(`/catalog?search=${encodeURIComponent(item.name)}`);
-    } else {
-      navigate(`/catalog?search=${encodeURIComponent(item.name)}`);
+      return;
     }
+    const base = defaultHeroFilters();
+    const params = buildQuery({
+      mode: 'apartment',
+      filters: { ...base, search: item.name },
+      searchOverride: item.name,
+    });
+    if (item.type === 'metro') {
+      params.append('subway[]', item.name);
+    }
+    if (item.type === 'district') {
+      params.append('district[]', item.name);
+    }
+    if (item.type === 'builder') {
+      params.append('builder[]', item.name);
+    }
+    navigate(`/catalog?${params.toString()}`);
   }, [navigate]);
 
   useEffect(() => {
@@ -107,7 +146,7 @@ const RedesignHeader = () => {
               onKeyDown={e => { if (e.key === 'Enter' && query) { navigate(`/catalog?search=${query}`); setSearchOpen(false); } }}
             />
             {searchOpen && results.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50 max-h-[min(70vh,480px)] overflow-y-auto">
                 {results.map((item, i) => (
                   <button
                     key={`${item.type}-${item.id ?? i}`}
@@ -134,12 +173,28 @@ const RedesignHeader = () => {
                           <p className="text-xs text-muted-foreground">Метро</p>
                         </div>
                       </>
-                    ) : (
+                    ) : item.type === 'district' ? (
                       <>
                         <div className="w-10 h-10 rounded-lg bg-green-50 shrink-0 flex items-center justify-center"><MapPin className="w-4 h-4 text-green-500" /></div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{item.name}</p>
                           <p className="text-xs text-muted-foreground">Район</p>
+                        </div>
+                      </>
+                    ) : item.type === 'street' ? (
+                      <>
+                        <div className="w-10 h-10 rounded-lg bg-muted shrink-0 flex items-center justify-center"><Route className="w-4 h-4 text-muted-foreground" /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium line-clamp-2">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">Улица / адрес</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 rounded-lg bg-muted shrink-0 flex items-center justify-center"><HardHat className="w-4 h-4 text-muted-foreground" /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">Застройщик</p>
                         </div>
                       </>
                     )}
@@ -200,7 +255,7 @@ const RedesignHeader = () => {
               />
             </div>
             {results.length > 0 && (
-              <div className="mt-2 bg-card border border-border rounded-xl overflow-hidden">
+              <div className="mt-2 bg-card border border-border rounded-xl overflow-hidden max-h-[min(70vh,480px)] overflow-y-auto">
                 {results.map((item, i) => (
                   <button
                     key={`${item.type}-${item.id ?? i}`}
@@ -227,12 +282,28 @@ const RedesignHeader = () => {
                           <p className="text-xs text-muted-foreground">Метро</p>
                         </div>
                       </>
-                    ) : (
+                    ) : item.type === 'district' ? (
                       <>
                         <div className="w-10 h-10 rounded-lg bg-green-50 shrink-0 flex items-center justify-center"><MapPin className="w-4 h-4 text-green-500" /></div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{item.name}</p>
                           <p className="text-xs text-muted-foreground">Район</p>
+                        </div>
+                      </>
+                    ) : item.type === 'street' ? (
+                      <>
+                        <div className="w-10 h-10 rounded-lg bg-muted shrink-0 flex items-center justify-center"><Route className="w-4 h-4 text-muted-foreground" /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium line-clamp-2">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">Улица / адрес</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 rounded-lg bg-muted shrink-0 flex items-center justify-center"><HardHat className="w-4 h-4 text-muted-foreground" /></div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">Застройщик</p>
                         </div>
                       </>
                     )}

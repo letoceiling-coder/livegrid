@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { LayoutGrid, List, Map, SlidersHorizontal, X, Loader2 } from 'lucide-react';
+import { LayoutGrid, List, Map, SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import ComplexCard from '@/redesign/components/ComplexCard';
@@ -9,7 +9,7 @@ import MapSearch from '@/redesign/components/MapSearch';
 import { defaultFilters, type CatalogFilters, type Complex, type ResidentialComplex } from '@/redesign/data/types';
 import { useBlocks } from '@/hooks/useBlocks';
 import { useFilters } from '@/hooks/useFilters';
-import { urlTypeToSearchMode, type SearchMode } from '@/redesign/lib/searchQuery';
+import { parseCatalogFiltersFromParams, urlTypeToSearchMode, type SearchMode } from '@/redesign/lib/searchQuery';
 
 type ViewMode = 'grid' | 'list' | 'map';
 
@@ -46,14 +46,28 @@ const catalogTitles: Record<SearchMode, string> = {
   commercial: 'Коммерческая недвижимость',
 };
 
+function CatalogGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 min-h-[480px]">
+      {Array.from({ length: 9 }).map((_, i) => (
+        <div
+          key={i}
+          className="h-80 rounded-xl bg-gradient-to-br from-muted/90 to-muted/35 animate-pulse border border-border/40"
+          style={{ animationDelay: `${(i % 6) * 45}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 const RedesignCatalog = () => {
   const [searchParams] = useSearchParams();
-  const initialSearch = searchParams.get('search') || '';
+  const initialParsed = useMemo(() => parseCatalogFiltersFromParams(searchParams), [searchParams]);
   const catalogMode = urlTypeToSearchMode(searchParams.get('type'));
   const blocksEnabled = catalogMode === 'apartment';
 
   const [view, setView]                     = useState<ViewMode>('grid');
-  const [filters, setFilters]               = useState<CatalogFilters>({ ...defaultFilters, search: initialSearch });
+  const [filters, setFilters]               = useState<CatalogFilters>({ ...defaultFilters, ...initialParsed });
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [mapActive, setMapActive]           = useState<string | null>(null);
   const [page, setPage]                     = useState(1);
@@ -64,11 +78,11 @@ const RedesignCatalog = () => {
     setPage(1);
   }, []);
 
-  // Sync URL search param → filter
+  // Sync URL params -> filters
   useEffect(() => {
-    const s = searchParams.get('search') || '';
-    if (s !== filters.search) setFilters(f => ({ ...f, search: s }));
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+    const parsed = parseCatalogFiltersFromParams(searchParams);
+    setFilters(prev => ({ ...prev, ...parsed }));
+  }, [searchParams]);
 
   // Квартиры/ЖК: текущий API — только apartment; иначе список пустой (без «ложных» квартир)
   const { data, isLoading, isFetching } = useBlocks(filters, {
@@ -89,14 +103,18 @@ const RedesignCatalog = () => {
   const adapted   = useMemo(() => complexes.map(adaptComplex), [complexes]);
 
   return (
-    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0">
+    <div className="flex flex-1 flex-col min-h-0 bg-background pb-16 lg:pb-0" style={{ scrollbarGutter: 'stable both-edges' }}>
       <div className="max-w-[1400px] mx-auto px-4 py-6">
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold">{catalogTitles[catalogMode]}</h1>
             <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
-              {blocksEnabled && isFetching && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {blocksEnabled && isFetching && (
+                <span className="inline-flex h-3 w-3 items-center justify-center" aria-hidden>
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary/45 animate-pulse" />
+                </span>
+              )}
               {blocksEnabled
                 ? `Найдено ${totalCount} объектов`
                 : 'Данные для этого раздела появятся позже'}
@@ -126,11 +144,11 @@ const RedesignCatalog = () => {
           </div>
         </div>
 
-        <div className="flex gap-6">
-          {/* Sidebar filters (desktop) */}
+        <div className="flex gap-6 items-start">
+          {/* Sidebar filters (desktop): self-start + sticky — колонка не «прыгает» при смене высоты контента */}
           {view !== 'map' && (
-            <aside className="hidden lg:block w-[280px] shrink-0">
-              <div className="sticky top-20">
+            <aside className="hidden lg:block w-[280px] shrink-0 self-start">
+              <div className="sticky top-20 w-[280px]">
                 <FilterSidebar
                   filters={filters}
                   onChange={handleFiltersChange}
@@ -142,11 +160,9 @@ const RedesignCatalog = () => {
           )}
 
           {/* Content */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 min-h-[620px]">
             {blocksEnabled && isLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
+              <CatalogGridSkeleton />
             ) : (
               <>
                 {view === 'grid' && (

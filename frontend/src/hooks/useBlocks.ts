@@ -32,10 +32,24 @@ function buildParams(
   if (filters.priceMax) params.set('priceMax', String(filters.priceMax));
   if (filters.areaMin) params.set('areaMin', String(filters.areaMin));
   if (filters.areaMax) params.set('areaMax', String(filters.areaMax));
+  if (filters.livingAreaMin) params.set('livingAreaMin', String(filters.livingAreaMin));
+  if (filters.livingAreaMax) params.set('livingAreaMax', String(filters.livingAreaMax));
   if (filters.floorMin) params.set('floorMin', String(filters.floorMin));
   if (filters.floorMax) params.set('floorMax', String(filters.floorMax));
+  if (filters.ceilingHeightMin) params.set('ceilingHeightMin', String(filters.ceilingHeightMin));
+  if (filters.ceilingHeightMax) params.set('ceilingHeightMax', String(filters.ceilingHeightMax));
+  if (filters.subwayTimeMax) params.set('subwayTimeMax', String(filters.subwayTimeMax));
+  if (filters.notFirstFloor) params.set('notFirstFloor', '1');
+  if (filters.notLastFloor) params.set('notLastFloor', '1');
+  if (filters.highFloor) params.set('highFloor', '1');
+  if (filters.hasPlan) params.set('hasPlan', '1');
+  if (filters.sort) params.set('sort', filters.sort);
 
   filters.rooms?.forEach(r => params.append('rooms[]', String(r)));
+  filters.wc?.forEach(w => params.append('wc[]', String(w)));
+  filters.subwayDistanceType?.forEach(t => params.append('subwayDistanceType[]', String(t)));
+  filters.buildingType?.forEach(bt => params.append('buildingType[]', bt));
+  filters.queue?.forEach(q => params.append('queue[]', q));
   filters.district?.forEach(d => params.append('district[]', d));
   filters.subway?.forEach(s => params.append('subway[]', s));
   filters.builder?.forEach(b => params.append('builder[]', b));

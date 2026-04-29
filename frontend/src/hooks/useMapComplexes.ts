@@ -50,10 +50,24 @@ function buildParams(bounds: Bounds, f: CatalogFilters): URLSearchParams {
   if (f.priceMax) p.set('priceMax', String(f.priceMax));
   if (f.areaMin)  p.set('areaMin',  String(f.areaMin));
   if (f.areaMax)  p.set('areaMax',  String(f.areaMax));
+  if (f.livingAreaMin) p.set('livingAreaMin', String(f.livingAreaMin));
+  if (f.livingAreaMax) p.set('livingAreaMax', String(f.livingAreaMax));
   if (f.floorMin) p.set('floorMin', String(f.floorMin));
   if (f.floorMax) p.set('floorMax', String(f.floorMax));
+  if (f.ceilingHeightMin) p.set('ceilingHeightMin', String(f.ceilingHeightMin));
+  if (f.ceilingHeightMax) p.set('ceilingHeightMax', String(f.ceilingHeightMax));
+  if (f.subwayTimeMax) p.set('subwayTimeMax', String(f.subwayTimeMax));
+  if (f.notFirstFloor) p.set('notFirstFloor', '1');
+  if (f.notLastFloor) p.set('notLastFloor', '1');
+  if (f.highFloor) p.set('highFloor', '1');
+  if (f.hasPlan) p.set('hasPlan', '1');
+  if (f.sort) p.set('sort', f.sort);
 
   f.rooms?.forEach(r     => p.append('rooms[]',     String(r)));
+  f.wc?.forEach(w        => p.append('wc[]',        String(w)));
+  f.subwayDistanceType?.forEach(t => p.append('subwayDistanceType[]', String(t)));
+  f.buildingType?.forEach(bt => p.append('buildingType[]', bt));
+  f.queue?.forEach(q => p.append('queue[]', q));
   f.district?.forEach(d  => p.append('district[]',  d));
   f.subway?.forEach(s    => p.append('subway[]',    s));
   f.builder?.forEach(b   => p.append('builder[]',   b));

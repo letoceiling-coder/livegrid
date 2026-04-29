@@ -13,6 +13,7 @@ import CategoryTiles from '@/components/CategoryTiles';
 import LatestNews from '@/components/LatestNews';
 import ContactsSection from '@/components/ContactsSection';
 import FooterSection from '@/components/FooterSection';
+import LeadRequestDialog from '@/redesign/components/LeadRequestDialog';
 import { formatPrice } from '@/lib/formatPrice';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
@@ -64,6 +65,7 @@ const RedesignIndex = () => {
   const [regionOpen, setRegionOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'map'>('cards');
   const [activeComplex, setActiveComplex] = useState<string | null>(null);
+  const [consultOpen, setConsultOpen] = useState(false);
   const regionRef = useRef<HTMLDivElement>(null);
 
   const { data } = useBlocks(undefined, { page: 1, perPage: 6, enabled: true });
@@ -220,7 +222,9 @@ const RedesignIndex = () => {
         <div className="rounded-2xl bg-primary p-8 sm:p-12 text-primary-foreground text-center">
           <h2 className="text-2xl font-bold mb-2">Нужна помощь с выбором?</h2>
           <p className="text-sm opacity-90 mb-6 max-w-md mx-auto">Наши эксперты подберут квартиру по вашим критериям бесплатно</p>
-          <Button variant="secondary" size="lg" className="shadow-sm">Получить консультацию</Button>
+          <Button variant="secondary" size="lg" className="shadow-sm" onClick={() => setConsultOpen(true)}>
+            Получить консультацию
+          </Button>
         </div>
       </section>
 
@@ -235,6 +239,13 @@ const RedesignIndex = () => {
 
       {/* Footer */}
       <FooterSection />
+      <LeadRequestDialog
+        open={consultOpen}
+        onOpenChange={setConsultOpen}
+        kind="Получить консультацию"
+        objectName="Главная страница"
+        objectUrl="https://livegrid.ru/"
+      />
     </div>
   );
 };

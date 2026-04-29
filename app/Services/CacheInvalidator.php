@@ -32,6 +32,10 @@ class CacheInvalidator
         'references:subways',
         'references:builders',
         'references:finishings',
+        'references:building-types',
+        'references:queues',
+        'references:wc-options',
+        'references:ceiling-height',
     ];
 
     // ─── Partial invalidation API ─────────────────────────────────────────────

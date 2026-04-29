@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
 import { formatPrice } from '@/lib/formatPrice';
+import LeadRequestDialog from '@/redesign/components/LeadRequestDialog';
 
 const ComplexHero = ({ complex }: { complex: ResidentialComplex }) => {
   // Use pre-aggregated count; fall back to summing loaded buildings if available
@@ -12,6 +13,7 @@ const ComplexHero = ({ complex }: { complex: ResidentialComplex }) => {
   );
   const totalApts = loadedCount > 0 ? loadedCount : complex.availableApartments;
   const [imgIdx, setImgIdx] = useState(0);
+  const [leadOpen, setLeadOpen] = useState(false);
 
   return (
     <div className="rounded-2xl overflow-hidden border border-border bg-card">
@@ -96,10 +98,22 @@ const ComplexHero = ({ complex }: { complex: ResidentialComplex }) => {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <Button className="h-11 px-6"><Phone className="w-4 h-4 mr-2" /> Позвонить</Button>
-          <Button variant="outline" className="h-11 px-6"><MessageCircle className="w-4 h-4 mr-2" /> Записаться на просмотр</Button>
+          <Button asChild className="h-11 px-6">
+            <a href="tel:+79045393434"><Phone className="w-4 h-4 mr-2" /> Позвонить</a>
+          </Button>
+          <Button variant="outline" className="h-11 px-6" onClick={() => setLeadOpen(true)}>
+            <MessageCircle className="w-4 h-4 mr-2" /> Записаться на просмотр
+          </Button>
         </div>
       </div>
+      <LeadRequestDialog
+        open={leadOpen}
+        onOpenChange={setLeadOpen}
+        kind="Записаться на просмотр"
+        objectName={complex.name}
+        objectUrl={complex.slug ? `https://livegrid.ru/complex/${complex.slug}` : undefined}
+        blockId={complex.id}
+      />
     </div>
   );
 };

@@ -1,7 +1,9 @@
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Phone, MessageCircle, Calculator, MapPin, Building2, CalendarDays, Ruler, ChefHat, Layers, Paintbrush, Train, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, Phone, MessageCircle, Calculator, MapPin, Building2, CalendarDays, Ruler, ChefHat, Layers, Paintbrush, Train } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApartment } from '@/hooks/useApartment';
+import LeadRequestDialog from '@/redesign/components/LeadRequestDialog';
 
 function formatPrice(p: number): string {
   if (p >= 1_000_000) return `${(p / 1_000_000).toFixed(1)} млн ₽`;
@@ -11,12 +13,21 @@ function formatPrice(p: number): string {
 const RedesignApartment = () => {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, error } = useApartment(id);
+  const [leadOpen, setLeadOpen] = useState(false);
 
   if (isLoading) {
     return (
-      <div className="flex flex-1 flex-col min-h-0 bg-background">
-        <div className="max-w-[1400px] mx-auto px-4 py-16 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="flex flex-1 flex-col min-h-0 bg-background animate-in fade-in duration-200">
+        <div className="max-w-[1400px] mx-auto w-full px-4 py-8 space-y-6">
+          <div className="h-8 w-48 rounded-lg bg-muted animate-pulse" />
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="aspect-[4/3] rounded-2xl bg-muted/80 animate-pulse" />
+            <div className="space-y-4">
+              <div className="h-10 w-3/4 max-w-sm rounded-lg bg-muted animate-pulse" />
+              <div className="h-14 rounded-xl bg-muted/70 animate-pulse" />
+              <div className="h-32 rounded-xl bg-muted/60 animate-pulse" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -127,8 +138,12 @@ const RedesignApartment = () => {
 
             {/* CTA */}
             <div className="rounded-2xl border border-border bg-card p-6 space-y-3">
-              <Button className="w-full h-12"><Phone className="w-4 h-4 mr-2" /> Позвонить</Button>
-              <Button variant="outline" className="w-full h-12"><MessageCircle className="w-4 h-4 mr-2" /> Записаться на просмотр</Button>
+              <Button asChild className="w-full h-12">
+                <a href="tel:+79045393434"><Phone className="w-4 h-4 mr-2" /> Позвонить</a>
+              </Button>
+              <Button variant="outline" className="w-full h-12" onClick={() => setLeadOpen(true)}>
+                <MessageCircle className="w-4 h-4 mr-2" /> Записаться на просмотр
+              </Button>
               <Button variant="secondary" className="w-full h-12"><Calculator className="w-4 h-4 mr-2" /> Рассчитать ипотеку</Button>
             </div>
 
@@ -149,6 +164,14 @@ const RedesignApartment = () => {
           </div>
         </div>
       </div>
+      <LeadRequestDialog
+        open={leadOpen}
+        onOpenChange={setLeadOpen}
+        kind="Записаться на просмотр"
+        objectName={complex?.name ? `${complex.name} · ${apt.rooms === 0 ? 'Студия' : `${apt.rooms}-комнатная`} ${apt.area} м²` : undefined}
+        objectUrl={`https://livegrid.ru/apartment/${apt.id}`}
+        blockId={complex?.id}
+      />
     </div>
   );
 };

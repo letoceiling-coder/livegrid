@@ -74,7 +74,7 @@ class EntityService
      * @param  array<string, mixed>  $data  Field-code → raw value map.
      * @throws ValidationException
      */
-    public function createRecord(string $typeCode, array $data, ?int $createdBy = null): EntityRecord
+    public function createRecord(string $typeCode, array $data, ?int $createdBy = null, ?int $teamId = null): EntityRecord
     {
         $type   = $this->resolveType($typeCode);
         $fields = $this->fieldsForType($type);
@@ -83,10 +83,12 @@ class EntityService
 
         $typeCode = $type->code;
 
-        $record = DB::transaction(function () use ($type, $fields, $data, $createdBy, $typeCode): EntityRecord {
+        $record = DB::transaction(function () use ($type, $fields, $data, $createdBy, $teamId, $typeCode): EntityRecord {
             $record = EntityRecord::create([
                 'entity_type_id' => $type->id,
                 'created_by'     => $createdBy,
+                'owner_id'       => $createdBy,
+                'team_id'        => $teamId,
             ]);
 
             $this->writeValues($record, $fields, $data);
@@ -339,10 +341,11 @@ class EntityService
         array   $params  = [],
         int     $perPage = 20,
         int     $page    = 1,
+        ?\App\Models\User $actor = null,
     ): LengthAwarePaginator {
         $hash = EntityListCache::hashOffsetList($params, $perPage, $page);
 
-        $cached = $this->listCache->remember($typeCode, $hash, function () use ($typeCode, $params, $perPage, $page): array {
+        $cached = $this->listCache->remember($typeCode, $hash . ':' . ($actor?->id ?? 'anon') . ':' . ($actor?->team_id ?? 'none') . ':' . ($actor?->roleName() ?? 'none'), function () use ($typeCode, $params, $perPage, $page, $actor): array {
             $type   = $this->resolveType($typeCode);
             $fields = $this->fieldsForType($type);
 
@@ -363,6 +366,9 @@ class EntityService
                 $sort,
                 deletedScope: $deletedScope,
             );
+            if ($actor !== null) {
+                $query = app(\App\Services\Auth\AccessScope::class)->apply($query, $actor, 'entities.read', 'entity_records.owner_id', 'entity_records.team_id');
+            }
 
             $total = (clone $query)->count('entity_records.id');
 
@@ -383,6 +389,9 @@ class EntityService
                     forceLikeSearch: true,
                     deletedScope: $deletedScope,
                 );
+                if ($actor !== null) {
+                    $query = app(\App\Services\Auth\AccessScope::class)->apply($query, $actor, 'entities.read', 'entity_records.owner_id', 'entity_records.team_id');
+                }
 
                 $total = (clone $query)->count('entity_records.id');
                 $records = $query
@@ -437,10 +446,11 @@ class EntityService
         array        $params  = [],
         int          $perPage = 20,
         ?CursorInput $cursor  = null,
+        ?\App\Models\User $actor = null,
     ): CursorPage {
         $hash = EntityListCache::hashCursorList($params, $perPage, $cursor);
 
-        $cached = $this->listCache->remember($typeCode, $hash, function () use ($typeCode, $params, $perPage, $cursor): array {
+        $cached = $this->listCache->remember($typeCode, $hash . ':' . ($actor?->id ?? 'anon') . ':' . ($actor?->team_id ?? 'none') . ':' . ($actor?->roleName() ?? 'none'), function () use ($typeCode, $params, $perPage, $cursor, $actor): array {
             $type   = $this->resolveType($typeCode);
             $fields = $this->fieldsForType($type);
 
@@ -462,6 +472,9 @@ class EntityService
                 $cursor,
                 deletedScope: $deletedScope,
             );
+            if ($actor !== null) {
+                $query = app(\App\Services\Auth\AccessScope::class)->apply($query, $actor, 'entities.read', 'entity_records.owner_id', 'entity_records.team_id');
+            }
 
             $rows = $query
                 ->with(['entityType', 'values.field'])
@@ -480,6 +493,9 @@ class EntityService
                     forceLikeSearch: true,
                     deletedScope: $deletedScope,
                 );
+                if ($actor !== null) {
+                    $query = app(\App\Services\Auth\AccessScope::class)->apply($query, $actor, 'entities.read', 'entity_records.owner_id', 'entity_records.team_id');
+                }
 
                 $rows = $query
                     ->with(['entityType', 'values.field'])

@@ -17,12 +17,29 @@ interface Props {
 
 const roomOptions = [0, 1, 2, 3, 4];
 const roomLabels: Record<number, string> = { 0: 'Ст', 1: '1', 2: '2', 3: '3', 4: '4+' };
+const wcLabels: Record<number, string> = { 1: '1+', 2: '2+', 3: '3+' };
+const subwayTimeOptions = [5, 10, 15];
 const finishingOptions = ['без отделки', 'черновая', 'чистовая', 'под ключ'];
 const statusOptions = [
   { value: 'building', label: 'Строится' },
   { value: 'completed', label: 'Сдан' },
   { value: 'planned', label: 'Планируется' },
 ];
+
+/** Стабильная высота блока чекбоксов, пока справочник грузится (без текста «Загрузка»). */
+function CheckboxListSkeleton() {
+  return (
+    <div className="space-y-2.5 py-1 min-h-[120px]" aria-hidden>
+      {[92, 88, 95, 78].map((w, i) => (
+        <div
+          key={i}
+          className="h-4 rounded-md bg-muted/75 animate-pulse"
+          style={{ width: `${w}%`, animationDelay: `${i * 70}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
 
 const FilterSection = ({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) => {
   const [open, setOpen] = useState(defaultOpen);
@@ -41,31 +58,50 @@ const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }
   const districtOptions = filtersData?.districts?.map(d => d.name) ?? [];
   const subwayOptions   = filtersData?.subways?.map(s => s.name) ?? [];
   const builderOptions  = filtersData?.builders?.map(b => b.name) ?? [];
+  const buildingTypeOptions = filtersData?.buildingTypes?.map(b => b.name) ?? [];
+  const queueOptions = filtersData?.queues ?? [];
+  const wcOptions       = (filtersData?.wcOptions ?? [1, 2, 3]).filter(v => v >= 1);
   const update = useCallback(<K extends keyof CatalogFilters>(key: K, val: CatalogFilters[K]) => {
     onChange({ ...filters, [key]: val });
   }, [filters, onChange]);
 
-  const toggleArray = useCallback((key: 'rooms' | 'district' | 'subway' | 'builder' | 'finishing' | 'deadline' | 'status', val: string | number) => {
+  const toggleArray = useCallback((key: 'rooms' | 'wc' | 'district' | 'subway' | 'subwayDistanceType' | 'buildingType' | 'queue' | 'builder' | 'finishing' | 'deadline' | 'status', val: string | number) => {
     const arr = filters[key] as (string | number)[];
     const next = arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val];
     onChange({ ...filters, [key]: next });
   }, [filters, onChange]);
 
   const hasFilters = useMemo(() => {
-    return filters.rooms.length > 0 || filters.district.length > 0 || filters.subway.length > 0 ||
+    return filters.rooms.length > 0 || filters.wc.length > 0 || filters.district.length > 0 || filters.subway.length > 0 ||
+      filters.subwayDistanceType.length > 0 || filters.buildingType.length > 0 || filters.queue.length > 0 ||
       filters.builder.length > 0 || filters.finishing.length > 0 || filters.deadline.length > 0 ||
       filters.status.length > 0 || filters.search !== '' ||
       filters.priceMin !== undefined || filters.priceMax !== undefined ||
-      filters.areaMin !== undefined || filters.areaMax !== undefined;
+      filters.areaMin !== undefined || filters.areaMax !== undefined ||
+      filters.livingAreaMin !== undefined || filters.livingAreaMax !== undefined ||
+      filters.subwayTimeMax !== undefined ||
+      filters.ceilingHeightMin !== undefined || filters.ceilingHeightMax !== undefined ||
+      filters.floorMin !== undefined || filters.floorMax !== undefined ||
+      filters.notFirstFloor || filters.notLastFloor || filters.highFloor || filters.hasPlan ||
+      filters.sort !== 'price_asc';
   }, [filters]);
 
   // Active filter tags
   const activeTags = useMemo(() => {
     const tags: { label: string; clear: () => void }[] = [];
     filters.rooms.forEach(r => tags.push({ label: roomLabels[r] || `${r}к`, clear: () => toggleArray('rooms', r) }));
+    filters.wc.forEach(w => tags.push({ label: `${wcLabels[w] || `${w}+`} с/у`, clear: () => toggleArray('wc', w) }));
     filters.district.forEach(d => tags.push({ label: d, clear: () => toggleArray('district', d) }));
     filters.subway.forEach(s => tags.push({ label: `м. ${s}`, clear: () => toggleArray('subway', s) }));
     filters.builder.forEach(b => tags.push({ label: b, clear: () => toggleArray('builder', b) }));
+    filters.buildingType.forEach(t => tags.push({ label: t, clear: () => toggleArray('buildingType', t) }));
+    filters.queue.forEach(q => tags.push({ label: `очередь ${q}`, clear: () => toggleArray('queue', q) }));
+    if (filters.subwayTimeMax) tags.push({ label: `метро до ${filters.subwayTimeMax} мин`, clear: () => update('subwayTimeMax', undefined) });
+    filters.subwayDistanceType.forEach(t => tags.push({ label: t === 1 ? 'пешком' : 'транспорт', clear: () => toggleArray('subwayDistanceType', t) }));
+    if (filters.notFirstFloor) tags.push({ label: 'не первый', clear: () => update('notFirstFloor', false) });
+    if (filters.notLastFloor) tags.push({ label: 'не последний', clear: () => update('notLastFloor', false) });
+    if (filters.highFloor) tags.push({ label: 'высокий этаж', clear: () => update('highFloor', false) });
+    if (filters.hasPlan) tags.push({ label: 'есть план', clear: () => update('hasPlan', false) });
     filters.status.forEach(s => {
       const opt = statusOptions.find(o => o.value === s);
       tags.push({ label: opt?.label || s, clear: () => toggleArray('status', s) });
@@ -122,6 +158,26 @@ const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }
         </div>
       </FilterSection>
 
+      {/* WC count */}
+      <FilterSection title="Санузлы">
+        <div className="flex gap-1">
+          {wcOptions.map(w => (
+            <button
+              key={w}
+              onClick={() => toggleArray('wc', w)}
+              className={cn(
+                'h-9 flex-1 rounded-lg text-sm font-medium border transition-colors',
+                filters.wc.includes(w)
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background border-border text-foreground hover:border-primary/50'
+              )}
+            >
+              {wcLabels[w] || `${w}+`}
+            </button>
+          ))}
+        </div>
+      </FilterSection>
+
       {/* Price */}
       <FilterSection title="Цена, ₽">
         <div className="flex gap-2">
@@ -142,6 +198,22 @@ const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }
         </div>
       </FilterSection>
 
+      {/* Sort */}
+      <FilterSection title="Сортировка" defaultOpen={false}>
+        <select
+          className="w-full h-9 rounded-lg border border-border bg-background px-2 text-sm"
+          value={filters.sort}
+          onChange={e => update('sort', e.target.value as CatalogFilters['sort'])}
+        >
+          <option value="price_asc">Сначала дешевле</option>
+          <option value="price_desc">Сначала дороже</option>
+          <option value="price_per_m2_asc">Цена за м²: по возрастанию</option>
+          <option value="price_per_m2_desc">Цена за м²: по убыванию</option>
+          <option value="area_desc">Сначала большая площадь</option>
+          <option value="deadline_asc">По сроку сдачи</option>
+        </select>
+      </FilterSection>
+
       {/* Area */}
       <FilterSection title="Площадь, м²">
         <div className="flex gap-2">
@@ -150,10 +222,40 @@ const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }
         </div>
       </FilterSection>
 
+      {/* Living area */}
+      <FilterSection title="Жилая площадь, м²" defaultOpen={false}>
+        <div className="flex gap-2">
+          <Input type="number" placeholder="от" className="h-9 text-sm" value={filters.livingAreaMin ?? ''} onChange={e => update('livingAreaMin', e.target.value ? Number(e.target.value) : undefined)} />
+          <Input type="number" placeholder="до" className="h-9 text-sm" value={filters.livingAreaMax ?? ''} onChange={e => update('livingAreaMax', e.target.value ? Number(e.target.value) : undefined)} />
+        </div>
+      </FilterSection>
+
+      {/* Ceiling height */}
+      <FilterSection title="Высота потолка, м" defaultOpen={false}>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            step="0.1"
+            placeholder={filtersData?.ceilingHeight?.min != null ? `от ${filtersData.ceilingHeight.min}` : 'от'}
+            className="h-9 text-sm"
+            value={filters.ceilingHeightMin ?? ''}
+            onChange={e => update('ceilingHeightMin', e.target.value ? Number(e.target.value) : undefined)}
+          />
+          <Input
+            type="number"
+            step="0.1"
+            placeholder={filtersData?.ceilingHeight?.max != null ? `до ${filtersData.ceilingHeight.max}` : 'до'}
+            className="h-9 text-sm"
+            value={filters.ceilingHeightMax ?? ''}
+            onChange={e => update('ceilingHeightMax', e.target.value ? Number(e.target.value) : undefined)}
+          />
+        </div>
+      </FilterSection>
+
       {/* District */}
       <FilterSection title={`Район${districtOptions.length ? ` (${districtOptions.length})` : ''}`} defaultOpen={false}>
         {districtOptions.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-1">Загрузка…</p>
+          <CheckboxListSkeleton />
         ) : (
           <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
             {districtOptions.map(d => (
@@ -169,7 +271,7 @@ const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }
       {/* Subway */}
       <FilterSection title={`Метро${subwayOptions.length ? ` (${subwayOptions.length})` : ''}`} defaultOpen={false}>
         {subwayOptions.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-1">Загрузка…</p>
+          <CheckboxListSkeleton />
         ) : (
           <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
             {subwayOptions.map(s => (
@@ -182,10 +284,40 @@ const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }
         )}
       </FilterSection>
 
+      {/* Subway time/type */}
+      <FilterSection title="Доступность метро" defaultOpen={false}>
+        <div className="grid grid-cols-3 gap-1">
+          {subwayTimeOptions.map(t => (
+            <button
+              key={t}
+              onClick={() => update('subwayTimeMax', filters.subwayTimeMax === t ? undefined : t)}
+              className={cn(
+                'h-9 rounded-lg text-sm font-medium border transition-colors',
+                filters.subwayTimeMax === t
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background border-border text-foreground hover:border-primary/50'
+              )}
+            >
+              до {t}
+            </button>
+          ))}
+        </div>
+        <div className="pt-2 space-y-2">
+          <label className="flex items-center gap-2.5 cursor-pointer text-sm">
+            <Checkbox checked={filters.subwayDistanceType.includes(1)} onCheckedChange={() => toggleArray('subwayDistanceType', 1)} />
+            Пешком
+          </label>
+          <label className="flex items-center gap-2.5 cursor-pointer text-sm">
+            <Checkbox checked={filters.subwayDistanceType.includes(2)} onCheckedChange={() => toggleArray('subwayDistanceType', 2)} />
+            Транспорт
+          </label>
+        </div>
+      </FilterSection>
+
       {/* Builder */}
       <FilterSection title={`Застройщик${builderOptions.length ? ` (${builderOptions.length})` : ''}`} defaultOpen={false}>
         {builderOptions.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-1">Загрузка…</p>
+          <CheckboxListSkeleton />
         ) : (
           <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
             {builderOptions.map(b => (
@@ -196,6 +328,30 @@ const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }
             ))}
           </div>
         )}
+      </FilterSection>
+
+      {/* Building type */}
+      <FilterSection title={`Тип дома${buildingTypeOptions.length ? ` (${buildingTypeOptions.length})` : ''}`} defaultOpen={false}>
+        <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+          {buildingTypeOptions.map(t => (
+            <label key={t} className="flex items-center gap-2.5 cursor-pointer text-sm">
+              <Checkbox checked={filters.buildingType.includes(t)} onCheckedChange={() => toggleArray('buildingType', t)} />
+              {t}
+            </label>
+          ))}
+        </div>
+      </FilterSection>
+
+      {/* Queue */}
+      <FilterSection title={`Очередь${queueOptions.length ? ` (${queueOptions.length})` : ''}`} defaultOpen={false}>
+        <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+          {queueOptions.map(q => (
+            <label key={q} className="flex items-center gap-2.5 cursor-pointer text-sm">
+              <Checkbox checked={filters.queue.includes(q)} onCheckedChange={() => toggleArray('queue', q)} />
+              {q}
+            </label>
+          ))}
+        </div>
       </FilterSection>
 
       {/* Finishing */}
@@ -240,6 +396,28 @@ const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }
           <Input type="number" placeholder="от" className="h-9 text-sm" value={filters.floorMin ?? ''} onChange={e => update('floorMin', e.target.value ? Number(e.target.value) : undefined)} />
           <Input type="number" placeholder="до" className="h-9 text-sm" value={filters.floorMax ?? ''} onChange={e => update('floorMax', e.target.value ? Number(e.target.value) : undefined)} />
         </div>
+        <div className="pt-2 space-y-2">
+          <label className="flex items-center gap-2.5 cursor-pointer text-sm">
+            <Checkbox checked={filters.notFirstFloor} onCheckedChange={() => update('notFirstFloor', !filters.notFirstFloor)} />
+            Не первый
+          </label>
+          <label className="flex items-center gap-2.5 cursor-pointer text-sm">
+            <Checkbox checked={filters.notLastFloor} onCheckedChange={() => update('notLastFloor', !filters.notLastFloor)} />
+            Не последний
+          </label>
+          <label className="flex items-center gap-2.5 cursor-pointer text-sm">
+            <Checkbox checked={filters.highFloor} onCheckedChange={() => update('highFloor', !filters.highFloor)} />
+            Высокий этаж (&gt;10)
+          </label>
+        </div>
+      </FilterSection>
+
+      {/* Plan */}
+      <FilterSection title="Планировка" defaultOpen={false}>
+        <label className="flex items-center gap-2.5 cursor-pointer text-sm">
+          <Checkbox checked={filters.hasPlan} onCheckedChange={() => update('hasPlan', !filters.hasPlan)} />
+          Есть планировка
+        </label>
       </FilterSection>
 
       {/* Actions */}
@@ -248,7 +426,36 @@ const FilterSidebar = ({ filters, onChange, totalCount, className, filtersData }
           Показать {totalCount} объектов
         </Button>
         {hasFilters && (
-          <Button variant="ghost" className="w-full h-9 text-sm text-muted-foreground" onClick={() => onChange({ rooms: [], district: [], subway: [], builder: [], finishing: [], deadline: [], status: [], search: '' })}>
+          <Button variant="ghost" className="w-full h-9 text-sm text-muted-foreground" onClick={() => onChange({
+            rooms: [],
+            wc: [],
+            district: [],
+            subway: [],
+            builder: [],
+            finishing: [],
+            deadline: [],
+            status: [],
+            search: '',
+            priceMin: undefined,
+            priceMax: undefined,
+            areaMin: undefined,
+            areaMax: undefined,
+            livingAreaMin: undefined,
+            livingAreaMax: undefined,
+            ceilingHeightMin: undefined,
+            ceilingHeightMax: undefined,
+            subwayTimeMax: undefined,
+            floorMin: undefined,
+            floorMax: undefined,
+            subwayDistanceType: [],
+            buildingType: [],
+            queue: [],
+            notFirstFloor: false,
+            notLastFloor: false,
+            highFloor: false,
+            hasPlan: false,
+            sort: 'price_asc',
+          })}>
             <X className="w-3.5 h-3.5 mr-1.5" /> Сбросить фильтры
           </Button>
         )}

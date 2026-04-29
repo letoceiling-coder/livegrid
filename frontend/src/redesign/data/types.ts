@@ -111,26 +111,49 @@ export interface CatalogFilters {
   priceMin?: number;
   priceMax?: number;
   rooms: number[];
+  wc: number[];
   areaMin?: number;
   areaMax?: number;
+  livingAreaMin?: number;
+  livingAreaMax?: number;
+  ceilingHeightMin?: number;
+  ceilingHeightMax?: number;
   district: string[];
   subway: string[];
+  subwayTimeMax?: number;
+  subwayDistanceType: number[];
+  buildingType: string[];
+  queue: string[];
   builder: string[];
   finishing: string[];
   deadline: string[];
   floorMin?: number;
   floorMax?: number;
+  notFirstFloor: boolean;
+  notLastFloor: boolean;
+  highFloor: boolean;
+  hasPlan: boolean;
   status: string[];
+  sort: 'price_asc' | 'price_desc' | 'price_per_m2_asc' | 'price_per_m2_desc' | 'area_desc' | 'deadline_asc';
   search: string;
 }
 
 export const defaultFilters: CatalogFilters = {
   rooms: [],
+  wc: [],
+  subwayDistanceType: [],
+  buildingType: [],
+  queue: [],
   district: [],
   subway: [],
   builder: [],
   finishing: [],
   deadline: [],
+  notFirstFloor: false,
+  notLastFloor: false,
+  highFloor: false,
+  hasPlan: false,
   status: [],
+  sort: 'price_asc',
   search: '',
 };

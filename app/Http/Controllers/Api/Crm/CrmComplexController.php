@@ -5,15 +5,18 @@ namespace App\Http\Controllers\Api\Crm;
 use App\Events\ComplexSearchNeedsSync;
 use App\Http\Controllers\Controller;
 use App\Models\Catalog\Complex;
+use App\Services\Auth\AccessScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class CrmComplexController extends Controller
 {
+    public function __construct(private readonly AccessScope $accessScope) {}
+
     public function index(Request $request): JsonResponse
     {
-        $query = Complex::with(['builder', 'district'])
+        $query = $this->accessScope->apply(Complex::with(['builder', 'district']), $request->user(), 'properties.read')
             ->withCount('apartments');
 
         if ($search = $request->input('search')) {
@@ -53,10 +56,11 @@ class CrmComplexController extends Controller
         ]);
     }
 
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
         $complex = Complex::with(['builder', 'district', 'subways', 'buildings'])
             ->findOrFail($id);
+        $this->authorize('view', $complex);
 
         return response()->json(['data' => $this->format($complex, true)]);
     }
@@ -84,6 +88,8 @@ class CrmComplexController extends Controller
         ]);
 
         $validated['slug'] = $this->uniqueSlug($validated['name']);
+        $validated['owner_id'] = $request->user()?->id;
+        $validated['team_id'] = $request->user()?->team_id;
 
         $complex = Complex::create($validated);
         $complex->load(['builder', 'district']);
@@ -95,6 +101,7 @@ class CrmComplexController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $complex = Complex::findOrFail($id);
+        $this->authorize('update', $complex);
 
         $validated = $request->validate([
             'name'           => 'sometimes|required|string|max:255',
@@ -127,9 +134,10 @@ class CrmComplexController extends Controller
         return response()->json(['data' => $this->format($complex)]);
     }
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         $complex = Complex::findOrFail($id);
+        $this->authorize('delete', $complex);
         $complex->delete();
         event(new ComplexSearchNeedsSync('complex_deleted'));
 

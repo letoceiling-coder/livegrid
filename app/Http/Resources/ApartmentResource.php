@@ -8,6 +8,20 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class ApartmentResource extends JsonResource
 {
     use FormatsImages;
+
+    private function deriveRoomCategory(): ?int
+    {
+        if ($this->roomType?->room_category !== null) {
+            return (int) $this->roomType->room_category;
+        }
+
+        $name = (string) ($this->roomType?->name_one ?? '');
+        if ($name !== '' && preg_match('/студ/i', $name) === 1) {
+            return 0;
+        }
+
+        return null;
+    }
     /**
      * Transform the resource into an array.
      *
@@ -21,7 +35,7 @@ class ApartmentResource extends JsonResource
             'complexId' => $this->block_id,
             'buildingId' => $this->building_id,
             'rooms' => $this->rooms_count,
-            'roomCategory' => $this->roomType?->room_category ?? null,
+            'roomCategory' => $this->deriveRoomCategory(),
             'roomName' => $this->roomType?->name_one ?? null,
             'area' => (float) $this->area_total,
             'kitchenArea' => $this->area_kitchen ? (float) $this->area_kitchen : null,

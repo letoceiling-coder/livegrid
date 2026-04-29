@@ -2,6 +2,11 @@ export interface CrmUser {
   id: number;
   name: string;
   email: string;
+  role: 'ADMIN' | 'MANAGER' | 'AGENT' | 'USER' | string;
+  role_id: number | null;
+  team_id: number | null;
+  team: string | null;
+  permissions: string[];
 }
 
 export interface CrmLoginResponse {

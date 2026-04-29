@@ -1,7 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import FooterSection from '@/components/FooterSection';
-
 /**
  * Single shell for public site: redesign header + page content + shared footer.
  */

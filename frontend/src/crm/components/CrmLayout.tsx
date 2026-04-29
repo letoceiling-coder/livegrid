@@ -3,18 +3,21 @@ import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, BedDouble, Tags, Rss,
   Settings, ChevronLeft, ChevronRight, LogOut, User, Database,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '../context/AuthContext';
+import { can } from '../authz';
 
 const navItems = [
-  { to: '/crm',            icon: LayoutDashboard, label: 'Дашборд',       end: true },
-  { to: '/crm2',           icon: Database,        label: 'Entity CRM' },
-  { to: '/crm/complexes',  icon: Building2,       label: 'Жилые комплексы' },
-  { to: '/crm/apartments', icon: BedDouble,       label: 'Квартиры' },
-  { to: '/crm/attributes', icon: Tags,            label: 'Атрибуты' },
-  { to: '/crm/feed',       icon: Rss,             label: 'Импорт фида' },
-  { to: '/crm/settings',   icon: Settings,        label: 'Настройки' },
+  { to: '/crm',            icon: LayoutDashboard, label: 'Дашборд',       end: true, permission: 'analytics.read' },
+  { to: '/crm2',           icon: Database,        label: 'Entity CRM', permission: 'entities.read' },
+  { to: '/crm/complexes',  icon: Building2,       label: 'Жилые комплексы', permission: 'properties.read' },
+  { to: '/crm/apartments', icon: BedDouble,       label: 'Квартиры', permission: 'properties.read' },
+  { to: '/crm/attributes', icon: Tags,            label: 'Атрибуты', permission: 'properties.update' },
+  { to: '/crm/feed',       icon: Rss,             label: 'Импорт фида', permission: 'integrations.manage' },
+  { to: '/crm/requests',   icon: ClipboardList,   label: 'Заявки', permission: 'leads.read' },
+  { to: '/crm/settings',   icon: Settings,        label: 'Настройки', permission: 'settings.update' },
 ];
 
 export default function CrmLayout() {
@@ -61,7 +64,7 @@ export default function CrmLayout() {
 
         {/* Nav */}
         <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto">
-          {navItems.map(item => (
+          {navItems.filter(item => can(user, item.permission)).map(item => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -99,7 +102,7 @@ export default function CrmLayout() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="w-4 h-4" />
               <span>{user.name}</span>
-              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">Admin</span>
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{user.role}</span>
             </div>
             <button
               onClick={handleLogout}

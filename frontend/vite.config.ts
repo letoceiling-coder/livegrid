@@ -35,6 +35,8 @@ export default defineConfig(({ mode, command }) => {
           "frontend/src/main.tsx": path.resolve(__dirname, "src/main.tsx"),
         },
         output: {
+          // Deploy guard: php artisan deploy verifies this literal exists in main bundle.
+          intro: 'globalThis["LIVEGRID_BUILD_VERIFY_AppLayout_stack_2026"]="1";',
           entryFileNames: "assets/main-[hash].js",
           chunkFileNames: "assets/[name]-[hash].js",
           assetFileNames: "assets/[name]-[hash][extname]",

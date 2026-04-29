@@ -9,13 +9,17 @@ interface Props {
 
 const LayoutCard = ({ layout }: { layout: LayoutGroup }) => {
   const navigate = useNavigate();
+  const canOpen = Boolean(layout.apartmentId);
+  const open = () => {
+    if (canOpen) navigate(`/apartment/${layout.apartmentId}`);
+  };
 
   return (
     <div
       role="button"
-      tabIndex={0}
-      onClick={() => navigate(`/apartment/${layout.apartmentId}`)}
-      onKeyDown={e => e.key === 'Enter' && navigate(`/apartment/${layout.apartmentId}`)}
+      tabIndex={canOpen ? 0 : -1}
+      onClick={open}
+      onKeyDown={e => e.key === 'Enter' && open()}
       className="rounded-xl border border-border bg-card overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group cursor-pointer"
     >
       <div className="aspect-square bg-muted/50 flex items-center justify-center p-6">

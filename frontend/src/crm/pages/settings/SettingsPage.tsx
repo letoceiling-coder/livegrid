@@ -4,17 +4,46 @@ import { useAuth } from '../../context/AuthContext';
 import { getDashboardStats } from '../../api/dashboard';
 import type { DashboardStats } from '../../api/types';
 import { cn } from '@/lib/utils';
+import { getContactsSettings, getTelegramSettings, testTelegramSettings, updateContactsSettings, updateTelegramSettings } from '../../api/settings';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function SettingsPage() {
   const { user } = useAuth();
   const [stats, setStats]     = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [telegramLoading, setTelegramLoading] = useState(true);
+  const [telegramSaving, setTelegramSaving] = useState(false);
+  const [notifyUrl, setNotifyUrl] = useState('');
+  const [notifyToken, setNotifyToken] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
+  const [testSending, setTestSending] = useState(false);
+  const [contactsSaving, setContactsSaving] = useState(false);
+  const [contactsEmail, setContactsEmail] = useState('');
+  const [contactsAddress, setContactsAddress] = useState('');
+  const [contactsWorkHours, setContactsWorkHours] = useState('');
 
   useEffect(() => {
     getDashboardStats()
       .then(setStats)
       .catch(() => null)
       .finally(() => setLoading(false));
+
+    getTelegramSettings()
+      .then((data) => {
+        setNotifyUrl(data.notifyUrl ?? '');
+        setNotifyToken(data.notifyToken ?? '');
+      })
+      .catch(() => null)
+      .finally(() => setTelegramLoading(false));
+
+    getContactsSettings()
+      .then((data) => {
+        setContactsEmail(data.email ?? '');
+        setContactsAddress(data.address ?? '');
+        setContactsWorkHours(data.workHours ?? '');
+      })
+      .catch(() => null);
   }, []);
 
   const s = stats?.stats;
@@ -64,6 +93,71 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      <div className="bg-background border rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Settings className="w-4 h-4 text-primary" />
+          <h2 className="font-semibold">Контакты для Telegram бота</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Эти значения используются в команде /contacts у бота.
+        </p>
+        <div className="grid gap-3">
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Email</p>
+            <Input
+              value={contactsEmail}
+              onChange={(e) => setContactsEmail(e.target.value)}
+              placeholder="info@livegrid.ru"
+              disabled={contactsSaving}
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Адрес</p>
+            <Input
+              value={contactsAddress}
+              onChange={(e) => setContactsAddress(e.target.value)}
+              placeholder="Белгород, офис Live Grid"
+              disabled={contactsSaving}
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Режим работы</p>
+            <Input
+              value={contactsWorkHours}
+              onChange={(e) => setContactsWorkHours(e.target.value)}
+              placeholder="пн–пт 9:00–18:00"
+              disabled={contactsSaving}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              disabled={contactsSaving}
+              onClick={async () => {
+                setSaveMessage('');
+                setContactsSaving(true);
+                try {
+                  const data = await updateContactsSettings({
+                    email: contactsEmail.trim(),
+                    address: contactsAddress.trim(),
+                    workHours: contactsWorkHours.trim(),
+                  });
+                  setContactsEmail(data.email);
+                  setContactsAddress(data.address);
+                  setContactsWorkHours(data.workHours);
+                  setSaveMessage('Контакты для бота сохранены');
+                } catch (e) {
+                  setSaveMessage(e instanceof Error ? e.message : 'Ошибка сохранения контактов');
+                } finally {
+                  setContactsSaving(false);
+                }
+              }}
+            >
+              {contactsSaving ? 'Сохранение...' : 'Сохранить контакты'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* Access */}
       <div className="bg-background border rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-2 mb-2">
@@ -108,6 +202,79 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      <div className="bg-background border rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Settings className="w-4 h-4 text-primary" />
+          <h2 className="font-semibold">Telegram Bot интеграция</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Настройки webhook уведомлений для Telegram-бота. Управляются только из CRM.
+        </p>
+        <div className="grid gap-3">
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">URL endpoint бота</p>
+            <Input
+              value={notifyUrl}
+              onChange={(e) => setNotifyUrl(e.target.value)}
+              placeholder="https://bot.livegrid.ru/internal/notify"
+              disabled={telegramLoading || telegramSaving}
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">Внутренний токен (опционально)</p>
+            <Input
+              value={notifyToken}
+              onChange={(e) => setNotifyToken(e.target.value)}
+              placeholder="secret-token"
+              disabled={telegramLoading || telegramSaving}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              disabled={telegramLoading || telegramSaving}
+              onClick={async () => {
+                setSaveMessage('');
+                setTelegramSaving(true);
+                try {
+                  const data = await updateTelegramSettings({
+                    notifyUrl: notifyUrl.trim() || null,
+                    notifyToken: notifyToken.trim() || null,
+                  });
+                  setNotifyUrl(data.notifyUrl ?? '');
+                  setNotifyToken(data.notifyToken ?? '');
+                  setSaveMessage('Настройки Telegram сохранены');
+                } catch (e) {
+                  setSaveMessage(e instanceof Error ? e.message : 'Ошибка сохранения');
+                } finally {
+                  setTelegramSaving(false);
+                }
+              }}
+            >
+              {telegramSaving ? 'Сохранение...' : 'Сохранить'}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={telegramLoading || telegramSaving || testSending}
+              onClick={async () => {
+                setSaveMessage('');
+                setTestSending(true);
+                try {
+                  await testTelegramSettings('registration');
+                  setSaveMessage('Тестовое уведомление отправлено');
+                } catch (e) {
+                  setSaveMessage(e instanceof Error ? e.message : 'Ошибка тестовой отправки');
+                } finally {
+                  setTestSending(false);
+                }
+              }}
+            >
+              {testSending ? 'Отправка...' : 'Проверить интеграцию'}
+            </Button>
+            {saveMessage ? <p className="text-sm text-muted-foreground">{saveMessage}</p> : null}
+          </div>
+        </div>
+      </div>
+
       {/* System info */}
       <div className="bg-background border rounded-2xl p-5 space-y-3">
         <div className="flex items-center gap-2 mb-2">
@@ -139,7 +306,7 @@ export default function SettingsPage() {
       <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
         <div className="flex items-start gap-2">
           <Settings className="w-4 h-4 mt-0.5 shrink-0" />
-          <p>Конфигурация SMTP, внешних интеграций и переменных окружения настраивается в файле <code className="bg-amber-100 px-1 rounded">.env</code> на сервере.</p>
+          <p>Конфигурация Telegram Bot уведомлений выполняется в этом разделе CRM без правки серверных переменных окружения.</p>
         </div>
       </div>
     </div>

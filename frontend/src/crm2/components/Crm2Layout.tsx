@@ -2,6 +2,7 @@ import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { Database, ChevronLeft, LogOut, User, LayoutGrid, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/crm/context/AuthContext';
+import { can } from '@/crm/authz';
 import { useEntityTypes } from '../hooks/useEntityTypes';
 import { Button } from '@/components/ui/button';
 
@@ -19,6 +20,7 @@ export default function Crm2Layout() {
   }
 
   if (!user) return <Navigate to="/crm/login" replace />;
+  if (!can(user, 'entities.read')) return <Navigate to="/crm" replace />;
 
   const handleLogout = async () => {
     await signOut();
@@ -52,18 +54,20 @@ export default function Crm2Layout() {
             <LayoutGrid className="w-4 h-4" />
             Типы
           </NavLink>
-          <NavLink
-            to="/crm2/types"
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium',
-                isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
-              )
-            }
-          >
-            <Wrench className="w-4 h-4" />
-            Конструктор
-          </NavLink>
+          {can(user, 'entity_schema.manage') && (
+            <NavLink
+              to="/crm2/types"
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium',
+                  isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
+                )
+              }
+            >
+              <Wrench className="w-4 h-4" />
+              Конструктор
+            </NavLink>
+          )}
           <div className="pt-2 pb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Сущности
           </div>

@@ -3,7 +3,9 @@
 namespace App\Services\Catalog;
 
 use App\Models\Catalog\Apartment;
+use App\Models\Catalog\Complex;
 use App\Models\Catalog\Finishing;
+use App\Models\Catalog\RoomType;
 use App\Services\CacheInvalidator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -38,26 +40,37 @@ class ApartmentSearchService
             fn () => $this->computeFacets(clone $this->filteredQuery($request))
         );
 
-        /** @var array{total: int, ids: list<string>} $pageData */
+        /** @var array{total: int, rows: list<array<string, mixed>>} $pageData */
         $pageData = $this->cacheRemember(
             $this->pageSliceCacheKey($request, $perPage, $page),
             function () use ($request, $perPage, $page) {
                 $query = $this->filteredQuery($request);
                 $this->applySort($request, $query);
-                $p = $query->paginate($perPage, ['id'], 'page', $page);
+                $p = $query->paginate($perPage, [
+                    'id',
+                    'block_id',
+                    'building_id',
+                    'price',
+                    'rooms_count',
+                    'area_total',
+                    'floor',
+                    'floors',
+                    'status',
+                    'finishing_id',
+                ], 'page', $page);
 
                 return [
                     'total' => $p->total(),
-                    'ids' => collect($p->items())->pluck('id')->all(),
+                    'rows' => collect($p->items())->map(fn ($row) => (array) $row)->values()->all(),
                 ];
             }
         );
 
         $total = (int) $pageData['total'];
-        /** @var list<string> $ids */
-        $ids = $pageData['ids'];
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $pageData['rows'];
 
-        if ($ids === []) {
+        if ($rows === []) {
             $emptyPaginator = new LengthAwarePaginator(
                 collect(),
                 $total,
@@ -73,7 +86,7 @@ class ApartmentSearchService
             return ['paginator' => $emptyPaginator, 'facets' => $facets];
         }
 
-        $apartments = $this->loadApartmentsOrderedByIds($ids);
+        $apartments = $this->hydrateSearchRows($rows);
 
         $apartmentPaginator = new LengthAwarePaginator(
             $apartments,
@@ -108,42 +121,58 @@ class ApartmentSearchService
     }
 
     /**
-     * Один запрос whereIn + eager load; порядок как в пагинации (CASE WHEN для совместимости с MySQL).
+     * Данные страницы из apartments_search + три whereIn: finishings, blocks (complex), rooms (roomType).
      *
-     * @param  list<string>  $ids
+     * @param  list<array<string, mixed>>  $rows
      */
-    private function loadApartmentsOrderedByIds(array $ids): Collection
+    private function hydrateSearchRows(array $rows): Collection
     {
-        $base = Apartment::query()
-            ->with(['finishing', 'complex', 'roomType'])
-            ->whereIn('id', $ids);
+        $rowObjects = collect($rows)->map(fn ($row) => (object) $row);
 
-        if ($ids === []) {
-            return collect();
-        }
+        $finishingIds = $rowObjects->pluck('finishing_id')->filter()->unique()->values();
+        $blockIds = $rowObjects->pluck('block_id')->unique()->values();
+        $crmIds = $rowObjects->pluck('rooms_count')->unique()->values();
 
-        if (DB::connection()->getDriverName() === 'mysql') {
-            $orderedIds = array_values($ids);
-            $parts = [];
-            $bindings = [];
-            foreach ($orderedIds as $i => $id) {
-                $parts[] = 'WHEN id = ? THEN ?';
-                $bindings[] = $id;
-                $bindings[] = $i;
-            }
-            $caseSql = 'CASE '.implode(' ', $parts).' ELSE 999999 END';
+        $finishings = $finishingIds->isEmpty()
+            ? collect()
+            : Finishing::query()->whereIn('id', $finishingIds)->get()->keyBy(fn ($f) => (string) $f->id);
+        $complexes = $blockIds->isEmpty()
+            ? collect()
+            : Complex::query()->whereIn('id', $blockIds)->get()->keyBy(fn ($c) => (string) $c->id);
+        $roomTypes = $crmIds->isEmpty()
+            ? collect()
+            : RoomType::query()->whereIn('crm_id', $crmIds)->get()->keyBy(fn ($rt) => (int) $rt->crm_id);
 
-            return $base->orderByRaw($caseSql, $bindings)->get();
-        }
+        return $rowObjects->map(function ($r) use ($finishings, $complexes, $roomTypes) {
+            $apartment = new Apartment;
+            $apartment->exists = true;
+            $apartment->forceFill([
+                'id' => $r->id,
+                'block_id' => $r->block_id,
+                'building_id' => $r->building_id,
+                'price' => $r->price,
+                'rooms_count' => $r->rooms_count,
+                'area_total' => $r->area_total,
+                'area_kitchen' => null,
+                'floor' => $r->floor,
+                'floors' => $r->floors,
+                'status' => $r->status,
+                'plan_image' => null,
+                'section' => null,
+                'finishing_id' => $r->finishing_id,
+            ]);
+            $fid = $r->finishing_id !== null && $r->finishing_id !== '' ? (string) $r->finishing_id : null;
+            $apartment->setRelation('finishing', $fid ? $finishings->get($fid) : null);
+            $apartment->setRelation('complex', $complexes->get((string) $r->block_id));
+            $apartment->setRelation('roomType', $roomTypes->get((int) $r->rooms_count));
 
-        $idPositions = array_flip($ids);
-
-        return $base->get()->sortBy(fn ($a) => $idPositions[$a->id] ?? PHP_INT_MAX)->values();
+            return $apartment;
+        });
     }
 
     private function applySort(Request $request, Builder $query): void
     {
-        $sort = (string) $request->input('sort', 'price_asc');
+        $sort = (string) $request->get('sort', 'price_asc');
 
         match ($sort) {
             'price_desc' => $query->orderBy('price', 'desc'),
@@ -239,11 +268,7 @@ class ApartmentSearchService
             ->pluck('rooms_count')
             ->map(fn ($v) => (int) $v)->values()->all();
 
-        $finishingIds = (clone $query)->whereNotNull('finishing_id')->select('finishing_id')->distinct()->pluck('finishing_id');
-        $finishings = $finishingIds->isEmpty()
-            ? []
-            : Finishing::query()->whereIn('id', $finishingIds)->orderBy('name')->get(['id', 'name'])
-                ->map(fn ($f) => ['id' => $f->id, 'name' => $f->name])->values()->all();
+        $finishings = $this->facetFinishings(clone $query);
 
         $priceAgg = (clone $query)->selectRaw('MIN(price) as min_price, MAX(price) as max_price')->first();
         $areaAgg = (clone $query)->selectRaw('MIN(area_total) as min_area, MAX(area_total) as max_area')->first();
@@ -266,6 +291,33 @@ class ApartmentSearchService
             ],
             'deadline_buckets' => $this->deadlineBuckets(clone $query),
         ];
+    }
+
+    /**
+     * Список отделок из JOIN finishings: один id → одно name, без сиротских finishing_id.
+     *
+     * @return list<array{id: string, name: string}>
+     */
+    private function facetFinishings(Builder $query): array
+    {
+        $nameAgg = DB::connection()->getDriverName() === 'mysql'
+            ? 'ANY_VALUE(finishings.name) as name'
+            : 'MAX(finishings.name) as name';
+
+        $q = (clone $query)
+            ->whereNotNull('apartments_search.finishing_id')
+            ->join('finishings', 'finishings.id', '=', 'apartments_search.finishing_id')
+            ->selectRaw('finishings.id, '.$nameAgg)
+            ->groupBy('finishings.id')
+            ->orderBy('name');
+
+        return $q->get()
+            ->map(fn ($r) => [
+                'id' => (string) $r->id,
+                'name' => (string) $r->name,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

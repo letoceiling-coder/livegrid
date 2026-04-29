@@ -7,27 +7,34 @@ use App\Models\Catalog\Apartment;
 use App\Models\Catalog\Builder;
 use App\Models\Catalog\Complex;
 use App\Models\Catalog\District;
+use App\Services\Auth\AccessScope;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class CrmDashboardController extends Controller
 {
-    public function index(): JsonResponse
+    public function __construct(private readonly AccessScope $accessScope) {}
+
+    public function index(Request $request): JsonResponse
     {
-        return $this->stats();
+        return $this->stats($request);
     }
 
-    public function stats(): JsonResponse
+    public function stats(Request $request): JsonResponse
     {
-        $totalComplexes  = Complex::count();
-        $totalApartments = Apartment::where('is_active', 1)->count();
+        $complexQuery = $this->accessScope->apply(Complex::query(), $request->user(), 'properties.read');
+        $apartmentQuery = $this->accessScope->apply(Apartment::query(), $request->user(), 'properties.read');
+
+        $totalComplexes  = (clone $complexQuery)->count();
+        $totalApartments = (clone $apartmentQuery)->where('is_active', 1)->count();
         $totalBuilders   = Builder::count();
         $totalDistricts  = District::count();
 
-        $availableApts  = Apartment::where('is_active', 1)->where('status', 'available')->count();
-        $reservedApts   = Apartment::where('is_active', 1)->where('status', 'reserved')->count();
-        $soldApts       = Apartment::where('is_active', 1)->where('status', 'sold')->count();
+        $availableApts  = (clone $apartmentQuery)->where('is_active', 1)->where('status', 'available')->count();
+        $reservedApts   = (clone $apartmentQuery)->where('is_active', 1)->where('status', 'reserved')->count();
+        $soldApts       = (clone $apartmentQuery)->where('is_active', 1)->where('status', 'sold')->count();
 
-        $recentComplexes = Complex::with(['builder', 'district'])
+        $recentComplexes = $this->accessScope->apply(Complex::with(['builder', 'district']), $request->user(), 'properties.read')
             ->orderByDesc('created_at')
             ->limit(5)
             ->get()

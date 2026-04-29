@@ -74,6 +74,7 @@ class EntityController extends Controller
                     $request->all(),
                     $perPage,
                     $cursor,
+                    $request->user(),
                 );
 
                 return response()->json($result->toArray());
@@ -81,7 +82,7 @@ class EntityController extends Controller
 
             // ── Offset mode ───────────────────────────────────────────────────
             $page      = max((int) $request->input('page', 1), 1);
-            $paginator = $this->service->listRecords($type, $request->all(), $perPage, $page);
+            $paginator = $this->service->listRecords($type, $request->all(), $perPage, $page, $request->user());
 
             return response()->json([
                 'data' => $paginator->items(),
@@ -116,6 +117,7 @@ class EntityController extends Controller
                 $type,
                 $request->all(),
                 $request->user()?->id,
+                $request->user()?->team_id,
             );
 
             return response()->json(
@@ -143,6 +145,9 @@ class EntityController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         try {
+            $record = EntityRecord::query()->findOrFail($id);
+            abort_unless(app(\App\Services\Auth\AccessScope::class)->canAccessModel($request->user(), $record, 'entities.update'), 403);
+
             $this->service->updateRecord($id, $request->all(), $request->user()?->id);
 
             return response()->json(['data' => $this->service->getRecord($id)]);
@@ -159,10 +164,12 @@ class EntityController extends Controller
     // ─── GET /api/v2/entities/{type}/{id} ─────────────────────────────────────
 
     /** Retrieve a single record by type and ID. */
-    public function show(string $type, int $id): JsonResponse
+    public function show(Request $request, string $type, int $id): JsonResponse
     {
         try {
             $data = $this->service->getRecord($id);
+            $record = EntityRecord::query()->findOrFail($id);
+            abort_unless(app(\App\Services\Auth\AccessScope::class)->canAccessModel($request->user(), $record, 'entities.read'), 403);
 
             // Ensure the record belongs to the requested type
             if ($data['type'] !== $type) {
@@ -185,6 +192,7 @@ class EntityController extends Controller
         if ($record === null || $record->entityType?->code !== $type) {
             return response()->json(['message' => "Запись #{$id} не принадлежит типу «{$type}»."], 404);
         }
+        abort_unless(app(\App\Services\Auth\AccessScope::class)->canAccessModel($request->user(), $record, 'entities.read'), 403);
 
         $base = EntityChangeLog::query()
             ->where('entity_type_code', $type)
@@ -299,6 +307,7 @@ class EntityController extends Controller
         if ($record === null || $record->entityType?->code !== $type) {
             return response()->json(['message' => "Запись #{$id} не принадлежит типу «{$type}»."], 404);
         }
+        abort_unless(app(\App\Services\Auth\AccessScope::class)->canAccessModel($request->user(), $record, 'entities.read'), 403);
 
         $base = EntityChangeLog::query()
             ->where('entity_type_code', $type)
@@ -464,6 +473,8 @@ class EntityController extends Controller
     public function destroy(Request $request, int $id): JsonResponse
     {
         try {
+            $record = EntityRecord::query()->findOrFail($id);
+            abort_unless(app(\App\Services\Auth\AccessScope::class)->canAccessModel($request->user(), $record, 'entities.delete'), 403);
             $this->service->softDeleteRecord($id, $request->user()?->id);
 
             return response()->json(['ok' => true]);
@@ -475,6 +486,8 @@ class EntityController extends Controller
     public function restore(Request $request, int $id): JsonResponse
     {
         try {
+            $record = EntityRecord::withTrashed()->findOrFail($id);
+            abort_unless(app(\App\Services\Auth\AccessScope::class)->canAccessModel($request->user(), $record, 'entities.update'), 403);
             $this->service->restoreRecord($id, $request->user()?->id);
 
             return response()->json(['ok' => true]);
@@ -490,7 +503,12 @@ class EntityController extends Controller
             'ids.*' => ['integer', 'min:1'],
         ]);
 
-        $this->service->bulkSoftDelete($data['ids'], $request->user()?->id);
+        $allowedIds = app(\App\Services\Auth\AccessScope::class)
+            ->apply(EntityRecord::query(), $request->user(), 'entities.delete')
+            ->whereIn('id', $data['ids'])
+            ->pluck('id')
+            ->all();
+        $this->service->bulkSoftDelete($allowedIds, $request->user()?->id);
 
         return response()->json(['ok' => true]);
     }
@@ -504,6 +522,8 @@ class EntityController extends Controller
 
         try {
             foreach ($data['ids'] as $id) {
+                $record = EntityRecord::withTrashed()->findOrFail((int) $id);
+                abort_unless(app(\App\Services\Auth\AccessScope::class)->canAccessModel($request->user(), $record, 'entities.update'), 403);
                 $this->service->restoreRecord((int) $id, $request->user()?->id);
             }
         } catch (ModelNotFoundException) {
@@ -523,7 +543,12 @@ class EntityController extends Controller
         ]);
 
         try {
-            $this->service->bulkUpdateRecords($data['ids'], $data['values'], $request->user()?->id);
+            $allowedIds = app(\App\Services\Auth\AccessScope::class)
+                ->apply(EntityRecord::query(), $request->user(), 'entities.update')
+                ->whereIn('id', $data['ids'])
+                ->pluck('id')
+                ->all();
+            $this->service->bulkUpdateRecords($allowedIds, $data['values'], $request->user()?->id);
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Ошибка валидации.',

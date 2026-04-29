@@ -1,4 +1,4 @@
-import { Fragment, useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -6,20 +6,18 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Building2,
-  Home,
-  TreePine,
-  Store,
   Train,
   MapPinned,
   Landmark,
   Route,
   HardHat,
-  Banknote,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useSuggest } from '@/api/hooks/useSuggest';
+import { useSuggest, suggestTotalCount } from '@/api/hooks/useSuggest';
 import { useSearchCount } from '@/api/hooks/useSearchCount';
+import { useFilters } from '@/hooks/useFilters';
 import RegionModal from '@/redesign/components/RegionModal';
 import { AVAILABLE_REGIONS, regionLabel, type RegionId } from '@/redesign/lib/regions';
 import {
@@ -33,31 +31,11 @@ import {
 
 const objectTabs: { label: string; icon: typeof Building2; value: SearchMode }[] = [
   { label: 'Квартиры', icon: Building2, value: 'apartment' },
-  { label: 'Дома', icon: Home, value: 'house' },
-  { label: 'Участки', icon: TreePine, value: 'land' },
-  { label: 'Коммерция', icon: Store, value: 'commercial' },
 ];
 
 const propertyTypes = ['Тип квартиры', 'Студия', '1-комнатная', '2-комнатная', '3-комнатная', '4+ комнат'];
 const deadlines = ['Срок сдачи', 'Сдан', '2026', '2027', '2028', '2029+'];
 const commercialTypes = ['Тип объекта', 'Офис', 'Торговое', 'Склад', 'Производство'];
-
-type Suggestion = { label: string; type: 'metro' | 'district' | 'complex' | 'street' | 'builder' | 'bank'; icon: typeof Train };
-const staticSuggestions: Suggestion[] = [
-  { label: 'Сокольники', type: 'metro', icon: Train },
-  { label: 'Тверская', type: 'metro', icon: Train },
-  { label: 'Парк Культуры', type: 'metro', icon: Train },
-  { label: 'Хамовники', type: 'district', icon: MapPinned },
-  { label: 'Пресненский', type: 'district', icon: MapPinned },
-  { label: 'Басманный', type: 'district', icon: MapPinned },
-  { label: 'ул. Ленина', type: 'street', icon: Route },
-  { label: 'ул. Профсоюзная', type: 'street', icon: Route },
-  { label: 'ПИК', type: 'builder', icon: HardHat },
-  { label: 'Самолёт', type: 'builder', icon: HardHat },
-  { label: 'Донстрой', type: 'builder', icon: HardHat },
-  { label: 'Сбербанк', type: 'bank', icon: Banknote },
-  { label: 'ВТБ', type: 'bank', icon: Banknote },
-];
 
 const typeLabels: Record<string, string> = {
   metro: 'Метро',
@@ -65,25 +43,19 @@ const typeLabels: Record<string, string> = {
   complex: 'ЖК',
   street: 'Улица',
   builder: 'Застройщик',
-  bank: 'Банк',
 };
-
-function filterStaticSuggestions(q: string): Suggestion[] {
-  if (q.length < 2) return [];
-  const lower = q.toLowerCase();
-  return staticSuggestions.filter(s => s.label.toLowerCase().includes(lower)).slice(0, 6);
-}
 
 type SuggestItem =
   | { type: 'complex'; id: string; slug: string; name: string; district: string; subway: string; image: string }
   | { type: 'metro'; id: string | number; name: string }
-  | { type: 'district'; id: string | number; name: string };
+  | { type: 'district'; id: string | number; name: string }
+  | { type: 'street'; id: string | number; name: string }
+  | { type: 'builder'; id: string | number; name: string };
 
 export default function HeroSearch() {
   const [mode, setMode] = useState<SearchMode>('apartment');
   const [filters, setFilters] = useState<HeroFilters>(defaultHeroFilters);
 
-  const [staticSuggest, setStaticSuggest] = useState<Suggestion[]>([]);
   const [searchFocused, setSearchFocused] = useState(false);
   const [region, setRegion] = useState<RegionId>('moscow');
   const [roomOpen, setRoomOpen] = useState(false);
@@ -97,9 +69,9 @@ export default function HeroSearch() {
   const ptRef = useRef<HTMLDivElement>(null);
   const dlRef = useRef<HTMLDivElement>(null);
   const commercialRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const apiSuggest = useSuggest(filters.search) as SuggestItem[];
+  const apiSuggest = useSuggest(filters.search);
+  const { data: filtersData } = useFilters();
 
   const roomLabel = filters.roomType === null ? 'Тип квартиры' : filters.roomType;
   const deadlineLabel = filters.completion === null ? 'Срок сдачи' : filters.completion;
@@ -107,27 +79,46 @@ export default function HeroSearch() {
     filters.commercialType === null ? 'Тип объекта' : filters.commercialType;
   const priceFromVal = filters.priceFrom ?? '';
   const priceToVal = filters.priceTo ?? '';
+  const livingAreaFromVal = filters.livingAreaFrom ?? '';
+  const livingAreaToVal = filters.livingAreaTo ?? '';
+  const wcCountVal = filters.wcCount ?? '';
   const areaFromVal = filters.areaFrom ?? '';
   const areaToVal = filters.areaTo ?? '';
+  const ceilingHeightMinVal = filters.ceilingHeightMin ?? '';
+  const ceilingHeightMaxVal = filters.ceilingHeightMax ?? '';
   const floorsFromVal = filters.floorsFrom ?? '';
   const floorsToVal = filters.floorsTo ?? '';
+  const subwayTimeMaxVal = filters.subwayTimeMax ?? '';
+  const subwayDistanceTypeVal = filters.subwayDistanceType ?? '';
+  const buildingTypeVal = filters.buildingType ?? '';
+  const queueVal = filters.queue ?? '';
 
-  const apiComplexes = useMemo(
-    () => apiSuggest.filter((x): x is Extract<SuggestItem, { type: 'complex' }> => x.type === 'complex'),
-    [apiSuggest],
-  );
-
-  const apiMetroDistrict = useMemo(
-    () => apiSuggest.filter(x => x.type === 'metro' || x.type === 'district'),
-    [apiSuggest],
-  );
+  const norm = (s: string) => s.trim().toLowerCase();
 
   const handleSearch = useCallback((val: string) => {
-    setFilters(f => ({ ...f, search: val }));
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      setStaticSuggest(filterStaticSuggestions(val));
-    }, 200);
+    setFilters(f => {
+      const trimmed = val.trim();
+      const next: HeroFilters = { ...f, search: val };
+      if (!trimmed) {
+        next.subway = [];
+        next.district = [];
+        next.builder = [];
+        return next;
+      }
+      if (f.subway.length > 0) {
+        const keepSubway = f.subway.length === 1 && norm(val) === norm(f.subway[0] ?? '');
+        if (!keepSubway) next.subway = [];
+      }
+      if (f.district.length > 0) {
+        const keep = f.district.length === 1 && norm(val) === norm(f.district[0] ?? '');
+        if (!keep) next.district = [];
+      }
+      if (f.builder.length > 0) {
+        const keep = f.builder.length === 1 && norm(val) === norm(f.builder[0] ?? '');
+        if (!keep) next.builder = [];
+      }
+      return next;
+    });
   }, []);
 
   const navigateToCatalog = (searchOverride?: string) => {
@@ -139,20 +130,50 @@ export default function HeroSearch() {
 
   const pickApiItem = (item: SuggestItem) => {
     setSearchFocused(false);
-    setFilters(f => ({ ...f, search: '' }));
-    setStaticSuggest([]);
     if (item.type === 'complex') {
       if (!item.slug) return;
       navigate(`/complex/${item.slug}`);
       return;
     }
-    if (item.type === 'metro' || item.type === 'district') {
-      const qs = buildQuery({
-        mode,
-        filters: { ...filters, search: item.name },
-        searchOverride: item.name,
-      }).toString();
-      navigate(`/catalog?${qs}`);
+    if (item.type === 'metro') {
+      setFilters(f => ({
+        ...f,
+        search: item.name,
+        subway: [item.name],
+        district: [],
+        builder: [],
+      }));
+      return;
+    }
+    if (item.type === 'district') {
+      setFilters(f => ({
+        ...f,
+        search: item.name,
+        district: [item.name],
+        subway: [],
+        builder: [],
+      }));
+      return;
+    }
+    if (item.type === 'builder') {
+      setFilters(f => ({
+        ...f,
+        search: item.name,
+        builder: [item.name],
+        subway: [],
+        district: [],
+      }));
+      return;
+    }
+    if (item.type === 'street') {
+      setFilters(f => ({
+        ...f,
+        search: item.name,
+        subway: [],
+        district: [],
+        builder: [],
+      }));
+      return;
     }
   };
 
@@ -168,9 +189,7 @@ export default function HeroSearch() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const hasAutocomplete =
-    searchFocused &&
-    (staticSuggest.length > 0 || apiMetroDistrict.length > 0 || apiComplexes.length > 0);
+  const hasAutocomplete = searchFocused && suggestTotalCount(apiSuggest) > 0;
 
   const { data: count, error: countError } = useSearchCount(filters, mode);
 
@@ -438,27 +457,29 @@ export default function HeroSearch() {
           </h1>
         </div>
 
-        <div className="flex justify-start sm:justify-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide w-full min-w-0 px-4 mb-4">
-          {objectTabs.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => setMode(tab.value)}
-                className={cn(
-                  'shrink-0 flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 border',
-                  mode === tab.value
-                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                    : 'bg-background border-border hover:bg-secondary hover:border-primary/30',
-                )}
-              >
-                <Icon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+        {objectTabs.length > 1 && (
+          <div className="flex justify-start sm:justify-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide w-full min-w-0 px-4 mb-4">
+            {objectTabs.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setMode(tab.value)}
+                  className={cn(
+                    'shrink-0 flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 border',
+                    mode === tab.value
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      : 'bg-background border-border hover:bg-secondary hover:border-primary/30',
+                  )}
+                >
+                  <Icon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
         </div>
 
         <RegionModal
@@ -469,7 +490,7 @@ export default function HeroSearch() {
           onSelect={setRegion}
         />
 
-        <div className="w-full max-w-[900px] mx-auto min-w-0 px-4">
+        <div className="w-full max-w-[1400px] mx-auto min-w-0 px-4">
         <div className="w-full min-w-0 bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.10)] px-4 py-5 overflow-visible relative z-20">
           <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-0 lg:h-[52px] overflow-visible min-w-0">
             <div ref={searchRef} className="relative flex-1 min-w-0 z-[25]">
@@ -487,69 +508,16 @@ export default function HeroSearch() {
                 autoComplete="off"
               />
               {hasAutocomplete && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg z-[100] max-h-[300px] sm:max-h-[360px] overflow-y-auto animate-in fade-in-0 slide-in-from-top-1 duration-150">
-                  {staticSuggest.length > 0 && (
-                    <div className="py-1">
-                      {staticSuggest.map((s, i) => {
-                        const Icon = s.icon;
-                        return (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg z-[100] max-h-[min(85vh,640px)] overflow-y-auto overscroll-contain animate-in fade-in-0 slide-in-from-top-1 duration-150">
+                  {apiSuggest.complexes.length > 0 && (
+                    <div className="py-1 min-h-0">
+                      <p className="px-3 sm:px-4 py-1 text-[10px] text-muted-foreground uppercase tracking-wider font-medium sticky top-0 bg-card/95 z-[1] backdrop-blur-sm">
+                        Жилые комплексы
+                      </p>
+                      <div className="max-h-[min(280px,42svh)] overflow-y-auto overscroll-y-contain pr-0.5 [scrollbar-gutter:stable]">
+                        {apiSuggest.complexes.map(c => (
                           <button
-                            key={`${s.type}-${i}`}
-                            type="button"
-                            onMouseDown={e => e.preventDefault()}
-                            onClick={() => {
-                              setFilters(f => ({ ...f, search: s.label }));
-                              setSearchFocused(false);
-                              navigateToCatalog(s.label);
-                            }}
-                            className="w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-muted/50 transition-colors text-left"
-                          >
-                            <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
-                            <span className="text-sm">{s.label}</span>
-                            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wider">
-                              {typeLabels[s.type]}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {apiMetroDistrict.length > 0 && (
-                    <>
-                      {staticSuggest.length > 0 && <div className="h-px bg-border" />}
-                      <div className="py-1">
-                        {apiMetroDistrict.map((item, i) => (
-                          <button
-                            key={`api-${item.type}-${item.id}-${i}`}
-                            type="button"
-                            onMouseDown={e => e.preventDefault()}
-                            onClick={() => pickApiItem(item)}
-                            className="w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-muted/50 transition-colors text-left"
-                          >
-                            {item.type === 'metro' ? (
-                              <Train className="w-4 h-4 text-muted-foreground shrink-0" />
-                            ) : (
-                              <MapPinned className="w-4 h-4 text-muted-foreground shrink-0" />
-                            )}
-                            <span className="text-sm">{item.name}</span>
-                            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wider">
-                              {item.type === 'metro' ? 'Метро' : 'Район'}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {apiComplexes.length > 0 && (
-                    <>
-                      {(staticSuggest.length > 0 || apiMetroDistrict.length > 0) && <div className="h-px bg-border" />}
-                      <div className="py-1">
-                        <p className="px-3 sm:px-4 py-1 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-                          Жилые комплексы
-                        </p>
-                        {apiComplexes.map(c => (
-                          <button
-                            key={c.id}
+                            key={`complex-${c.id}`}
                             type="button"
                             onMouseDown={e => e.preventDefault()}
                             onClick={() => pickApiItem(c)}
@@ -568,6 +536,115 @@ export default function HeroSearch() {
                               </p>
                             </div>
                             <Landmark className="w-4 h-4 text-muted-foreground shrink-0 ml-auto hidden sm:block" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {apiSuggest.metros.length > 0 && (
+                    <>
+                      {apiSuggest.complexes.length > 0 && <div className="h-px bg-border mx-2" />}
+                      <div className="py-1 min-h-0">
+                        <p className="px-3 sm:px-4 py-1 text-[10px] text-muted-foreground uppercase tracking-wider font-medium sticky top-0 bg-card/95 z-[1] backdrop-blur-sm">
+                          Метро
+                        </p>
+                        <div className="max-h-[min(280px,42svh)] overflow-y-auto overscroll-y-contain pr-0.5 [scrollbar-gutter:stable]">
+                          {apiSuggest.metros.map((item, i) => (
+                            <button
+                              key={`metro-${item.id}-${i}`}
+                              type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => pickApiItem(item)}
+                              className="w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-muted/50 transition-colors text-left"
+                            >
+                              <Train className="w-4 h-4 text-muted-foreground shrink-0" />
+                              <span className="text-sm">{item.name}</span>
+                              <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wider">
+                                {typeLabels.metro}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {apiSuggest.districts.length > 0 && (
+                    <>
+                      {(apiSuggest.complexes.length > 0 || apiSuggest.metros.length > 0) && (
+                        <div className="h-px bg-border mx-2" />
+                      )}
+                      <div className="py-1">
+                        <p className="px-3 sm:px-4 py-1 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                          Районы
+                        </p>
+                        {apiSuggest.districts.map((item, i) => (
+                          <button
+                            key={`district-${item.id}-${i}`}
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => pickApiItem(item)}
+                            className="w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-muted/50 transition-colors text-left"
+                          >
+                            <MapPinned className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm">{item.name}</span>
+                            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {typeLabels.district}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {apiSuggest.streets.length > 0 && (
+                    <>
+                      {(apiSuggest.complexes.length > 0 ||
+                        apiSuggest.metros.length > 0 ||
+                        apiSuggest.districts.length > 0) && <div className="h-px bg-border mx-2" />}
+                      <div className="py-1">
+                        <p className="px-3 sm:px-4 py-1 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                          Улицы и адреса
+                        </p>
+                        {apiSuggest.streets.map((item, i) => (
+                          <button
+                            key={`street-${item.id}-${i}`}
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => pickApiItem(item)}
+                            className="w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-muted/50 transition-colors text-left"
+                          >
+                            <Route className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm line-clamp-2">{item.name}</span>
+                            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wider shrink-0">
+                              {typeLabels.street}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {apiSuggest.builders.length > 0 && (
+                    <>
+                      {(apiSuggest.complexes.length > 0 ||
+                        apiSuggest.metros.length > 0 ||
+                        apiSuggest.districts.length > 0 ||
+                        apiSuggest.streets.length > 0) && <div className="h-px bg-border mx-2" />}
+                      <div className="py-1">
+                        <p className="px-3 sm:px-4 py-1 text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                          Застройщики
+                        </p>
+                        {apiSuggest.builders.map((item, i) => (
+                          <button
+                            key={`builder-${item.id}-${i}`}
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => pickApiItem(item)}
+                            className="w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-muted/50 transition-colors text-left"
+                          >
+                            <HardHat className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm">{item.name}</span>
+                            <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wider">
+                              {typeLabels.builder}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -711,7 +788,10 @@ export default function HeroSearch() {
           <div className="flex items-center justify-between mt-3.5 gap-2 min-w-0">
             <button
               type="button"
-              onClick={() => navigate('/map')}
+              onClick={() => {
+                const qs = buildQuery({ mode, filters }).toString();
+                navigate(`/map?${qs}`);
+              }}
               className="hidden sm:flex items-center gap-2 py-2.5 px-4 rounded-[10px] border border-[#cbd5e1] bg-white text-sm font-medium hover:bg-muted/30 transition-colors shrink-0"
             >
               <MapPin className="w-4 h-4 text-primary" />
@@ -728,6 +808,182 @@ export default function HeroSearch() {
         </div>
         </div>
       </div>
+      {filtersOpen && (
+        <div className="fixed inset-0 z-[120] bg-black/35">
+          <div className="absolute inset-x-0 top-[6%] mx-auto w-[min(1240px,96vw)] rounded-2xl bg-white shadow-2xl border border-border p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base sm:text-lg font-semibold">Фильтры</h3>
+              <button
+                type="button"
+                className="w-9 h-9 rounded-lg hover:bg-muted/60 inline-flex items-center justify-center"
+                onClick={() => setFiltersOpen(false)}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {(['rooms', 'price', 'completion', 'area', 'floors'] as HeroFilterKey[])
+                .map(key => (
+                  <div key={key} className="min-h-[52px] rounded-xl border border-border bg-background/80 px-2">
+                    {renderDesktopFilter(key)}
+                  </div>
+                ))}
+              <div className="min-h-[52px] rounded-xl border border-border bg-background/80 px-3 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">С/у</span>
+                <select
+                  className="h-9 text-sm bg-transparent outline-none"
+                  value={wcCountVal}
+                  onChange={e => setFilters(f => ({ ...f, wcCount: e.target.value || null }))}
+                >
+                  <option value="">Любое</option>
+                  <option value="1">1+</option>
+                  <option value="2">2+</option>
+                  <option value="3">3+</option>
+                </select>
+              </div>
+              <div className="min-h-[52px] rounded-xl border border-border bg-background/80 px-3 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Потолок</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="от"
+                  className="w-14 h-9 text-sm bg-transparent outline-none"
+                  value={ceilingHeightMinVal}
+                  onChange={e => setFilters(f => ({ ...f, ceilingHeightMin: e.target.value.replace(/[^0-9.]/g, '') || null }))}
+                />
+                <span className="text-muted-foreground text-sm">—</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="до"
+                  className="w-14 h-9 text-sm bg-transparent outline-none"
+                  value={ceilingHeightMaxVal}
+                  onChange={e => setFilters(f => ({ ...f, ceilingHeightMax: e.target.value.replace(/[^0-9.]/g, '') || null }))}
+                />
+              </div>
+              <div className="min-h-[52px] rounded-xl border border-border bg-background/80 px-3 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Жил. пл.</span>
+                <input
+                  type="text"
+                  placeholder="от"
+                  className="w-14 h-9 text-sm bg-transparent outline-none"
+                  value={livingAreaFromVal}
+                  onChange={e => setFilters(f => ({ ...f, livingAreaFrom: e.target.value.replace(/\D/g, '') || null }))}
+                />
+                <span className="text-muted-foreground text-sm">—</span>
+                <input
+                  type="text"
+                  placeholder="до"
+                  className="w-14 h-9 text-sm bg-transparent outline-none"
+                  value={livingAreaToVal}
+                  onChange={e => setFilters(f => ({ ...f, livingAreaTo: e.target.value.replace(/\D/g, '') || null }))}
+                />
+              </div>
+              <div className="min-h-[52px] rounded-xl border border-border bg-background/80 px-3 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Метро</span>
+                <select
+                  className="h-9 text-sm bg-transparent outline-none"
+                  value={subwayTimeMaxVal}
+                  onChange={e => setFilters(f => ({ ...f, subwayTimeMax: e.target.value || null }))}
+                >
+                  <option value="">любое</option>
+                  <option value="5">до 5 мин</option>
+                  <option value="10">до 10 мин</option>
+                  <option value="15">до 15 мин</option>
+                </select>
+              </div>
+              <div className="min-h-[52px] rounded-xl border border-border bg-background/80 px-3 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Тип пути</span>
+                <select
+                  className="h-9 text-sm bg-transparent outline-none"
+                  value={subwayDistanceTypeVal}
+                  onChange={e => setFilters(f => ({ ...f, subwayDistanceType: e.target.value || null }))}
+                >
+                  <option value="">любой</option>
+                  <option value="1">пешком</option>
+                  <option value="2">транспорт</option>
+                </select>
+              </div>
+              <div className="min-h-[52px] rounded-xl border border-border bg-background/80 px-3 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Тип дома</span>
+                <select
+                  className="h-9 text-sm bg-transparent outline-none w-full"
+                  value={buildingTypeVal}
+                  onChange={e => setFilters(f => ({ ...f, buildingType: e.target.value || null }))}
+                >
+                  <option value="">любой</option>
+                  {(filtersData?.buildingTypes ?? []).map(t => (
+                    <option key={t.id} value={t.name}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-h-[52px] rounded-xl border border-border bg-background/80 px-3 flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Очередь</span>
+                <select
+                  className="h-9 text-sm bg-transparent outline-none"
+                  value={queueVal}
+                  onChange={e => setFilters(f => ({ ...f, queue: e.target.value || null }))}
+                >
+                  <option value="">любая</option>
+                  {(filtersData?.queues ?? []).map(q => (
+                    <option key={q} value={q}>{q}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-h-[52px] rounded-xl border border-border bg-background/80 px-3 flex items-center gap-3">
+                <label className="text-sm inline-flex items-center gap-1.5">
+                  <input type="checkbox" checked={filters.notFirstFloor} onChange={e => setFilters(f => ({ ...f, notFirstFloor: e.target.checked }))} />
+                  не 1
+                </label>
+                <label className="text-sm inline-flex items-center gap-1.5">
+                  <input type="checkbox" checked={filters.notLastFloor} onChange={e => setFilters(f => ({ ...f, notLastFloor: e.target.checked }))} />
+                  не посл.
+                </label>
+                <label className="text-sm inline-flex items-center gap-1.5">
+                  <input type="checkbox" checked={filters.highFloor} onChange={e => setFilters(f => ({ ...f, highFloor: e.target.checked }))} />
+                  &gt;10
+                </label>
+              </div>
+              <div className="min-h-[52px] rounded-xl border border-border bg-background/80 px-3 flex items-center gap-3">
+                <label className="text-sm inline-flex items-center gap-1.5">
+                  <input type="checkbox" checked={filters.hasPlan} onChange={e => setFilters(f => ({ ...f, hasPlan: e.target.checked }))} />
+                  Есть план
+                </label>
+                <select
+                  className="h-9 text-sm bg-transparent outline-none"
+                  value={filters.sort}
+                  onChange={e => setFilters(f => ({ ...f, sort: e.target.value as HeroFilters['sort'] }))}
+                >
+                  <option value="price_asc">дешевле</option>
+                  <option value="price_desc">дороже</option>
+                  <option value="price_per_m2_asc">цена/м² ↑</option>
+                  <option value="price_per_m2_desc">цена/м² ↓</option>
+                  <option value="area_desc">площадь ↓</option>
+                  <option value="deadline_asc">срок сдачи</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setFilters(defaultHeroFilters())}
+              >
+                Сбросить
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setFiltersOpen(false);
+                  doSearch();
+                }}
+              >
+                {ctaLabel}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

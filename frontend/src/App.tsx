@@ -4,11 +4,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ScrollToTop from "./components/ScrollToTop";
+import NavigationProgress from "./components/NavigationProgress";
 import { lazy, Suspense } from "react";
 
 // CRM pages
 const CrmLogin = lazy(() => import("./crm/pages/Login"));
 const CrmLayout = lazy(() => import("./crm/components/CrmLayout"));
+const RequireRole = lazy(() => import("./crm/components/RequireRole"));
 const CrmDashboard = lazy(() => import("./crm/pages/Dashboard"));
 const CrmComplexList = lazy(() => import("./crm/pages/complexes/ComplexList"));
 const CrmComplexForm = lazy(() => import("./crm/pages/complexes/ComplexForm"));
@@ -16,9 +18,11 @@ const CrmApartmentList = lazy(() => import("./crm/pages/apartments/ApartmentList
 const CrmApartmentForm = lazy(() => import("./crm/pages/apartments/ApartmentForm"));
 const CrmAttributes = lazy(() => import("./crm/pages/attributes/AttributesPage"));
 const CrmFeed = lazy(() => import("./crm/pages/feed/FeedPage"));
+const CrmRequests = lazy(() => import("./crm/pages/requests/RequestsPage"));
 const CrmSettings = lazy(() => import("./crm/pages/settings/SettingsPage"));
 import Index from "./pages/Index";
 import AppLayout from "./layouts/AppLayout";
+import PageSuspenseFallback from "./components/PageSuspenseFallback";
 import FavoritesPage from "./pages/FavoritesPage";
 
 // Redesign pages
@@ -58,17 +62,12 @@ const AdminPages = lazy(() => import("./admin/pages/AdminPages"));
 const AdminPageEditor = lazy(() => import("./admin/pages/AdminPageEditor"));
 const AdminMedia = lazy(() => import("./admin/pages/AdminMedia"));
 const AdminUsers = lazy(() => import("./admin/pages/AdminUsers"));
+const AdminRoles = lazy(() => import("./admin/pages/AdminRoles"));
 const AdminSettings = lazy(() => import("./admin/pages/AdminSettings"));
 const AdminTokens = lazy(() => import("./admin/pages/AdminTokens"));
 const EditorPage = lazy(() => import("./admin/components/editor/EditorPage"));
 
 const queryClient = new QueryClient();
-
-const Loading = () => (
-  <div className="h-screen flex items-center justify-center">
-    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-  </div>
-);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -78,19 +77,23 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
         <ScrollToTop />
-        <Suspense fallback={<Loading />}>
+        <NavigationProgress />
+        <Suspense fallback={<PageSuspenseFallback />}>
           <Routes>
             {/* Admin routes */}
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<AdminDashboard />} />
-              <Route path="pages" element={<AdminPages />} />
-              <Route path="page-editor/:slug" element={<AdminPageEditor />} />
-              <Route path="media" element={<AdminMedia />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="settings" element={<AdminSettings />} />
-              <Route path="tokens" element={<AdminTokens />} />
+            <Route element={<RequireRole roles={["ADMIN"]} />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="pages" element={<AdminPages />} />
+                <Route path="page-editor/:slug" element={<AdminPageEditor />} />
+                <Route path="media" element={<AdminMedia />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="roles" element={<AdminRoles />} />
+                <Route path="settings" element={<AdminSettings />} />
+                <Route path="tokens" element={<AdminTokens />} />
+              </Route>
+              <Route path="/admin/editor/:pageId" element={<EditorPage />} />
             </Route>
-            <Route path="/admin/editor/:pageId" element={<EditorPage />} />
 
             {/* CRM routes */}
             <Route path="/crm/login" element={<CrmLogin />} />
@@ -104,6 +107,7 @@ const App = () => (
               <Route path="apartments/:id/edit" element={<CrmApartmentForm />} />
               <Route path="attributes" element={<CrmAttributes />} />
               <Route path="feed" element={<CrmFeed />} />
+              <Route path="requests" element={<CrmRequests />} />
               <Route path="settings" element={<CrmSettings />} />
             </Route>
 

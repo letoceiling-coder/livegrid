@@ -9,6 +9,7 @@ use App\Models\Catalog\Builder;
 use App\Models\Catalog\Finishing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class ReferenceController extends Controller
 {
@@ -33,11 +34,63 @@ class ReferenceController extends Controller
             Finishing::orderBy('name')->get()->map(fn ($f) => ['value' => $f->name, 'label' => $f->name])
         );
 
+        $buildingTypes = Cache::remember('references:building-types', 3600, fn () =>
+            DB::table('building_types')->orderBy('name')->get()->map(fn ($t) => ['id' => $t->id, 'name' => $t->name])
+        );
+
+        $queues = Cache::remember('references:queues', 3600, fn () =>
+            DB::table('buildings')
+                ->whereNotNull('queue')
+                ->where('queue', '!=', '')
+                ->distinct()
+                ->orderBy('queue')
+                ->pluck('queue')
+                ->values()
+                ->all()
+        );
+
+        $wcOptions = Cache::remember('references:wc-options', 3600, function () {
+            if (!DB::getSchemaBuilder()->hasTable('apartments_search')) {
+                return [1, 2, 3];
+            }
+
+            return DB::table('apartments_search')
+                ->whereNotNull('wc_count')
+                ->where('wc_count', '>=', 1)
+                ->distinct()
+                ->orderBy('wc_count')
+                ->limit(5)
+                ->pluck('wc_count')
+                ->map(fn ($v) => (int) $v)
+                ->values()
+                ->all();
+        });
+
+        $ceilingHeight = Cache::remember('references:ceiling-height', 3600, function () {
+            if (!DB::getSchemaBuilder()->hasTable('apartments_search')) {
+                return ['min' => null, 'max' => null];
+            }
+
+            $row = DB::table('apartments_search')
+                ->whereNotNull('height')
+                ->selectRaw('MIN(height) as min_height, MAX(height) as max_height')
+                ->first();
+
+            return [
+                'min' => $row && $row->min_height !== null ? round((float) $row->min_height, 1) : null,
+                'max' => $row && $row->max_height !== null ? round((float) $row->max_height, 1) : null,
+            ];
+        });
+
         return response()->json([
             'districts' => $districts,
             'subways'   => $subways,
             'builders'  => $builders,
             'finishings' => $finishings,
+            'buildingTypes' => $buildingTypes,
+            'queues' => $queues,
+            'wcOptions' => $wcOptions,
+            'ceilingHeight' => $ceilingHeight,
         ]);
     }
 

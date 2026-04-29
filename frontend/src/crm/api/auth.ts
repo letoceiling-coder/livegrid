@@ -16,6 +16,6 @@ export async function logout(): Promise<void> {
 }
 
 export async function me(): Promise<CrmUser> {
-  const data = await api.get<{ id: number; name: string; email: string }>('/auth/me');
+  const data = await api.get<CrmUser>('/auth/me');
   return data;
 }

@@ -41,6 +41,10 @@ class MapController extends Controller
         if ($request->has('rooms')) {
             $filters['rooms'] = $request->input('rooms');
         }
+
+        if ($request->has('wc')) {
+            $filters['wc'] = $request->input('wc');
+        }
         
         if ($request->has('priceMin')) {
             $filters['priceMin'] = (int) $request->input('priceMin');
@@ -57,6 +61,20 @@ class MapController extends Controller
         if ($request->has('areaMax')) {
             $filters['areaMax'] = (float) $request->input('areaMax');
         }
+        if ($request->has('livingAreaMin')) {
+            $filters['livingAreaMin'] = (float) $request->input('livingAreaMin');
+        }
+        if ($request->has('livingAreaMax')) {
+            $filters['livingAreaMax'] = (float) $request->input('livingAreaMax');
+        }
+
+        if ($request->has('ceilingHeightMin')) {
+            $filters['ceilingHeightMin'] = (float) $request->input('ceilingHeightMin');
+        }
+
+        if ($request->has('ceilingHeightMax')) {
+            $filters['ceilingHeightMax'] = (float) $request->input('ceilingHeightMax');
+        }
 
         if ($request->has('floorMin')) {
             $filters['floorMin'] = (int) $request->input('floorMin');
@@ -65,6 +83,18 @@ class MapController extends Controller
         if ($request->has('floorMax')) {
             $filters['floorMax'] = (int) $request->input('floorMax');
         }
+        if ($request->boolean('notFirstFloor')) {
+            $filters['notFirstFloor'] = true;
+        }
+        if ($request->boolean('notLastFloor')) {
+            $filters['notLastFloor'] = true;
+        }
+        if ($request->boolean('highFloor')) {
+            $filters['highFloor'] = true;
+        }
+        if ($request->boolean('hasPlan')) {
+            $filters['hasPlan'] = true;
+        }
 
         if ($request->has('district')) {
             $filters['district'] = $request->input('district');
@@ -72,6 +102,18 @@ class MapController extends Controller
         
         if ($request->has('subway')) {
             $filters['subway'] = $request->input('subway');
+        }
+        if ($request->has('subwayTimeMax')) {
+            $filters['subwayTimeMax'] = (int) $request->input('subwayTimeMax');
+        }
+        if ($request->has('subwayDistanceType')) {
+            $filters['subwayDistanceType'] = $request->input('subwayDistanceType');
+        }
+        if ($request->has('buildingType')) {
+            $filters['buildingType'] = $request->input('buildingType');
+        }
+        if ($request->has('queue')) {
+            $filters['queue'] = $request->input('queue');
         }
         
         if ($request->has('builder')) {

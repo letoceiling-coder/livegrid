@@ -18,7 +18,7 @@ class CrmAuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::with(['role.permissions', 'team'])->where('email', $request->email)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
@@ -26,7 +26,7 @@ class CrmAuthController extends Controller
             ]);
         }
 
-        if (! $user->is_admin) {
+        if (! $user->isAdminRole() && $user->permissionNames() === []) {
             return response()->json(['message' => 'Нет прав доступа к CRM.'], 403);
         }
 
@@ -37,11 +37,7 @@ class CrmAuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user'  => [
-                'id'    => $user->id,
-                'name'  => $user->name,
-                'email' => $user->email,
-            ],
+            'user'  => $this->formatUser($user),
         ]);
     }
 
@@ -54,12 +50,22 @@ class CrmAuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $request->user()->loadMissing(['role.permissions', 'team']);
 
-        return response()->json([
+        return response()->json($this->formatUser($user));
+    }
+
+    private function formatUser(User $user): array
+    {
+        return [
             'id'    => $user->id,
             'name'  => $user->name,
             'email' => $user->email,
-        ]);
+            'role' => $user->roleName(),
+            'role_id' => $user->role_id,
+            'team_id' => $user->team_id,
+            'team' => $user->team?->name,
+            'permissions' => $user->permissionNames(),
+        ];
     }
 }

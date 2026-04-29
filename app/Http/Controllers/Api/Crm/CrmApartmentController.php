@@ -6,17 +6,21 @@ use App\Events\ComplexSearchNeedsSync;
 use App\Http\Controllers\Controller;
 use App\Models\Catalog\Apartment;
 use App\Models\Catalog\Building;
+use App\Services\Auth\AccessScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CrmApartmentController extends Controller
 {
+    public function __construct(private readonly AccessScope $accessScope) {}
+
     // ─── LIST ────────────────────────────────────────────────────────────────
 
     public function index(Request $request): JsonResponse
     {
-        $query = Apartment::with(['complex', 'finishing'])
+        $query = $this->accessScope
+            ->apply(Apartment::with(['complex', 'finishing']), $request->user(), 'properties.read')
             ->where('is_active', 1);
 
         if ($v = $request->input('complex_id'))   $query->where('block_id', $v);
@@ -52,18 +56,20 @@ class CrmApartmentController extends Controller
 
     // ─── SHOW ─────────────────────────────────────────────────────────────────
 
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
         $apt = Apartment::with(['complex', 'building', 'finishing'])->findOrFail($id);
+        $this->authorize('view', $apt);
 
         return response()->json(['data' => $this->format($apt, true)]);
     }
 
     // ─── CHANGE HISTORY ───────────────────────────────────────────────────────
 
-    public function history(string $id): JsonResponse
+    public function history(Request $request, string $id): JsonResponse
     {
-        Apartment::findOrFail($id); // 404 guard
+        $apt = Apartment::findOrFail($id);
+        $this->authorize('view', $apt);
 
         $history = DB::table('apartment_changes')
             ->where('apartment_id', $id)
@@ -104,6 +110,8 @@ class CrmApartmentController extends Controller
 
         $validated['is_active'] = true;
         $validated['source']    = 'manual';
+        $validated['owner_id']   = $request->user()?->id;
+        $validated['team_id']    = $request->user()?->team_id;
 
         $apt = Apartment::create($validated);
         $apt->load(['complex', 'finishing']);
@@ -117,6 +125,7 @@ class CrmApartmentController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $apt = Apartment::findOrFail($id);
+        $this->authorize('update', $apt);
 
         $validated = $request->validate([
             'block_id'      => 'sometimes|string|exists:blocks,id',
@@ -157,6 +166,7 @@ class CrmApartmentController extends Controller
     public function lock(Request $request, string $id): JsonResponse
     {
         $apt    = Apartment::findOrFail($id);
+        $this->authorize('update', $apt);
         $fields = $request->validate(['fields' => 'required|array', 'fields.*' => 'string'])['fields'];
         $apt->update(['locked_fields' => array_values(array_unique(array_merge($apt->locked_fields ?? [], $fields)))]);
 
@@ -166,6 +176,7 @@ class CrmApartmentController extends Controller
     public function unlock(Request $request, string $id): JsonResponse
     {
         $apt    = Apartment::findOrFail($id);
+        $this->authorize('update', $apt);
         $fields = $request->validate(['fields' => 'required|array', 'fields.*' => 'string'])['fields'];
         $apt->update(['locked_fields' => array_values(array_diff($apt->locked_fields ?? [], $fields))]);
 
@@ -189,7 +200,7 @@ class CrmApartmentController extends Controller
 
         switch ($action) {
             case 'update_status':
-                $count = Apartment::whereIn('id', $ids)->update([
+                $count = $this->accessScope->apply(Apartment::query(), $request->user(), 'properties.update')->whereIn('id', $ids)->update([
                     'status'        => $validated['status'],
                     'locked_fields' => DB::raw("JSON_ARRAY_APPEND(COALESCE(locked_fields, JSON_ARRAY()), '$', 'status')"),
                     'source'        => 'manual',
@@ -198,17 +209,17 @@ class CrmApartmentController extends Controller
                 return response()->json(['updated' => $count, 'action' => $action]);
 
             case 'delete':
-                $count = Apartment::whereIn('id', $ids)->delete();
+                $count = $this->accessScope->apply(Apartment::query(), $request->user(), 'properties.delete')->whereIn('id', $ids)->delete();
                 event(new ComplexSearchNeedsSync('bulk_operation'));
                 return response()->json(['deleted' => $count, 'action' => $action]);
 
             case 'restore':
-                $count = Apartment::withTrashed()->whereIn('id', $ids)->restore();
+                $count = $this->accessScope->apply(Apartment::withTrashed(), $request->user(), 'properties.update')->whereIn('id', $ids)->restore();
                 event(new ComplexSearchNeedsSync('bulk_operation'));
                 return response()->json(['restored' => $count, 'action' => $action]);
 
             case 'assign_complex':
-                $count = Apartment::whereIn('id', $ids)->update(['block_id' => $validated['complex_id']]);
+                $count = $this->accessScope->apply(Apartment::query(), $request->user(), 'properties.update')->whereIn('id', $ids)->update(['block_id' => $validated['complex_id']]);
                 event(new ComplexSearchNeedsSync('bulk_operation'));
                 return response()->json(['updated' => $count, 'action' => $action]);
         }
@@ -218,9 +229,10 @@ class CrmApartmentController extends Controller
 
     // ─── DELETE / RESTORE ─────────────────────────────────────────────────────
 
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         $apt = Apartment::findOrFail($id);
+        $this->authorize('delete', $apt);
         $blockId = $apt->block_id;
         $apt->delete();
         event(new ComplexSearchNeedsSync('apartment_changed', $blockId, ['status']));
@@ -228,9 +240,10 @@ class CrmApartmentController extends Controller
         return response()->json(['message' => 'Квартира удалена (soft delete).']);
     }
 
-    public function restore(string $id): JsonResponse
+    public function restore(Request $request, string $id): JsonResponse
     {
         $apt = Apartment::withTrashed()->findOrFail($id);
+        $this->authorize('update', $apt);
         $apt->restore();
         event(new ComplexSearchNeedsSync('apartment_changed', $apt->block_id, ['status']));
 
@@ -241,7 +254,8 @@ class CrmApartmentController extends Controller
 
     public function trashed(Request $request): JsonResponse
     {
-        $query = Apartment::onlyTrashed()->with(['complex']);
+        $query = $this->accessScope
+            ->apply(Apartment::onlyTrashed()->with(['complex']), $request->user(), 'properties.read');
         if ($v = $request->input('complex_id')) $query->where('block_id', $v);
 
         $perPage = min((int) $request->input('per_page', 20), 100);

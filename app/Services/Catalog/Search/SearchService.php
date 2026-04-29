@@ -78,17 +78,127 @@ class SearchService
      */
     public function countSearch(array $filters): array
     {
-        $makeBase = function () use ($filters) {
-            $q = DB::table('complexes_search')
-                ->where('status', '!=', 'deleted')
-                ->where('available_apartments', '>', 0);
-            $this->applyFilters($q, $filters);
+        $complexIdsQuery = DB::table('complexes_search')
+            ->where('status', '!=', 'deleted')
+            ->where('available_apartments', '>', 0)
+            ->select('complex_id');
+        $this->applyFilters($complexIdsQuery, $filters);
 
-            return $q;
-        };
+        $apartmentsQuery = DB::table('apartments_search as aps')
+            ->whereIn('aps.block_id', $complexIdsQuery)
+            ->where('aps.is_active', 1)
+            ->whereIn('aps.status', ['available', 'reserved']);
 
-        $complexes = (int) $makeBase()->count();
-        $apartments = (int) $makeBase()->sum('available_apartments');
+        if (isset($filters['priceMin']) && (int) $filters['priceMin'] > 0) {
+            $apartmentsQuery->where('aps.price', '>=', (int) $filters['priceMin']);
+        }
+        if (isset($filters['priceMax']) && (int) $filters['priceMax'] > 0) {
+            $apartmentsQuery->where('aps.price', '>=', 100000)
+                ->where('aps.price', '<=', (int) $filters['priceMax']);
+        }
+        if (isset($filters['areaMin']) && (float) $filters['areaMin'] > 0) {
+            $apartmentsQuery->where('aps.area_total', '>=', (float) $filters['areaMin']);
+        }
+        if (isset($filters['areaMax']) && (float) $filters['areaMax'] > 0) {
+            $apartmentsQuery->where('aps.area_total', '<=', (float) $filters['areaMax']);
+        }
+
+        if (!empty($filters['rooms']) && is_array($filters['rooms'])) {
+            $rooms = array_values(array_unique(array_filter(array_map('intval', $filters['rooms']), fn (int $r) => in_array($r, [0, 1, 2, 3, 4], true))));
+            if ($rooms !== []) {
+                $apartmentsQuery->where(function ($q) use ($rooms) {
+                    foreach ($rooms as $room) {
+                        if ($room === 4) {
+                            $q->orWhere('aps.rooms_count', '>=', 4);
+                        } else {
+                            $q->orWhere('aps.rooms_count', '=', $room);
+                        }
+                    }
+                });
+            }
+        }
+
+        if (!empty($filters['wc']) && is_array($filters['wc'])) {
+            $wc = array_values(array_unique(array_filter(array_map('intval', $filters['wc']), fn (int $v) => $v >= 1)));
+            if ($wc !== []) {
+                $apartmentsQuery->where(function ($q) use ($wc) {
+                    foreach ($wc as $minWc) {
+                        $q->orWhere('aps.wc_count', '>=', $minWc);
+                    }
+                });
+            }
+        }
+
+        if (isset($filters['ceilingHeightMin']) && (float) $filters['ceilingHeightMin'] > 0) {
+            $apartmentsQuery->whereNotNull('aps.height')->where('aps.height', '>=', (float) $filters['ceilingHeightMin']);
+        }
+        if (isset($filters['ceilingHeightMax']) && (float) $filters['ceilingHeightMax'] > 0) {
+            $apartmentsQuery->whereNotNull('aps.height')->where('aps.height', '<=', (float) $filters['ceilingHeightMax']);
+        }
+
+        if (isset($filters['floorMin']) && (int) $filters['floorMin'] > 0) {
+            $apartmentsQuery->where('aps.floor', '>=', (int) $filters['floorMin']);
+        }
+        if (isset($filters['floorMax']) && (int) $filters['floorMax'] > 0) {
+            $apartmentsQuery->where('aps.floor', '<=', (int) $filters['floorMax']);
+        }
+        if (!empty($filters['notFirstFloor'])) {
+            $apartmentsQuery->where('aps.floor', '>', 1);
+        }
+        if (!empty($filters['notLastFloor'])) {
+            $apartmentsQuery->whereColumn('aps.floor', '<', 'aps.floors');
+        }
+        if (!empty($filters['highFloor'])) {
+            $apartmentsQuery->where('aps.floor', '>', 10);
+        }
+
+        if (!empty($filters['deadline']) && is_array($filters['deadline'])) {
+            $values = array_values(array_unique(array_filter(array_map(
+                static fn ($v) => is_string($v) ? trim($v) : (string) $v,
+                $filters['deadline']
+            ), static fn ($v) => $v !== '')));
+
+            if ($values !== []) {
+                $years = array_values(array_filter($values, static fn ($v) => preg_match('/^\d{4}$/', $v) === 1));
+                $exact = array_values(array_filter($values, static fn ($v) => preg_match('/^\d{4}$/', $v) !== 1 && mb_strtolower($v) !== 'сдан'));
+
+                if ($years !== [] || $exact !== []) {
+                    $apartmentsQuery->where(function ($q) use ($years, $exact) {
+                        foreach ($years as $year) {
+                            $q->orWhere('aps.deadline', 'LIKE', $year . '%');
+                        }
+                        if ($exact !== []) {
+                            $q->orWhereIn('aps.deadline', $exact);
+                        }
+                    });
+                }
+            }
+        }
+
+        if (
+            (isset($filters['livingAreaMin']) && (float) $filters['livingAreaMin'] > 0) ||
+            (isset($filters['livingAreaMax']) && (float) $filters['livingAreaMax'] > 0) ||
+            !empty($filters['hasPlan'])
+        ) {
+            $apartmentsQuery->whereExists(function ($sq) use ($filters) {
+                $sq->select(DB::raw(1))
+                    ->from('apartments as ap')
+                    ->whereColumn('ap.id', 'aps.id');
+
+                if (isset($filters['livingAreaMin']) && (float) $filters['livingAreaMin'] > 0) {
+                    $sq->where('ap.area_rooms_total', '>=', (float) $filters['livingAreaMin']);
+                }
+                if (isset($filters['livingAreaMax']) && (float) $filters['livingAreaMax'] > 0) {
+                    $sq->where('ap.area_rooms_total', '<=', (float) $filters['livingAreaMax']);
+                }
+                if (!empty($filters['hasPlan'])) {
+                    $sq->whereNotNull('ap.plan_image')->where('ap.plan_image', '!=', '');
+                }
+            });
+        }
+
+        $complexes = (int) (clone $apartmentsQuery)->distinct('aps.block_id')->count('aps.block_id');
+        $apartments = (int) (clone $apartmentsQuery)->count('aps.id');
 
         return [
             'complexes'  => $complexes,
@@ -101,8 +211,17 @@ class SearchService
      */
     private function applyFilters($query, array $filters): void
     {
-        // Текстовый поиск — LIKE по 5 полям (поддерживает частичные строки "ко", "кот")
-        if (!empty($filters['search'])) {
+        $structuredSubwayNames = [];
+        if (!empty($filters['subway']) && is_array($filters['subway'])) {
+            $structuredSubwayNames = array_values(array_unique(array_filter(array_map(
+                static fn ($n) => is_string($n) ? trim($n) : '',
+                $filters['subway']
+            ))));
+        }
+
+        // Текстовый поиск — LIKE по 5 полям. Не комбинируем с фильтром metro[]: там LIKE по
+        // subway_name (только ближайшая станция) и AND обнулял выдачу при search+subway из URL.
+        if (!empty($filters['search']) && $structuredSubwayNames === []) {
             $search = trim($filters['search']);
             \Illuminate\Support\Facades\Log::debug('[SearchService] search incoming', ['q' => $search]);
             $query->where(function ($q) use ($search) {
@@ -124,7 +243,8 @@ class SearchService
         }
 
         if (isset($filters['priceMax']) && $filters['priceMax'] > 0) {
-            $query->where('price_from', '>', 0)
+            // Exclude obviously broken low prices from feed noise.
+            $query->where('price_from', '>=', 100000)
                   ->where('price_from', '<=', (int) $filters['priceMax']);
         }
         
@@ -136,6 +256,30 @@ class SearchService
         if (isset($filters['areaMax']) && $filters['areaMax'] > 0) {
             $query->where('min_area', '<=', $filters['areaMax']);
         }
+
+        if (
+            (isset($filters['livingAreaMin']) && $filters['livingAreaMin'] > 0) ||
+            (isset($filters['livingAreaMax']) && $filters['livingAreaMax'] > 0)
+        ) {
+            $minLiving = isset($filters['livingAreaMin']) ? (float) $filters['livingAreaMin'] : null;
+            $maxLiving = isset($filters['livingAreaMax']) ? (float) $filters['livingAreaMax'] : null;
+
+            $query->whereExists(function ($sq) use ($minLiving, $maxLiving) {
+                $sq->select(DB::raw(1))
+                    ->from('apartments as ap')
+                    ->whereColumn('ap.block_id', 'complexes_search.complex_id')
+                    ->where('ap.is_active', 1)
+                    ->whereIn('ap.status', ['available', 'reserved'])
+                    ->whereNotNull('ap.area_rooms_total');
+
+                if ($minLiving !== null) {
+                    $sq->where('ap.area_rooms_total', '>=', $minLiving);
+                }
+                if ($maxLiving !== null) {
+                    $sq->where('ap.area_rooms_total', '<=', $maxLiving);
+                }
+            });
+        }
         
         // Фильтр по этажу
         if (isset($filters['floorMin']) && $filters['floorMin'] > 0) {
@@ -144,6 +288,51 @@ class SearchService
         
         if (isset($filters['floorMax']) && $filters['floorMax'] > 0) {
             $query->where('min_floor', '<=', $filters['floorMax']);
+        }
+
+        if (!empty($filters['notFirstFloor'])) {
+            $query->whereExists(function ($sq) {
+                $sq->select(DB::raw(1))
+                    ->from('apartments as ap')
+                    ->whereColumn('ap.block_id', 'complexes_search.complex_id')
+                    ->where('ap.is_active', 1)
+                    ->whereIn('ap.status', ['available', 'reserved'])
+                    ->where('ap.floor', '>', 1);
+            });
+        }
+
+        if (!empty($filters['notLastFloor'])) {
+            $query->whereExists(function ($sq) {
+                $sq->select(DB::raw(1))
+                    ->from('apartments as ap')
+                    ->whereColumn('ap.block_id', 'complexes_search.complex_id')
+                    ->where('ap.is_active', 1)
+                    ->whereIn('ap.status', ['available', 'reserved'])
+                    ->whereColumn('ap.floor', '<', 'ap.floors');
+            });
+        }
+
+        if (!empty($filters['highFloor'])) {
+            $query->whereExists(function ($sq) {
+                $sq->select(DB::raw(1))
+                    ->from('apartments as ap')
+                    ->whereColumn('ap.block_id', 'complexes_search.complex_id')
+                    ->where('ap.is_active', 1)
+                    ->whereIn('ap.status', ['available', 'reserved'])
+                    ->where('ap.floor', '>', 10);
+            });
+        }
+
+        if (!empty($filters['hasPlan'])) {
+            $query->whereExists(function ($sq) {
+                $sq->select(DB::raw(1))
+                    ->from('apartments as ap')
+                    ->whereColumn('ap.block_id', 'complexes_search.complex_id')
+                    ->where('ap.is_active', 1)
+                    ->whereIn('ap.status', ['available', 'reserved'])
+                    ->whereNotNull('ap.plan_image')
+                    ->where('ap.plan_image', '!=', '');
+            });
         }
         
         // Фильтр по комнатности (через boolean колонки rooms_0..rooms_4)
@@ -159,18 +348,91 @@ class SearchService
                 });
             }
         }
+
+        // Фильтр по числу санузлов и высоте потолка на уровне квартир.
+        if (!empty($filters['wc']) && is_array($filters['wc'])) {
+            $wc = array_values(array_unique(array_filter(array_map('intval', $filters['wc']), fn (int $v) => $v >= 1)));
+            if ($wc !== []) {
+                $query->whereExists(function ($sq) use ($wc) {
+                    $sq->select(DB::raw(1))
+                        ->from('apartments_search as aps')
+                        ->whereColumn('aps.block_id', 'complexes_search.complex_id')
+                        ->where('aps.is_active', 1)
+                        ->whereIn('aps.status', ['available', 'reserved'])
+                        ->where(function ($wq) use ($wc) {
+                            foreach ($wc as $i => $minWc) {
+                                if ($i === 0) {
+                                    $wq->where('aps.wc_count', '>=', $minWc);
+                                } else {
+                                    $wq->orWhere('aps.wc_count', '>=', $minWc);
+                                }
+                            }
+                        });
+                });
+            }
+        }
+
+        if (
+            (isset($filters['ceilingHeightMin']) && $filters['ceilingHeightMin'] > 0) ||
+            (isset($filters['ceilingHeightMax']) && $filters['ceilingHeightMax'] > 0)
+        ) {
+            $min = isset($filters['ceilingHeightMin']) ? (float) $filters['ceilingHeightMin'] : null;
+            $max = isset($filters['ceilingHeightMax']) ? (float) $filters['ceilingHeightMax'] : null;
+
+            $query->whereExists(function ($sq) use ($min, $max) {
+                $sq->select(DB::raw(1))
+                    ->from('apartments_search as aps')
+                    ->whereColumn('aps.block_id', 'complexes_search.complex_id')
+                    ->where('aps.is_active', 1)
+                    ->whereIn('aps.status', ['available', 'reserved'])
+                    ->whereNotNull('aps.height');
+
+                if ($min !== null) {
+                    $sq->where('aps.height', '>=', $min);
+                }
+                if ($max !== null) {
+                    $sq->where('aps.height', '<=', $max);
+                }
+            });
+        }
         
         // Фильтр по району (frontend sends names)
         if (!empty($filters['district']) && is_array($filters['district'])) {
             $query->whereIn('district_name', $filters['district']);
         }
 
-        // Фильтр по метро — DB stores "Арбатская (3л)", frontend sends "Арбатская (3л)" (same format)
-        if (!empty($filters['subway']) && is_array($filters['subway'])) {
-            \Illuminate\Support\Facades\Log::debug('[SearchService] subway filter', [
-                'raw'  => $filters['subway'],
-            ]);
-            $query->whereIn('subway_name', $filters['subway']);
+        // Фильтр по метро: любая станция из block_subway (как у донора). complexes_search.subway_name —
+        // только ближайшая станция, из‑за этого whereIn(subway_name) давал 0 результатов.
+        if ($structuredSubwayNames !== []) {
+            $query->whereExists(function ($sq) use ($structuredSubwayNames) {
+                $sq->select(DB::raw(1))
+                    ->from('block_subway as bs')
+                    ->join('subways as sw', 'sw.id', '=', 'bs.subway_id')
+                    ->whereColumn('bs.block_id', 'complexes_search.complex_id')
+                    ->whereIn('sw.name', $structuredSubwayNames);
+            });
+        }
+
+        if (isset($filters['subwayTimeMax']) && in_array((int) $filters['subwayTimeMax'], [5, 10, 15], true)) {
+            $maxTime = (int) $filters['subwayTimeMax'];
+            $query->whereExists(function ($sq) use ($maxTime) {
+                $sq->select(DB::raw(1))
+                    ->from('block_subway as bs')
+                    ->whereColumn('bs.block_id', 'complexes_search.complex_id')
+                    ->where('bs.distance_time', '<=', $maxTime);
+            });
+        }
+
+        if (!empty($filters['subwayDistanceType']) && is_array($filters['subwayDistanceType'])) {
+            $types = array_values(array_unique(array_filter(array_map('intval', $filters['subwayDistanceType']), fn (int $t) => in_array($t, [1, 2], true))));
+            if ($types !== []) {
+                $query->whereExists(function ($sq) use ($types) {
+                    $sq->select(DB::raw(1))
+                        ->from('block_subway as bs')
+                        ->whereColumn('bs.block_id', 'complexes_search.complex_id')
+                        ->whereIn('bs.distance_type', $types);
+                });
+            }
         }
 
         // Фильтр по застройщику — LIKE match (handles minor name differences)
@@ -183,6 +445,31 @@ class SearchService
                     $q->orWhere('builder_name', 'LIKE', '%' . $dev . '%');
                 }
             });
+        }
+
+        if (!empty($filters['buildingType']) && is_array($filters['buildingType'])) {
+            $types = array_values(array_filter(array_map('trim', $filters['buildingType']), fn ($v) => $v !== ''));
+            if ($types !== []) {
+                $query->whereExists(function ($sq) use ($types) {
+                    $sq->select(DB::raw(1))
+                        ->from('buildings as b')
+                        ->join('building_types as bt', 'bt.id', '=', 'b.building_type_id')
+                        ->whereColumn('b.block_id', 'complexes_search.complex_id')
+                        ->whereIn('bt.name', $types);
+                });
+            }
+        }
+
+        if (!empty($filters['queue']) && is_array($filters['queue'])) {
+            $queues = array_values(array_filter(array_map('trim', $filters['queue']), fn ($v) => $v !== ''));
+            if ($queues !== []) {
+                $query->whereExists(function ($sq) use ($queues) {
+                    $sq->select(DB::raw(1))
+                        ->from('buildings as b')
+                        ->whereColumn('b.block_id', 'complexes_search.complex_id')
+                        ->whereIn('b.queue', $queues);
+                });
+            }
         }
         
         // Фильтр по отделке (через boolean колонки)
@@ -197,9 +484,36 @@ class SearchService
             });
         }
         
-        // Фильтр по сроку сдачи
+        // Фильтр по сроку сдачи.
+        // UI карты/каталога отдаёт упрощённые значения (например, "2025", "2026", "Сдан"),
+        // а в базе `complexes_search.deadline` хранит более детальные строки (например "2025 Q4").
+        // Поэтому поддерживаем:
+        // - год: deadline LIKE "2025%"
+        // - конкретное значение: deadline IN (...)
+        // - "Сдан": status = completed
         if (!empty($filters['deadline']) && is_array($filters['deadline'])) {
-            $query->whereIn('deadline', $filters['deadline']);
+            $values = array_values(array_unique(array_filter(array_map(
+                static fn ($v) => is_string($v) ? trim($v) : (string) $v,
+                $filters['deadline']
+            ), static fn ($v) => $v !== '')));
+
+            if ($values !== []) {
+                $years = array_values(array_filter($values, static fn ($v) => preg_match('/^\d{4}$/', $v) === 1));
+                $specialCompleted = in_array('Сдан', $values, true) || in_array('сдан', $values, true);
+                $exact = array_values(array_filter($values, static fn ($v) => preg_match('/^\d{4}$/', $v) !== 1 && mb_strtolower($v) !== 'сдан'));
+
+                $query->where(function ($q) use ($years, $exact, $specialCompleted) {
+                    foreach ($years as $year) {
+                        $q->orWhere('deadline', 'LIKE', $year . '%');
+                    }
+                    if ($exact !== []) {
+                        $q->orWhereIn('deadline', $exact);
+                    }
+                    if ($specialCompleted) {
+                        $q->orWhere('status', '=', 'completed');
+                    }
+                });
+            }
         }
         
         // Фильтр по статусу
@@ -223,10 +537,28 @@ class SearchService
      */
     private function applySorting($query, array $filters): void
     {
-        $sort = $filters['sort'] ?? 'price';
+        $sort = $filters['sort'] ?? 'price_asc';
         $order = $filters['order'] ?? 'asc';
         
         switch ($sort) {
+            case 'price_asc':
+                $query->orderBy('price_from', 'asc');
+                break;
+            case 'price_desc':
+                $query->orderBy('price_from', 'desc');
+                break;
+            case 'price_per_m2_asc':
+                $query->orderByRaw('(price_from / NULLIF(min_area, 0)) ASC');
+                break;
+            case 'price_per_m2_desc':
+                $query->orderByRaw('(price_from / NULLIF(min_area, 0)) DESC');
+                break;
+            case 'area_desc':
+                $query->orderBy('max_area', 'desc');
+                break;
+            case 'deadline_asc':
+                $query->orderBy('deadline', 'asc');
+                break;
             case 'price':
                 $query->orderBy('price_from', $order);
                 break;

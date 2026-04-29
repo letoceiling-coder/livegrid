@@ -2,7 +2,13 @@
 
 namespace App\Providers;
 
-// use Illuminate\Support\Facades\Gate;
+use App\Models\Catalog\Apartment;
+use App\Models\Catalog\Complex;
+use App\Models\LeadRequest;
+use App\Models\User;
+use App\Policies\LeadPolicy;
+use App\Policies\PropertyPolicy;
+use App\Policies\UserPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
 class AuthServiceProvider extends ServiceProvider
@@ -13,7 +19,10 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
-        // 'App\Models\Model' => 'App\Policies\ModelPolicy',
+        LeadRequest::class => LeadPolicy::class,
+        Apartment::class => PropertyPolicy::class,
+        Complex::class => PropertyPolicy::class,
+        User::class => UserPolicy::class,
     ];
 
     /**

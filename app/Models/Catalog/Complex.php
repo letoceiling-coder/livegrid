@@ -2,6 +2,8 @@
 
 namespace App\Models\Catalog;
 
+use App\Models\Team;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -30,6 +32,8 @@ class Complex extends Model
         'infrastructure',
         'seo_title',
         'seo_description',
+        'owner_id',
+        'team_id',
     ];
     
     protected $casts = [
@@ -38,6 +42,8 @@ class Complex extends Model
         'infrastructure' => 'array',
         'lat' => 'decimal:7',
         'lng' => 'decimal:7',
+        'owner_id' => 'integer',
+        'team_id' => 'integer',
     ];
     
     // Relationships
@@ -65,5 +71,15 @@ class Complex extends Model
     public function apartments(): HasMany
     {
         return $this->hasMany(Apartment::class, 'block_id');
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
     }
 }

@@ -1,30 +1,46 @@
 import { useEffect, useState } from 'react';
+import { getApiUrl, defaultFetchOptions } from '@/shared/config/api';
+import {
+  emptySuggestGrouped,
+  parseSuggestResponse,
+  type SuggestGroupedResponse,
+  suggestTotalCount,
+} from '@/api/suggestTypes';
 
-export function useSuggest(query: string) {
-  const [results, setResults] = useState<any[]>([]);
+export type { SuggestGroupedResponse };
+
+/**
+ * Подсказки для строки поиска: группы ЖК / метро / районы / улицы / застройщики.
+ */
+export function useSuggest(query: string): SuggestGroupedResponse {
+  const [data, setData] = useState<SuggestGroupedResponse>(emptySuggestGrouped);
 
   useEffect(() => {
     if (!query || query.length < 2) {
-      setResults([]);
+      setData(emptySuggestGrouped());
       return;
     }
 
     const controller = new AbortController();
 
-    const t = setTimeout(() => {
-      fetch(`/api/v1/search/suggest?q=${encodeURIComponent(query)}`, {
-        signal: controller.signal,
-      })
-        .then(res => res.json())
-        .then(setResults)
+    const t = window.setTimeout(() => {
+      const url = `${getApiUrl('search/suggest')}?${new URLSearchParams({ q: query.trim() }).toString()}`;
+      fetch(url, { ...defaultFetchOptions, signal: controller.signal })
+        .then(res => (res.ok ? res.json() : null))
+        .then(json => {
+          if (json == null) return;
+          setData(parseSuggestResponse(json));
+        })
         .catch(() => {});
     }, 300);
 
     return () => {
       controller.abort();
-      clearTimeout(t);
+      window.clearTimeout(t);
     };
   }, [query]);
 
-  return results;
+  return data;
 }
+
+export { suggestTotalCount };

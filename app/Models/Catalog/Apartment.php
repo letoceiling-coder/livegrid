@@ -3,6 +3,8 @@
 namespace App\Models\Catalog;
 
 use App\Models\Concerns\LogsChanges;
+use App\Models\Team;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -38,6 +40,8 @@ class Apartment extends Model
         'section',
         'last_seen_at',
         'locked_fields',
+        'owner_id',
+        'team_id',
     ];
 
     protected $casts = [
@@ -49,6 +53,8 @@ class Apartment extends Model
         'area_total'    => 'float',
         'area_kitchen'  => 'float',
         'locked_fields' => 'array',
+        'owner_id'      => 'integer',
+        'team_id'       => 'integer',
     ];
 
     public function complex(): BelongsTo
@@ -72,5 +78,15 @@ class Apartment extends Model
     public function roomType(): BelongsTo
     {
         return $this->belongsTo(RoomType::class, 'rooms_count', 'crm_id');
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
     }
 }

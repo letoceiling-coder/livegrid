@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ArrowLeft, MapPin, Loader2 } from 'lucide-react';
+import { ArrowLeft, MapPin } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ComplexHero from '@/redesign/components/ComplexHero';
 import ApartmentTable from '@/redesign/components/ApartmentTable';
@@ -12,6 +12,13 @@ import { useComplex } from '@/hooks/useComplex';
 
 declare global {
   interface Window { ymaps: any; }
+}
+
+function resolveRoomCategory(a: { roomCategory: number | null; rooms: number; roomName?: string | null }): number {
+  if (a.roomCategory !== null && a.roomCategory !== undefined) return a.roomCategory;
+  if (a.rooms === 0) return 0;
+  if (typeof a.roomName === 'string' && /студ/i.test(a.roomName)) return 0;
+  return a.rooms;
 }
 
 const RedesignComplex = () => {
@@ -36,7 +43,7 @@ const RedesignComplex = () => {
     buildings.flatMap(b => Array.isArray(b.apartments) ? b.apartments : [])
       .filter((a: { status: string }) => a.status !== 'sold')
       .forEach((a: { roomCategory: number | null; rooms: number; roomName: string }) => {
-        const cat = a.roomCategory ?? a.rooms;
+        const cat = resolveRoomCategory(a);
         if (!map.has(cat)) {
           map.set(cat, a.roomName || (cat === 0 ? 'Студия' : `${cat}-комн.`));
         }
@@ -51,12 +58,14 @@ const RedesignComplex = () => {
     // Filter by room_category so "2Е-к.кв" matches when user selects "2-комн."
     if (roomFilter !== null) {
       apts = apts.filter((a: { roomCategory: number | null; rooms: number }) =>
-        (a.roomCategory ?? a.rooms) === roomFilter
+        resolveRoomCategory(a) === roomFilter
       );
     }
     apts.sort((a: any, b: any) => {
       const m = sort.dir === 'asc' ? 1 : -1;
-      return (a[sort.field] - b[sort.field]) * m;
+      const left = sort.field === 'rooms' ? resolveRoomCategory(a) : a[sort.field];
+      const right = sort.field === 'rooms' ? resolveRoomCategory(b) : b[sort.field];
+      return (left - right) * m;
     });
     return apts;
   }, [buildings, sort, roomFilter]);
@@ -71,7 +80,7 @@ const RedesignComplex = () => {
       .flatMap(b => Array.isArray(b.apartments) ? b.apartments : [])
       .filter((a: { status: string }) => a.status === 'available')
       .forEach((a: { id: string; roomCategory: number | null; rooms: number; roomName: string; area: number; price: number; planImage: string }) => {
-        const cat = a.roomCategory ?? a.rooms;
+        const cat = resolveRoomCategory(a);
         if (!groups[cat]) {
           groups[cat] = { rooms: cat, roomName: a.roomName, minArea: a.area, minPrice: a.price, planImage: a.planImage, count: 0, apartmentId: a.id };
         }
@@ -126,9 +135,16 @@ const RedesignComplex = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-1 flex-col min-h-0 bg-background">
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex flex-1 flex-col min-h-0 bg-background animate-in fade-in duration-200">
+        <div className="max-w-[1400px] mx-auto w-full px-4 py-6 space-y-6">
+          <div className="h-10 w-40 rounded-lg bg-muted animate-pulse" />
+          <div className="h-[220px] sm:h-[280px] rounded-2xl bg-muted/80 animate-pulse" />
+          <div className="grid sm:grid-cols-3 gap-3">
+            <div className="h-24 rounded-xl bg-muted/70 animate-pulse" />
+            <div className="h-24 rounded-xl bg-muted/70 animate-pulse" />
+            <div className="h-24 rounded-xl bg-muted/70 animate-pulse" />
+          </div>
+          <div className="h-12 max-w-md rounded-lg bg-muted/60 animate-pulse" />
         </div>
       </div>
     );
