@@ -1,0 +1,184 @@
+---
+description: LiveGrid production architecture protection — Laravel API source of truth, import pipeline, map/frontend/DB safety
+alwaysApply: true
+---
+
+# LiveGrid Architecture Protection Rules
+
+## CRITICAL ARCHITECTURE RULES
+
+LiveGrid is a production Laravel + React monolith.
+
+Source of truth:
+
+* Laravel routes/api.php
+* Laravel controllers
+* Laravel services
+* Existing production DB schema
+
+IMPORTANT:
+deployment/tmp-lg-work is NOT source of truth.
+NestJS endpoints inside tmp-lg-work MUST NOT be treated as production API.
+
+Frontend MUST ONLY use endpoints that реально существуют в Laravel routes/api.php.
+
+---
+
+# FORBIDDEN
+
+DO NOT:
+
+* invent new API contracts
+* use NestJS routes from tmp-lg-work
+* create duplicate architecture
+* create parallel backend systems
+* replace existing import pipeline
+* rewrite FeedImporter
+* rewrite UpsertService
+* rewrite ArchiveService
+* create alternative search systems
+* create duplicate state managers
+* create duplicate map APIs
+* create fake SSR architecture
+* create mock backend logic
+
+---
+
+# IMPORT PIPELINE PROTECTION
+
+These files are HIGH RISK:
+
+* app/Services/Catalog/Import/FeedImporter.php
+* app/Services/Catalog/Import/UpsertService.php
+* app/Services/Catalog/Import/ArchiveService.php
+
+DO NOT modify them unless explicitly requested.
+
+Before touching:
+
+* perform architecture audit
+* explain risks
+* explain DB impact
+* explain import impact
+* explain rollback strategy
+
+---
+
+# FRONTEND RULES
+
+React frontend MUST:
+
+* follow existing architecture
+* reuse hooks
+* reuse API layer
+* reuse query patterns
+* reuse route patterns
+* reuse layouts
+* reuse UI system
+
+DO NOT:
+
+* create duplicate hooks
+* create duplicate filter systems
+* create duplicate API clients
+* create giant monolithic components
+* bypass existing query layer
+
+---
+
+# MAP RULES
+
+Current production backend:
+
+* Laravel API
+* routes/api.php
+
+Current problem:
+RedesignMap expects NestJS endpoints.
+
+DO NOT:
+
+* invent fake Laravel endpoints
+* hardcode temporary endpoints
+* create compatibility hacks
+
+ALWAYS:
+
+* verify route exists in Laravel
+* verify controller exists
+* verify response shape
+
+---
+
+# DATABASE RULES
+
+DO NOT:
+
+* use migrate:fresh
+* drop tables
+* rewrite production schema
+* remove foreign keys
+* change UUID strategy
+
+ALWAYS:
+
+* create forward-safe migrations
+* explain migration risks
+* preserve production integrity
+
+---
+
+# ENGINEERING PROCESS
+
+ALWAYS:
+
+1. analyze
+2. plan
+3. explain risks
+4. implement
+5. review
+6. audit
+7. verify
+
+NEVER:
+
+* immediately code
+* blindly refactor
+* rewrite architecture
+* remove legacy code without analysis
+
+---
+
+# PRODUCTION SAFETY
+
+Production is sensitive.
+
+Before any risky changes:
+
+* explain impact
+* explain affected files
+* explain rollback plan
+* explain DB risks
+* explain API risks
+
+---
+
+# CODE QUALITY
+
+Prefer:
+
+* small composable components
+* strict typing
+* reusable hooks
+* existing patterns
+* production-safe logic
+* explicit validation
+* stable architecture
+
+Avoid:
+
+* massive components
+* duplicated business logic
+* hidden side effects
+* implicit state mutations
+* magic behavior

@@ -1,0 +1,83 @@
+/** PM2 ecosystem — secrets from server .env, never hardcoded in repo. */
+const fs = require('fs');
+const path = require('path');
+
+const deployRoot = process.env.DEPLOY_ROOT || '/var/www/lg';
+
+function parseDotEnv(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  const env = {};
+  for (const raw of fs.readFileSync(filePath, 'utf8').split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    let val = line.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    env[key] = val;
+  }
+  return env;
+}
+
+const fileEnv = parseDotEnv(path.join(deployRoot, '.env'));
+const pick = (key, fallback = '') =>
+  fileEnv[key] || process.env[key] || fallback;
+
+const publicSiteUrl = pick('PUBLIC_SITE_URL', 'https://livegrid.ru');
+
+if (!pick('DATABASE_URL')) {
+  console.warn(
+    `[ecosystem] WARN: DATABASE_URL missing in ${deployRoot}/.env — lg-api will not start until .env is configured`,
+  );
+}
+
+module.exports = {
+  apps: [
+    {
+      name: 'lg-api',
+      cwd: `${deployRoot}/apps/api`,
+      script: 'dist/main.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        PUBLIC_SITE_URL: publicSiteUrl,
+        NODE_ENV: 'production',
+        API_PORT: pick('API_PORT', '3000'),
+        API_PREFIX: pick('API_PREFIX', '/api/v1'),
+        DATABASE_URL: pick('DATABASE_URL'),
+        REDIS_URL: pick('REDIS_URL', 'redis://127.0.0.1:6379'),
+        JWT_ACCESS_SECRET: pick('JWT_ACCESS_SECRET'),
+        JWT_REFRESH_SECRET: pick('JWT_REFRESH_SECRET'),
+        TRENDAGENT_BASE_URL: pick('TRENDAGENT_BASE_URL', 'https://dataout.trendagent.ru'),
+        TRENDAGENT_DEFAULT_REGION: pick('TRENDAGENT_DEFAULT_REGION', 'msk'),
+        TRENDAGENT_REGIONS: pick('TRENDAGENT_REGIONS', 'msk'),
+        TELEGRAM_WEBHOOK_URL:
+          pick('TELEGRAM_WEBHOOK_URL') ||
+          `${publicSiteUrl.replace(/\/$/, '')}/api/v1/telegram-bot/webhook`,
+        SENTRY_DSN_API: pick('SENTRY_DSN_API', pick('SENTRY_DSN')),
+        SENTRY_ENVIRONMENT: pick('SENTRY_ENVIRONMENT', 'production'),
+        SENTRY_TRACES_SAMPLE_RATE: pick('SENTRY_TRACES_SAMPLE_RATE', '0.1'),
+        SENTRY_RELEASE: pick('SENTRY_RELEASE'),
+        METRICS_BEARER_TOKEN: pick('METRICS_BEARER_TOKEN'),
+        FEED_LOCAL_DIR: pick('FEED_LOCAL_DIR'),
+        FEED_IMPORT_DISABLE_REPEAT: pick('FEED_IMPORT_DISABLE_REPEAT'),
+        CORS_ORIGINS: pick(
+          'CORS_ORIGINS',
+          'https://lg.pfrpro.com,https://livegrid.ru,http://localhost:5173',
+        ),
+        MEDIA_ROOT: pick('MEDIA_ROOT', `${deployRoot}/uploads`),
+      },
+      max_memory_restart: '1G',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+      error_file: '/var/log/lg/api-error.log',
+      out_file: '/var/log/lg/api-out.log',
+      merge_logs: true,
+    },
+  ],
+};

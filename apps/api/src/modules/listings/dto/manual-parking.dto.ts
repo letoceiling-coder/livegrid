@@ -1,0 +1,192 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { ManualSellerDto } from './manual-seller.dto';
+
+const PARKING_TYPES = ['UNDERGROUND', 'GROUND', 'MULTILEVEL'] as const;
+
+export class ManualParkingFieldsDto {
+  @ApiPropertyOptional({ enum: PARKING_TYPES })
+  @IsOptional()
+  @IsIn(PARKING_TYPES)
+  parkingType?: (typeof PARKING_TYPES)[number];
+
+  @ApiPropertyOptional({ example: 16.5 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  area?: number;
+
+  @ApiPropertyOptional({ example: -1 })
+  @IsOptional()
+  @IsInt()
+  floor?: number;
+
+  @ApiPropertyOptional({ example: 'A-114' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  number?: string;
+
+  @ApiPropertyOptional({ example: '/uploads/media/parking/main.jpg' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  photoUrl?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'Дополнительные фото из медиатеки' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(24)
+  @IsString({ each: true })
+  @MaxLength(2048, { each: true })
+  extraPhotoUrls?: string[];
+}
+
+export class CreateManualParkingDto {
+  @ApiProperty()
+  @IsInt()
+  @Min(1)
+  regionId: number;
+
+  @ApiPropertyOptional({ description: 'ID ЖК (должен быть в том же регионе)' })
+  @IsOptional()
+  @IsInt()
+  blockId?: number;
+
+  @ApiProperty({ example: 2_400_000 })
+  @IsNumber()
+  @Min(1)
+  price: number;
+
+  @ApiPropertyOptional({ enum: ['ACTIVE', 'DRAFT', 'RESERVED', 'SOLD', 'INACTIVE'] })
+  @IsOptional()
+  @IsIn(['ACTIVE', 'DRAFT', 'RESERVED', 'SOLD', 'INACTIVE'])
+  status?: string;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
+
+  @ApiPropertyOptional({ description: 'Адрес объекта для карточки/карты' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'Широта для отображения на карте' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  @ApiPropertyOptional({ description: 'Долгота для отображения на карте' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
+
+  @ApiPropertyOptional({ type: ManualSellerDto, description: 'Необязательная информация о продавце объекта' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ManualSellerDto)
+  seller?: ManualSellerDto | null;
+
+  @ApiProperty({ type: ManualParkingFieldsDto })
+  @ValidateNested()
+  @Type(() => ManualParkingFieldsDto)
+  parking: ManualParkingFieldsDto;
+}
+
+export class ManualParkingPatchDto {
+  @ApiPropertyOptional({ enum: PARKING_TYPES })
+  @IsOptional()
+  @IsIn(PARKING_TYPES)
+  parkingType?: (typeof PARKING_TYPES)[number] | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  area?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  floor?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  number?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  photoUrl?: string | null;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(24)
+  @IsString({ each: true })
+  @MaxLength(2048, { each: true })
+  extraPhotoUrls?: string[] | null;
+}
+
+export class UpdateManualParkingDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  blockId?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  price?: number;
+
+  @ApiPropertyOptional({ enum: ['ACTIVE', 'DRAFT', 'RESERVED', 'SOLD', 'INACTIVE'] })
+  @IsOptional()
+  @IsIn(['ACTIVE', 'DRAFT', 'RESERVED', 'SOLD', 'INACTIVE'])
+  status?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
+
+  @ApiPropertyOptional({ type: ManualSellerDto, description: 'Необязательная информация о продавце объекта' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ManualSellerDto)
+  seller?: ManualSellerDto | null;
+
+  @ApiPropertyOptional({ type: ManualParkingPatchDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ManualParkingPatchDto)
+  parking?: ManualParkingPatchDto;
+}
+
+

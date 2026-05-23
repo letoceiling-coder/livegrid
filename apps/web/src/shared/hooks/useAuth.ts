@@ -1,0 +1,199 @@
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import type { UserProfile, UserRole } from '@/shared/types';
+import {
+  apiPost,
+  apiGet,
+  setTokens,
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+} from '@/lib/api';
+
+interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+interface MeResponse {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  fullName: string | null;
+  avatarUrl?: string | null;
+  role: string;
+  telegramUsername?: string | null;
+  /** Есть привязанный Telegram (даже без публичного @username) */
+  telegramLinked?: boolean;
+  isActive: boolean;
+}
+
+interface AuthState {
+  isAuthenticated: boolean;
+  user: UserProfile | null;
+  loading: boolean;
+  /** Email или телефон (как в форме входа) + пароль */
+  login: (identifier: string, password: string) => Promise<void>;
+  loginWithTelegram: (payload: Record<string, unknown>) => Promise<void>;
+  linkTelegram: (payload: Record<string, unknown>) => Promise<void>;
+  linkEmail: (email: string, password: string) => Promise<void>;
+  refreshMe: () => Promise<void>;
+  register: (data: { name: string; phone: string; email: string; password: string }) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthState | null>(null);
+
+export const AuthProvider = AuthContext.Provider;
+
+function meToProfile(me: MeResponse): UserProfile {
+  const email = me.email ?? null;
+  const display =
+    me.fullName?.trim() ||
+    (email ? email : me.telegramUsername ? `@${me.telegramUsername}` : 'Пользователь');
+  return {
+    id: me.id,
+    name: display,
+    phone: me.phone || '',
+    email,
+    role: me.role as UserRole,
+    avatar: me.avatarUrl ?? undefined,
+    telegramUsername: me.telegramUsername ?? null,
+    telegramLinked:
+      me.telegramLinked ??
+      !!(me.telegramUsername && String(me.telegramUsername).trim()),
+  };
+}
+
+export function useAuthState(): AuthState {
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    try {
+      const stored = localStorage.getItem('lg_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(() => !!getAccessToken());
+  const initDone = useRef(false);
+
+  const applyMe = useCallback((me: MeResponse) => {
+    const profile = meToProfile(me);
+    setUser(profile);
+    localStorage.setItem('lg_user', JSON.stringify(profile));
+  }, []);
+
+  const refreshMe = useCallback(async () => {
+    const me = await apiGet<MeResponse>('/auth/me');
+    applyMe(me);
+  }, [applyMe]);
+
+  useEffect(() => {
+    if (initDone.current) return;
+    initDone.current = true;
+    const token = getAccessToken();
+    if (!token) { setLoading(false); return; }
+    apiGet<MeResponse>('/auth/me')
+      .then(applyMe)
+      .catch(async () => {
+        const rt = getRefreshToken();
+        if (rt) {
+          try {
+            const tokens = await apiPost<AuthTokens>('/auth/refresh', { refreshToken: rt });
+            setTokens(tokens.accessToken, tokens.refreshToken);
+            const me = await apiGet<MeResponse>('/auth/me');
+            applyMe(me);
+          } catch {
+            clearTokens();
+            setUser(null);
+            localStorage.removeItem('lg_user');
+          }
+        } else {
+          clearTokens();
+          setUser(null);
+          localStorage.removeItem('lg_user');
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [applyMe]);
+
+  const login = useCallback(async (identifier: string, password: string) => {
+    const trimmed = identifier.trim();
+    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+    const body = looksLikeEmail
+      ? { email: trimmed, password }
+      : { phone: trimmed, password };
+    const tokens = await apiPost<AuthTokens>('/auth/login', body);
+    setTokens(tokens.accessToken, tokens.refreshToken);
+    const me = await apiGet<MeResponse>('/auth/me');
+    applyMe(me);
+  }, [applyMe]);
+
+  const loginWithTelegram = useCallback(async (payload: Record<string, unknown>) => {
+    const body: Record<string, string> = {};
+    for (const [k, v] of Object.entries(payload)) {
+      if (v === undefined || v === null) continue;
+      body[k] = typeof v === 'string' ? v : String(v);
+    }
+    const tokens = await apiPost<AuthTokens>('/auth/telegram', body);
+    setTokens(tokens.accessToken, tokens.refreshToken);
+    const me = await apiGet<MeResponse>('/auth/me');
+    applyMe(me);
+  }, [applyMe]);
+
+  const linkTelegram = useCallback(async (payload: Record<string, unknown>) => {
+    const body: Record<string, string> = {};
+    for (const [k, v] of Object.entries(payload)) {
+      if (v === undefined || v === null) continue;
+      body[k] = typeof v === 'string' ? v : String(v);
+    }
+    const tokens = await apiPost<AuthTokens>('/auth/link-telegram', body);
+    setTokens(tokens.accessToken, tokens.refreshToken);
+    const me = await apiGet<MeResponse>('/auth/me');
+    applyMe(me);
+  }, [applyMe]);
+
+  const linkEmail = useCallback(async (email: string, password: string) => {
+    const tokens = await apiPost<AuthTokens>('/auth/link-email', { email, password });
+    setTokens(tokens.accessToken, tokens.refreshToken);
+    const me = await apiGet<MeResponse>('/auth/me');
+    applyMe(me);
+  }, [applyMe]);
+
+  const register = useCallback(async (data: { name: string; phone: string; email: string; password: string }) => {
+    const tokens = await apiPost<AuthTokens>('/auth/register', {
+      fullName: data.name.trim(),
+      phone: data.phone.trim(),
+      email: data.email.trim(),
+      password: data.password,
+    });
+    setTokens(tokens.accessToken, tokens.refreshToken);
+    const me = await apiGet<MeResponse>('/auth/me');
+    applyMe(me);
+  }, [applyMe]);
+
+  const logout = useCallback(async () => {
+    try { await apiPost('/auth/logout', {}); } catch { /* ignore */ }
+    clearTokens();
+    setUser(null);
+    localStorage.removeItem('lg_user');
+  }, []);
+
+  return {
+    isAuthenticated: !!user,
+    user,
+    loading,
+    login,
+    loginWithTelegram,
+    linkTelegram,
+    linkEmail,
+    refreshMe,
+    register,
+    logout,
+  };
+}
+
+export function useAuth(): AuthState {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be inside AuthProvider');
+  return ctx;
+}

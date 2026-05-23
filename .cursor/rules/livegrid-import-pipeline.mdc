@@ -1,0 +1,216 @@
+---
+description: LiveGrid import pipeline protection and feed integrity rules
+alwaysApply: true
+---
+
+# LiveGrid Import Pipeline Protection
+
+## CRITICAL IMPORT SYSTEM
+
+LiveGrid contains a production feed import system.
+
+This system processes:
+
+* ~63k apartments
+* buildings
+* blocks
+* reference tables
+* search synchronization
+* archive logic
+* denormalized search data
+
+The import pipeline is HIGH RISK.
+
+---
+
+# CRITICAL FILES
+
+These files are production-critical:
+
+* app/Services/Catalog/Import/FeedImporter.php
+* app/Services/Catalog/Import/UpsertService.php
+* app/Services/Catalog/Import/ArchiveService.php
+* app/Services/Catalog/Import/BlockImporter.php
+* app/Services/Catalog/Import/BuildingImporter.php
+* app/Services/Catalog/Search/*
+* app/Console/Commands/SyncComplexesSearchCommand.php
+
+DO NOT modify these files casually.
+
+---
+
+# IMPORT ARCHITECTURE RULES
+
+The system uses:
+
+* UUID-based architecture
+* source_id + external_id uniqueness
+* bulk upserts
+* archive synchronization
+* last_seen_at logic
+* chunk processing
+* denormalized search tables
+* feed synchronization
+
+DO NOT:
+
+* replace UUID strategy
+* remove uniqueness guarantees
+* rewrite import architecture
+* introduce row-by-row imports
+* bypass bulk operations
+* change archive semantics
+* rewrite synchronization logic
+* introduce destructive migrations
+
+---
+
+# ARCHIVE SAFETY
+
+Archive logic is CRITICAL.
+
+last_seen_at and is_active control production archive state.
+
+DO NOT:
+
+* change archive conditions blindly
+* move archive execution order
+* remove last_seen_at updates
+* archive during partial imports
+* modify archive flow without analysis
+
+ALWAYS:
+
+* explain archive impact
+* explain rollback strategy
+* explain integrity risks
+
+---
+
+# IMPORT PERFORMANCE RULES
+
+The system is optimized for:
+
+* large feeds
+* chunk processing
+* batch updates
+* streaming JSON parsing
+
+DO NOT:
+
+* load entire feeds into memory
+* create N+1 import queries
+* introduce per-row DB writes
+* introduce unnecessary ORM loops
+
+Prefer:
+
+* chunk processing
+* batch operations
+* bulk inserts
+* bulk updates
+* existing import patterns
+
+---
+
+# FOREIGN KEY SAFETY
+
+Foreign key integrity is mandatory.
+
+DO NOT:
+
+* create fake FK values
+* bypass FK validation
+* create orphan apartments
+* create orphan buildings
+
+ALWAYS:
+
+* validate FK existence
+* preserve import order
+* preserve mapping logic
+
+---
+
+# SEARCH SYNCHRONIZATION
+
+Search synchronization is sensitive.
+
+complexes_search and apartments_search are production-critical.
+
+DO NOT:
+
+* rewrite synchronization blindly
+* change search indexing flow
+* bypass sync jobs
+* introduce inconsistent search state
+
+ALWAYS:
+
+* explain synchronization impact
+* explain queue impact
+* explain rebuild impact
+
+---
+
+# MIGRATION RULES
+
+Import-related migrations are HIGH RISK.
+
+DO NOT:
+
+* drop import tables
+* rewrite production schema
+* change UUID columns
+* remove indexes
+* remove constraints
+
+ALWAYS:
+
+* create forward-safe migrations
+* preserve existing data
+* explain migration impact
+* explain rollback plan
+
+---
+
+# ENGINEERING PROCESS
+
+Before touching import logic:
+
+1. perform import audit
+2. explain risks
+3. explain DB impact
+4. explain performance impact
+5. explain rollback strategy
+6. implement minimal safe change
+7. verify integrity
+
+---
+
+# TESTING RULES
+
+Changes affecting import MUST verify:
+
+* no duplicates
+* FK integrity
+* archive correctness
+* chunk stability
+* search sync integrity
+* unchanged import behavior
+* idempotency
+
+---
+
+# PROHIBITED ACTIONS
+
+NEVER:
+
+* rewrite import system from scratch
+* replace bulk upserts with ORM loops
+* remove archive logic
+* replace feed architecture
+* create parallel import systems
+* perform blind refactors
+
+Prefer minimal targeted changes only.

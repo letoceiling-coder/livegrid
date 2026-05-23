@@ -1,0 +1,654 @@
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { MapPin, Heart, Share2, GitCompare, FileText, Building2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import RedesignHeader from '@/redesign/components/RedesignHeader';
+import FooterSection from '@/components/FooterSection';
+import ComplexHero from '@/redesign/components/ComplexHero';
+import ComplexAnchorNav, { type ComplexSection } from '@/redesign/components/ComplexAnchorNav';
+import ApartmentTypeGroups from '@/redesign/components/ApartmentTypeGroups';
+import Chessboard from '@/redesign/components/Chessboard';
+import ChessDebugOverlay from '@/redesign/components/ChessDebugOverlay';
+import ConversionDebugOverlay from '@/redesign/components/ConversionDebugOverlay';
+import ConsultationFlow from '@/redesign/components/ConsultationFlow';
+import { CONVERSION_CTA, type ConsultationContext } from '@/redesign/lib/conversion-cta';
+import LayoutGrid from '@/redesign/components/LayoutGrid';
+import MissingPhotoPlaceholder from '@/redesign/components/MissingPhotoPlaceholder';
+import LeadForm from '@/shared/components/LeadForm';
+import { apiGet, apiGetOrNull } from '@/lib/api';
+import {
+  formatPriceFrom,
+  formatPriceRangeDisplay,
+  formatDisplayPrice,
+  priceAriaLabel,
+  isPriceHidden,
+} from '@/redesign/lib/display-price';
+import { complexes, getComplexBySlug, getLayoutGroups } from '@/redesign/data/mock-data';
+import type { ResidentialComplex, SortField, SortDir } from '@/redesign/data/types';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/shared/hooks/useAuth';
+import { parseApiBlockId, useFavorites } from '@/shared/hooks/useFavorites';
+import { useCompare } from '@/shared/hooks/useCompare';
+import { shareCurrentPage } from '@/lib/share-page';
+import { toast } from '@/components/ui/sonner';
+import { useYandexMapsReady } from '@/shared/hooks/useYandexMapsReady';
+import { prefersReducedMotion } from '@/redesign/lib/map-sidebar-scroll-utils';
+import {
+  buildLayoutGroupsFromApartments,
+  mapApiBlockDetailToResidentialComplex,
+  mapApiBlockListRowToResidentialComplex,
+  type ApiBlockDetail,
+  type ApiBlockListRow,
+  type ApiListingRow,
+} from '@/redesign/lib/blocks-from-api';
+
+declare global {
+  interface Window { ymaps: any; }
+}
+
+const COMPLEX_SLUG_ALIASES: Record<string, string> = {
+  'zelenyj-kvartal': '1-j-lermontovskij',
+};
+
+const SimilarComplexCard = ({ complex }: { complex: ResidentialComplex }) => {
+  const [imgFailed, setImgFailed] = useState(false);
+  const totalApts =
+    complex.listingCount ??
+    complex.buildings.reduce((s, b) => s + b.apartments.filter((a) => a.status === 'available').length, 0);
+  return (
+    <Link
+      to={`/complex/${complex.slug}`}
+      className="group flex flex-col rounded-xl overflow-hidden bg-card border border-border hover:shadow-md hover:-translate-y-px transition-all"
+    >
+      <div className="aspect-video overflow-hidden bg-muted">
+        {complex.images[0] && !imgFailed ? (
+          <img
+            src={complex.images[0]}
+            alt={complex.name}
+            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+          />
+        ) : (
+          <MissingPhotoPlaceholder />
+        )}
+      </div>
+      <div className="p-3 space-y-1">
+        <h4 className="font-semibold text-sm">{complex.name}</h4>
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <MapPin className="w-3 h-3" />
+          {complex.district} · м. {complex.subway}
+        </p>
+        <div className="flex items-center justify-between pt-1">
+          <span className="font-bold text-sm text-primary" aria-label={priceAriaLabel(formatPriceFrom(complex.priceFrom))}>
+            {formatPriceFrom(complex.priceFrom)}
+          </span>
+          <span className="text-[11px] text-muted-foreground">{totalApts} кв.</span>
+        </div>
+      </div>
+    </Link>
+  );
+};
+
+function sectionHeading(title: string, subtitle?: string) {
+  return (
+    <div className="mb-4">
+      <h2 className="text-lg sm:text-xl font-bold">{title}</h2>
+      {subtitle ? <p className="text-sm text-muted-foreground mt-1">{subtitle}</p> : null}
+    </div>
+  );
+}
+
+const RedesignComplex = () => {
+  const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const { isBlockFavorite, toggleBlock } = useFavorites();
+  const { isCompared, toggle: toggleCompare, count: compareCount } = useCompare();
+  const { ready: ymapsReady } = useYandexMapsReady();
+  const mockComplex = useMemo(() => getComplexBySlug(slug || ''), [slug]);
+  const resolvedSlug = useMemo(() => {
+    const raw = (slug || '').trim();
+    if (!raw) return raw;
+    return COMPLEX_SLUG_ALIASES[raw] ?? raw;
+  }, [slug]);
+
+  const apiBlockQuery = useQuery({
+    queryKey: ['block', 'slug', resolvedSlug],
+    queryFn: () => apiGetOrNull<ApiBlockDetail>(`/blocks/${encodeURIComponent(resolvedSlug || '')}`),
+    enabled: Boolean(resolvedSlug),
+  });
+
+  const listingsQuery = useQuery({
+    queryKey: ['listings', 'block', apiBlockQuery.data?.id],
+    queryFn: () =>
+      apiGet<{ data: ApiListingRow[] }>(
+        `/listings?block_id=${apiBlockQuery.data!.id}&kind=APARTMENT&statuses=ACTIVE,RESERVED,SOLD&is_published=true&per_page=500`,
+      ),
+    enabled: Boolean(apiBlockQuery.data?.id),
+  });
+
+  const apiComplex = useMemo(() => {
+    if (!apiBlockQuery.data) return null;
+    const rows = listingsQuery.data?.data ?? [];
+    return mapApiBlockDetailToResidentialComplex(apiBlockQuery.data, rows);
+  }, [apiBlockQuery.data, listingsQuery.data]);
+
+  const complex = apiComplex ?? mockComplex ?? null;
+  const fromApi = Boolean(apiComplex);
+  const blockNum = complex ? parseApiBlockId(complex.id) : null;
+  const blockLiked = blockNum != null && isBlockFavorite(blockNum);
+
+  const similarQuery = useQuery({
+    queryKey: ['blocks', 'similar', apiBlockQuery.data?.region?.id, apiBlockQuery.data?.id],
+    queryFn: async () => {
+      const b = apiBlockQuery.data!;
+      const rid = b.region?.id;
+      if (rid == null) return [] as ResidentialComplex[];
+      const res = await apiGet<{ data: ApiBlockListRow[] }>(`/blocks?region_id=${rid}&per_page=8`);
+      return res.data
+        .filter((row) => row.id !== b.id)
+        .slice(0, 4)
+        .map(mapApiBlockListRowToResidentialComplex);
+    },
+    enabled: Boolean(fromApi && apiBlockQuery.data?.region?.id != null && apiBlockQuery.data?.id),
+  });
+
+  const [sort, setSort] = useState<{ field: SortField; dir: SortDir }>({ field: 'price', dir: 'asc' });
+  const [activeBuildingId, setActiveBuildingId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState('');
+  const [consultOpen, setConsultOpen] = useState(false);
+  const [consultContext, setConsultContext] = useState<ConsultationContext | null>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const mapInitializedRef = useRef(false);
+
+  const allApartments = useMemo(() => {
+    if (!complex) return [];
+    const apts = complex.buildings.flatMap((b) => b.apartments).filter((a) => a.status !== 'sold');
+    apts.sort((a, b) => {
+      const m = sort.dir === 'asc' ? 1 : -1;
+      return (a[sort.field] - b[sort.field]) * m;
+    });
+    return apts;
+  }, [complex, sort]);
+
+  const layouts = useMemo(() => {
+    if (!complex) return [];
+    if (fromApi) {
+      const apts = complex.buildings.flatMap((b) => b.apartments);
+      return buildLayoutGroupsFromApartments(complex.id, apts);
+    }
+    return getLayoutGroups(complex.id);
+  }, [complex, fromApi]);
+
+  const similarComplexes = useMemo((): ResidentialComplex[] => {
+    if (!complex) return [];
+    if (similarQuery.data?.length) return similarQuery.data;
+    return complexes.filter((c) => c.id !== complex.id).slice(0, 4);
+  }, [complex, similarQuery.data]);
+
+  const buildings = complex?.buildings ?? [];
+  const activeBuilding = useMemo(() => {
+    if (!buildings.length) return null;
+    if (activeBuildingId) {
+      return buildings.find((b) => b.id === activeBuildingId) ?? buildings[0];
+    }
+    return buildings[0];
+  }, [buildings, activeBuildingId]);
+
+  useEffect(() => {
+    if (buildings.length && !activeBuildingId) {
+      setActiveBuildingId(buildings[0].id);
+    }
+  }, [buildings, activeBuildingId]);
+
+  const hasApartments = allApartments.length > 0;
+  const hasLayouts = layouts.length > 0;
+  const hasChess = buildings.some((b) => b.apartments.length > 0);
+  const hasDescription = Boolean(complex?.description?.trim());
+  const hasInfra = (complex?.infrastructure.length ?? 0) > 0;
+  const hasMap =
+    complex != null &&
+    Array.isArray(complex.coords) &&
+    complex.coords.length === 2 &&
+    Number.isFinite(complex.coords[0]) &&
+    Number.isFinite(complex.coords[1]) &&
+    (complex.coords[0] !== 0 || complex.coords[1] !== 0);
+  const hasDeveloper = Boolean(complex?.builder?.trim() && complex.builder !== '—');
+  const hasBuildings = buildings.length > 0;
+
+  const navSections = useMemo((): ComplexSection[] => {
+    const s: ComplexSection[] = [];
+    if (hasBuildings) s.push({ id: 'buildings', label: 'Корпуса' });
+    if (hasApartments) s.push({ id: 'apartments', label: 'Квартиры' });
+    if (hasChess) s.push({ id: 'chess', label: 'Шахматка' });
+    if (hasLayouts) s.push({ id: 'layouts', label: 'Планировки' });
+    if (hasDescription) s.push({ id: 'description', label: 'Описание' });
+    if (hasInfra) s.push({ id: 'infrastructure', label: 'Инфраструктура' });
+    if (hasMap) s.push({ id: 'map', label: 'Карта' });
+    if (hasDeveloper) s.push({ id: 'developer', label: 'Застройщик' });
+    s.push({ id: 'lead', label: 'Заявка' });
+    if (similarComplexes.length > 0) s.push({ id: 'similar', label: 'Похожие' });
+    return s;
+  }, [hasApartments, hasChess, hasDescription, hasInfra, hasMap, hasDeveloper, hasBuildings, hasLayouts, similarComplexes.length]);
+
+  const initMap = useCallback(() => {
+    if (!ymapsReady || !complex || mapInstanceRef.current || !mapRef.current || !window.ymaps) return;
+    window.ymaps.ready(() => {
+      if (!mapRef.current || mapInstanceRef.current) return;
+      const map = new window.ymaps.Map(mapRef.current, {
+        center: complex.coords,
+        zoom: 15,
+        controls: ['zoomControl'],
+      });
+      const pm = new window.ymaps.Placemark(
+        complex.coords,
+        {
+          balloonContentHeader: `<strong>${complex.name}</strong>`,
+          balloonContentBody: `<div>${complex.address}</div>`,
+        },
+        { preset: 'islands#blueCircleDotIcon' },
+      );
+      map.geoObjects.add(pm);
+      mapInstanceRef.current = map;
+      mapInitializedRef.current = true;
+    });
+  }, [ymapsReady, complex]);
+
+  const scrollToSection = useCallback(
+    (id: string) => {
+      setActiveSection(id);
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+        block: 'start',
+      });
+      if (id === 'map' && !mapInitializedRef.current) {
+        window.setTimeout(() => initMap(), 150);
+      }
+    },
+    [initMap],
+  );
+
+  useEffect(() => {
+    if (!navSections.length) return;
+    const ids = navSections.map((s) => s.id);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]?.target.id) {
+          setActiveSection(visible[0].target.id);
+        }
+      },
+      { rootMargin: '-20% 0px -55% 0px', threshold: [0, 0.25, 0.5] },
+    );
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [navSections, complex?.slug]);
+
+  useEffect(() => {
+    if (!hasMap) return;
+    const el = document.getElementById('map');
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) initMap();
+      },
+      { threshold: 0.1 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMap, initMap]);
+
+  const handleSort = (field: SortField) => {
+    setSort((prev) => ({
+      field,
+      dir: prev.field === field && prev.dir === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  const handleComplexFavorite = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (blockNum == null) return;
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: location } });
+      return;
+    }
+    void toggleBlock(blockNum);
+  };
+
+  const inCompare = complex ? isCompared(complex.slug) : false;
+  const handleCompare = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!complex) return;
+    if (!inCompare && compareCount >= 3) {
+      toast.error('В сравнении не более 3 ЖК');
+      return;
+    }
+    toggleCompare(complex.slug);
+  };
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!complex) return;
+    void shareCurrentPage({ title: complex.name });
+  };
+
+  if (!complex) {
+    if (slug && !mockComplex && apiBlockQuery.isPending) {
+      return (
+        <div className="min-h-screen bg-background">
+          <RedesignHeader />
+          <div className="max-w-[1400px] mx-auto px-4 py-16 text-center text-muted-foreground text-sm">Загрузка…</div>
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-background">
+        <RedesignHeader />
+        <div className="max-w-[1400px] mx-auto px-4 py-16 text-center">
+          <p className="text-muted-foreground">Комплекс не найден</p>
+          <Link to="/catalog" className="text-primary text-sm mt-2 inline-block">
+            ← Вернуться в каталог
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const metroItems = (complex.nearbySubways ?? []).slice(0, 8);
+  const availableCount =
+    complex.buildings.reduce((s, b) => s + b.apartments.filter((a) => a.status === 'available').length, 0) ||
+    complex.listingCount ||
+    0;
+
+  return (
+    <div className="min-h-screen bg-background pb-24 lg:pb-8">
+      <RedesignHeader />
+
+      <div className="max-w-[1400px] mx-auto px-4 py-4 sm:py-6">
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground min-w-0">
+            <Link to="/" className="hover:text-foreground transition-colors shrink-0">Главная</Link>
+            <span>/</span>
+            <Link to="/catalog" className="hover:text-foreground transition-colors shrink-0">Каталог</Link>
+            <span>/</span>
+            <span className="text-foreground font-medium truncate">{complex.name}</span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={blockNum == null} onClick={handleComplexFavorite}>
+              <Heart className={cn('w-4 h-4', blockLiked ? 'fill-destructive text-destructive' : 'text-muted-foreground')} />
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleCompare}>
+              <GitCompare className={cn('w-4 h-4', inCompare ? 'text-primary' : 'text-muted-foreground')} />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+              <Link to={`/presentation/${complex.slug}`} title="Презентация">
+                <FileText className="w-4 h-4" />
+              </Link>
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleShare}>
+              <Share2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        <ComplexHero complex={complex} blockId={fromApi && apiBlockQuery.data ? apiBlockQuery.data.id : undefined} />
+
+        <ComplexAnchorNav
+          sections={navSections}
+          activeId={activeSection || navSections[0]?.id || ''}
+          onNavigate={scrollToSection}
+        />
+
+        <div className="space-y-12 sm:space-y-16">
+          {hasBuildings ? (
+            <section id="buildings" className="scroll-mt-32">
+              {sectionHeading('Корпуса', 'Выберите корпус для шахматки')}
+              <div className="flex flex-wrap gap-2">
+                {buildings.map((b) => {
+                  const aptCount = b.apartments.filter((a) => a.status !== 'sold').length;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setActiveBuildingId(b.id)}
+                      className={cn(
+                        'rounded-xl border px-4 py-2.5 text-left text-sm transition-colors min-w-[140px]',
+                        activeBuilding?.id === b.id
+                          ? 'border-primary bg-primary/5 shadow-sm'
+                          : 'border-border bg-card hover:border-primary/40',
+                      )}
+                    >
+                      <span className="font-medium block">{b.name || `Корпус ${b.id}`}</span>
+                      <span className="text-xs text-muted-foreground">{aptCount} кв. · {b.floors} эт.</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
+
+          {hasApartments ? (
+            <section id="apartments" className="scroll-mt-32">
+              {sectionHeading('Квартиры', `${allApartments.length} доступных предложений`)}
+              <ApartmentTypeGroups apartments={allApartments} sort={sort} onSort={handleSort} />
+            </section>
+          ) : (
+            <section id="apartments" className="scroll-mt-32">
+              {sectionHeading('Квартиры')}
+              <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+                Свободных квартир пока нет
+              </div>
+            </section>
+          )}
+
+          {hasChess && activeBuilding ? (
+            <section id="chess" className="scroll-mt-32">
+              {sectionHeading('Шахматка', activeBuilding.name || 'Расположение квартир по этажам')}
+              <Chessboard
+                apartments={activeBuilding.apartments}
+                floors={activeBuilding.floors}
+                sections={activeBuilding.sections}
+                buildingName={activeBuilding.name}
+              />
+            </section>
+          ) : null}
+
+          {hasLayouts ? (
+            <section id="layouts" className="scroll-mt-32">
+              {sectionHeading('Планировки', `${layouts.length} типов`)}
+              <LayoutGrid layouts={layouts} complexSlug={complex.slug} />
+            </section>
+          ) : null}
+
+          {hasDescription ? (
+            <section id="description" className="scroll-mt-32">
+              {sectionHeading('Описание')}
+              <div className="bg-card rounded-xl border border-border p-5 sm:p-6 space-y-5">
+                {complex.description.includes('<') ? (
+                  <div
+                    className="text-sm text-muted-foreground leading-relaxed prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: complex.description }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{complex.description}</p>
+                )}
+                {metroItems.length > 0 ? (
+                  <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-3">
+                    <p className="text-sm font-medium">{complex.address}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+                      {metroItems.map((m) => (
+                        <div key={`${m.name}-${m.distanceTime ?? 'na'}`} className="text-sm text-muted-foreground flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                          <span>
+                            {m.name}
+                            {m.distanceTime != null
+                              ? `, ${m.distanceTime} минут ${m.distanceType === 1 ? 'пешком' : 'транспортом'}`
+                              : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2">
+                  {[
+                    ['Адрес', complex.address || '—'],
+                    ['Район', complex.district || '—'],
+                    ['Метро', complex.subway && complex.subway !== '—' ? `${complex.subway} (${complex.subwayDistance})` : '—'],
+                    ['Срок сдачи', complex.deadline || '—'],
+                    ['Корпусов', String(buildings.length)],
+                    ['Цена', formatPriceRangeDisplay(complex.priceFrom, complex.priceTo)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="space-y-1">
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <p className="text-sm font-medium">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {hasInfra ? (
+            <section id="infrastructure" className="scroll-mt-32">
+              {sectionHeading('Инфраструктура')}
+              <div className="bg-card rounded-xl border border-border p-5 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {complex.infrastructure.map((item, i) => (
+                    <div key={i} className="flex items-center gap-3 text-sm text-muted-foreground p-3 rounded-lg bg-muted/30">
+                      <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {hasMap ? (
+            <section id="map" className="scroll-mt-32">
+              {sectionHeading('На карте')}
+              <div className="rounded-xl border border-border overflow-hidden bg-card">
+                <div className="p-4 border-b border-border flex flex-wrap items-center gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-sm font-medium">{complex.address}</span>
+                </div>
+                <div ref={mapRef} className="h-[min(400px,50vh)] min-h-[240px] bg-muted" />
+              </div>
+            </section>
+          ) : null}
+
+          {hasDeveloper ? (
+            <section id="developer" className="scroll-mt-32">
+              {sectionHeading('Застройщик')}
+              <div className="rounded-xl border border-border bg-card p-5 sm:p-6 flex gap-4 items-start">
+                <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                  <Building2 className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-semibold text-base">{complex.builder}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {complex.district && complex.district !== '—' ? `Район: ${complex.district}` : 'Застройщик проекта'}
+                  </p>
+                  {!isPriceHidden(complex.priceFrom) ? (
+                    <p className="text-sm mt-2" aria-label={priceAriaLabel(formatPriceFrom(complex.priceFrom))}>
+                      Квартиры от {formatPriceFrom(complex.priceFrom)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          <section id="lead" className="scroll-mt-32">
+            {sectionHeading('Получить консультацию', 'Оставьте заявку — менеджер свяжется с вами')}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5 sm:p-6">
+                <LeadForm
+                  title=""
+                  embedded
+                  source={`ЖК: ${complex.slug}`}
+                  blockId={fromApi && apiBlockQuery.data ? apiBlockQuery.data.id : undefined}
+                  requestType="CONSULTATION"
+                />
+              </div>
+              <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-3 h-fit">
+                <p className="text-xs text-muted-foreground">Сводка</p>
+                <p className="text-xl font-bold" aria-label={priceAriaLabel(formatPriceFrom(complex.priceFrom))}>
+                  {formatPriceFrom(complex.priceFrom)}
+                </p>
+                {!isPriceHidden(complex.priceTo) ? (
+                  <p className="text-xs text-muted-foreground">{formatDisplayPrice(complex.priceTo, { prefix: 'до' })}</p>
+                ) : null}
+                <div className="border-t border-border pt-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Свободных кв.</span>
+                    <span className="font-medium">{availableCount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Срок сдачи</span>
+                    <span className="font-medium">{complex.deadline}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {similarComplexes.length > 0 ? (
+            <section id="similar" className="scroll-mt-32">
+              {sectionHeading('Похожие жилые комплексы')}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {similarComplexes.map((c) => (
+                  <SimilarComplexCard key={c.id} complex={c} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm p-3 lg:hidden safe-area-pb">
+        <div className="flex gap-2 max-w-[1400px] mx-auto">
+          <Button
+            className="flex-1 h-11"
+            type="button"
+            onClick={() => {
+              setConsultContext({
+                surface: 'complex',
+                source: `complex:${complex.slug}:sticky`,
+                blockId: blockNum ?? undefined,
+                contextFooter: `Мобильный CTA · ЖК «${complex.name}»`,
+              });
+              setConsultOpen(true);
+            }}
+          >
+            {CONVERSION_CTA.consultation}
+          </Button>
+          <Button variant="outline" className="h-11 px-4" asChild>
+            <Link to={`/presentation/${complex.slug}`}>PDF</Link>
+          </Button>
+        </div>
+      </div>
+
+      <ConsultationFlow open={consultOpen} onOpenChange={setConsultOpen} context={consultContext} />
+      <ChessDebugOverlay />
+      <ConversionDebugOverlay />
+      <FooterSection />
+    </div>
+  );
+};
+
+export default RedesignComplex;

@@ -1,0 +1,242 @@
+---
+description: LiveGrid API architecture and contract protection rules
+alwaysApply: true
+---
+
+# LiveGrid API Rules
+
+## SOURCE OF TRUTH
+
+The ONLY production API source of truth is:
+
+* routes/api.php
+* Laravel controllers
+* Laravel services
+* existing production database schema
+
+IMPORTANT:
+deployment/tmp-lg-work is NOT production API.
+
+DO NOT use NestJS endpoints unless explicitly porting them to Laravel.
+
+---
+
+# API CONTRACT SAFETY
+
+Frontend and backend MUST stay synchronized.
+
+DO NOT:
+
+* invent API routes
+* invent response fields
+* invent pagination structures
+* invent filters
+* invent map endpoints
+* invent auth flows
+
+ALWAYS:
+
+* verify route exists
+* verify controller exists
+* verify service exists
+* verify response structure
+* verify DB support exists
+
+---
+
+# RESPONSE CONSISTENCY
+
+Preserve API consistency.
+
+Use existing conventions:
+
+* pagination patterns
+* filter naming
+* response wrappers
+* error handling
+* validation structure
+
+DO NOT:
+
+* mix camelCase and snake_case randomly
+* create incompatible pagination
+* create duplicate filter semantics
+* create inconsistent response shapes
+
+---
+
+# MAP API RULES
+
+Current issue:
+RedesignMap expects unsupported NestJS endpoints.
+
+DO NOT:
+
+* hardcode temporary compatibility endpoints
+* create fake Laravel wrappers
+* emulate missing APIs blindly
+
+ALWAYS:
+
+* align frontend with real Laravel API
+  OR
+* properly port backend endpoints intentionally
+
+Never create partial fake compatibility layers.
+
+---
+
+# AUTH API RULES
+
+Auth flows are production-sensitive.
+
+Current production:
+
+* Sanctum
+* CRM auth
+* Telegram auth partial flow
+
+DO NOT:
+
+* invent JWT architecture
+* create parallel auth systems
+* bypass Sanctum
+* mix session/auth paradigms blindly
+
+ALWAYS:
+
+* explain auth impact
+* explain token impact
+* explain security implications
+
+---
+
+# FILTER API RULES
+
+Catalog filters are tightly coupled with search.
+
+DO NOT:
+
+* duplicate filter logic
+* create frontend-only filters
+* create inconsistent filter names
+* bypass search services
+
+ALWAYS:
+
+* reuse existing filter patterns
+* reuse existing search services
+* preserve query compatibility
+
+---
+
+# SEARCH API RULES
+
+Search endpoints are performance-sensitive.
+
+DO NOT:
+
+* introduce N+1 API logic
+* perform heavy joins inside controllers
+* bypass search services
+* move filtering into frontend
+
+Prefer:
+
+* existing search services
+* denormalized search structures
+* pagination
+* server-side filtering
+
+---
+
+# VALIDATION RULES
+
+ALL API mutations MUST validate input.
+
+Prefer:
+
+* FormRequest classes
+* explicit validation
+* typed DTO patterns
+* existing validation structure
+
+DO NOT:
+
+* trust frontend input
+* use unchecked request payloads
+* bypass validation
+
+---
+
+# API VERSIONING RULES
+
+Current API layers:
+
+* /api/v1
+* /api/v2 (Entity system)
+
+DO NOT:
+
+* mix contracts between versions
+* reuse incompatible payloads
+* create hidden breaking changes
+
+ALWAYS:
+
+* preserve backwards compatibility
+* document breaking changes
+* explain migration strategy
+
+---
+
+# ERROR HANDLING
+
+Preserve predictable API behavior.
+
+DO NOT:
+
+* return random response formats
+* leak internal errors
+* return HTML from API endpoints
+* mix validation and server error formats
+
+Prefer:
+
+* JSON consistency
+* stable error structure
+* explicit status codes
+
+---
+
+# ENGINEERING PROCESS
+
+Before changing API:
+
+1. inspect routes/api.php
+2. inspect controller
+3. inspect service layer
+4. inspect frontend consumers
+5. inspect DB dependencies
+6. explain compatibility risks
+7. implement minimal safe change
+
+---
+
+# PROHIBITED ACTIONS
+
+NEVER:
+
+* rewrite API architecture blindly
+* create duplicate endpoints
+* create temporary hacks
+* invent unsupported contracts
+* bypass service layer
+* mix Laravel and NestJS contracts
+
+Prefer:
+
+* minimal safe compatibility
+* explicit contracts
+* stable response structures
+* architecture consistency

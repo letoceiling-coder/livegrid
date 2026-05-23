@@ -1,0 +1,292 @@
+---
+description: LiveGrid mandatory engineering workflow and execution pipeline
+alwaysApply: true
+---
+
+# LiveGrid Engineering Workflow
+
+## MANDATORY WORKFLOW
+
+ALL engineering tasks MUST follow this pipeline:
+
+1. AUDIT
+2. ANALYZE
+3. PLAN
+4. EXPLAIN RISKS
+5. IMPLEMENT
+6. REVIEW
+7. SECURITY REVIEW
+8. UI REVIEW
+9. VERIFY
+10. FINAL AUDIT
+
+DO NOT skip steps.
+
+---
+
+# GSTACK WORKFLOW
+
+Preferred gstack workflow:
+
+PLAN:
+
+* gstack-office-hours
+* gstack-autoplan
+* gstack-plan-eng-review
+* gstack-plan-design-review
+
+IMPLEMENTATION:
+
+* gstack-investigate
+* guarded implementation
+* scoped changes only
+
+REVIEW:
+
+* gstack-review
+* gstack-codex
+
+SECURITY:
+
+* gstack-cso
+
+UI / UX:
+
+* gstack-design-review
+* gstack-qa
+
+RELEASE:
+
+* gstack-ship
+* gstack-canary
+
+---
+
+# BEFORE IMPLEMENTATION
+
+ALWAYS:
+
+1. inspect architecture
+2. inspect existing code
+3. inspect API usage
+4. inspect DB impact
+5. inspect frontend impact
+6. inspect production impact
+7. inspect security impact
+
+DO NOT immediately write code.
+
+---
+
+# IMPLEMENTATION STRATEGY
+
+Prefer:
+
+* small scoped iterations
+* minimal safe changes
+* composable improvements
+* backward compatibility
+* architecture consistency
+
+DO NOT:
+
+* perform massive rewrites
+* refactor unrelated systems
+* modify critical systems casually
+* introduce parallel architectures
+
+---
+
+# ITERATION RULES
+
+Large features MUST be split into iterations.
+
+Each iteration should contain:
+
+* clear scope
+* affected files
+* API impact
+* DB impact
+* frontend impact
+* rollback strategy
+* acceptance criteria
+
+DO NOT implement massive tasks in one iteration.
+
+---
+
+# REVIEW REQUIREMENTS
+
+Before finalizing changes ALWAYS:
+
+* inspect git diff
+* inspect API compatibility
+* inspect frontend compatibility
+* inspect route integrity
+* inspect migration safety
+* inspect RBAC impact
+* inspect performance impact
+
+---
+
+# HIGH RISK AREAS
+
+These areas require extra caution:
+
+* FeedImporter
+* UpsertService
+* ArchiveService
+* search synchronization
+* auth
+* RBAC
+* RedesignMap
+* routes/api.php
+* App.tsx
+* migrations
+* production deploy
+
+Changes affecting these systems MUST explain:
+
+* risks
+* rollback
+* compatibility
+* production impact
+
+---
+
+# UI / UX REVIEW
+
+Frontend work MUST verify:
+
+* responsive behavior
+* mobile layouts
+* route integrity
+* loading states
+* empty states
+* error states
+* map behavior
+* filter behavior
+
+DO NOT assume UI works without verification.
+
+---
+
+# SECURITY REVIEW
+
+Security-sensitive changes MUST verify:
+
+* middleware
+* permissions
+* validation
+* token handling
+* auth boundaries
+* exposed data
+* secrets handling
+
+---
+
+# PRODUCTION SAFETY
+
+Production integrity has priority over speed.
+
+Prefer:
+
+* safe implementation
+* minimal risk
+* gradual rollout
+* explicit rollback plans
+
+DO NOT:
+
+* rush deployment
+* skip review
+* skip compatibility checks
+
+---
+
+# ENGINEERING STYLE
+
+Preferred engineering style:
+
+* architecture-first
+* production-safe
+* explicit
+* typed
+* modular
+* composable
+* minimal-risk
+* incremental
+
+Avoid:
+
+* magic behavior
+* hidden side effects
+* uncontrolled refactors
+* duplicated systems
+* speculative architecture
+
+---
+
+# REQUIRED OUTPUT FORMAT
+
+For non-trivial tasks ALWAYS provide:
+
+## Scope
+
+...
+
+## Affected Files
+
+...
+
+## Risks
+
+...
+
+## API Impact
+
+...
+
+## DB Impact
+
+...
+
+## Frontend Impact
+
+...
+
+## Security Impact
+
+...
+
+## Rollback Strategy
+
+...
+
+## Implementation Plan
+
+...
+
+## Verification Plan
+
+...
+
+---
+
+# PROHIBITED BEHAVIOR
+
+NEVER:
+
+* blindly generate code
+* skip architecture analysis
+* invent unsupported systems
+* bypass workflow
+* ignore production impact
+* ignore security impact
+
+ALWAYS:
+
+* analyze first
+* explain reasoning
+* implement carefully
+* review thoroughly

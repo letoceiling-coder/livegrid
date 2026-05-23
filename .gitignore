@@ -1,18 +1,58 @@
+# === Monorepo (Nest + React) ===
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+apps/web/dist/
+apps/admin/dist/
+apps/api/dist/
+*.log
+pm2-*.log
+TrendAgent/
+strict-template/
+*.tar.gz
+.env.local
+.env.*.local
+
+# === Laravel legacy (retained in repo) ===
 /.phpunit.cache
-/node_modules
 /public/build
 /public/hot
 /public/storage
 /storage/*.key
 /vendor
-.env
-.env.backup
-.env.production
 Homestead.json
 Homestead.yaml
 auth.json
 npm-debug.log
 yarn-error.log
+
+# === Shared ===
+.env
+.env.backup
+.env.production
+.DS_Store
+Thumbs.db
 /.fleet
 /.idea
 /.vscode
+*.swp
+*.swo
+
+# Legacy env backup from consolidation
+.env.laravel.legacy
+
+# Local infra/build artifacts (not for git)
+.local/
+
+# Scratch / temp files
+.phpunit.result.cache
+tmp_*.remote.tsx
+tmp_*.remote.ts
+tmp_dbcheck.php
+tmp_entity_test.py
+strict-template-sandbox/
+deployment/tmp-lg-sync/
+
+# Archived nested workspace (pre-consolidation)
+deployment/tmp-lg-work/

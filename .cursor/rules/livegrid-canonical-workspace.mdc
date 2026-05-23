@@ -1,0 +1,25 @@
+---
+description: Canonical local workspace path — never use ~/lg
+alwaysApply: true
+---
+
+# Canonical Workspace
+
+**Local development root:** `~/livegrid` (`/home/dsc-2/livegrid`)
+
+**Production deploy root:** `/var/www/lg` (unchanged)
+
+## Rules
+
+- NEVER create or use `~/lg` as a workspace
+- All monorepo commands run from `~/livegrid`:
+  - `pnpm install`
+  - `pnpm --filter web exec tsc --noEmit`
+  - `pnpm --filter api exec tsc --noEmit`
+  - `pnpm --filter @lg/database exec prisma migrate deploy`
+- Legacy Laravel code remains under `app/`, `routes/`, etc. (not active stack)
+- Active stack: `apps/api`, `apps/web`, `packages/database`, `packages/shared`
+
+## Consolidation
+
+Iter 45 (2026-05-23): merged all Iter 15–44 work from accidental `~/lg` clone into this repo.

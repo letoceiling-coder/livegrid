@@ -1,0 +1,251 @@
+---
+description: LiveGrid production safety, deployment, migration, and release protection rules
+alwaysApply: true
+---
+
+# LiveGrid Production Rules
+
+## PRODUCTION IS SENSITIVE
+
+LiveGrid is a production system.
+
+The project contains:
+
+* live database
+* import pipeline
+* CRM
+* lead system
+* search synchronization
+* production VPS
+* Telegram integrations
+
+Production integrity is critical.
+
+---
+
+# DEPLOYMENT RULES
+
+Current deployment flow:
+
+* git push
+* git pull on server
+* artisan optimize:clear
+
+DO NOT:
+
+* deploy using random file uploads
+* use scp for code deployment
+* overwrite production manually
+* bypass git history
+
+ALWAYS:
+
+* preserve git-based deployment
+* explain deployment impact
+* explain rollback strategy
+
+---
+
+# MIGRATION SAFETY
+
+Migrations are HIGH RISK.
+
+DO NOT:
+
+* use migrate:fresh
+* drop production tables
+* rewrite existing schemas blindly
+* remove foreign keys
+* remove indexes
+* rewrite UUID strategy
+
+ALWAYS:
+
+* create forward-safe migrations
+* explain migration impact
+* explain rollback strategy
+* preserve existing production data
+
+---
+
+# DATABASE SAFETY
+
+Production DB integrity is mandatory.
+
+DO NOT:
+
+* perform destructive operations
+* truncate production tables
+* rewrite critical relationships
+* bypass FK constraints
+
+ALWAYS:
+
+* inspect existing schema
+* inspect migrations
+* inspect foreign keys
+* inspect production dependencies
+
+---
+
+# RELEASE SAFETY
+
+Before release:
+
+* inspect affected routes
+* inspect affected APIs
+* inspect affected DB tables
+* inspect affected queues
+* inspect affected imports
+* inspect affected frontend pages
+
+DO NOT:
+
+* merge blind changes
+* deploy unreviewed refactors
+* deploy architecture rewrites
+
+---
+
+# IMPORT SAFETY
+
+Import-related changes are production-critical.
+
+Before touching:
+
+* FeedImporter
+* UpsertService
+* ArchiveService
+* search synchronization
+
+ALWAYS:
+
+* explain production impact
+* explain import integrity impact
+* explain rollback plan
+* explain performance impact
+
+---
+
+# ENVIRONMENT SAFETY
+
+Production environment is sensitive.
+
+DO NOT:
+
+* expose secrets
+* expose API keys
+* hardcode credentials
+* overwrite production env values
+* commit secrets into git
+
+ALWAYS:
+
+* use environment variables
+* preserve existing env structure
+* explain required env changes
+
+---
+
+# QUEUE / CACHE SAFETY
+
+Search synchronization and queues are sensitive.
+
+DO NOT:
+
+* blindly change queue drivers
+* rewrite cache strategy
+* disable synchronization logic
+* bypass queue protections
+
+ALWAYS:
+
+* explain queue impact
+* explain synchronization impact
+* inspect existing queue usage
+
+---
+
+# TELEGRAM SAFETY
+
+Telegram integrations are production-sensitive.
+
+DO NOT:
+
+* expose Telegram tokens
+* rewrite auth flow blindly
+* bypass verification logic
+
+ALWAYS:
+
+* inspect existing integrations
+* inspect auth dependencies
+* inspect rate limits
+
+---
+
+# TESTING RULES
+
+Production changes MUST verify:
+
+* DB integrity
+* route integrity
+* API integrity
+* import integrity
+* frontend compatibility
+* search synchronization
+* auth compatibility
+
+DO NOT:
+
+* assume changes are safe
+* skip compatibility analysis
+* deploy without verification
+
+---
+
+# ROLLBACK STRATEGY
+
+Before risky changes ALWAYS explain:
+
+* rollback plan
+* affected tables
+* affected APIs
+* affected services
+* affected routes
+* production recovery strategy
+
+---
+
+# ENGINEERING PROCESS
+
+Production-safe workflow:
+
+1. audit
+2. analyze
+3. explain risks
+4. explain rollback
+5. implement minimal change
+6. review
+7. verify
+8. release safely
+
+---
+
+# PROHIBITED ACTIONS
+
+NEVER:
+
+* perform destructive production operations
+* rewrite deployment architecture blindly
+* rewrite DB architecture blindly
+* bypass migrations safety
+* deploy massive refactors without planning
+* mix experimental and production code
+
+Prefer:
+
+* incremental safe releases
+* small controlled changes
+* explicit rollback plans
+* stable production behavior

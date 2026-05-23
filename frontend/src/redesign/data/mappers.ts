@@ -5,7 +5,7 @@
  * Every hook calls one of these mappers; UI only ever sees Complex.
  */
 
-import type { Complex, RoomBreakdown } from './types';
+import type { Complex, ResidentialComplex, RoomBreakdown } from './types';
 
 // ─── Raw shapes from GET /api/v1/search/complexes ─────────────────────────
 // Nested objects, camelCase, coords as { lat, lng } object.
@@ -128,6 +128,33 @@ export function mapMapComplexToModel(api: ApiMapComplex): Complex {
     total_available_apartments: api.available ?? 0,
 
     // Fields not provided by map endpoint default to undefined
+    buildings: [],
+  };
+}
+
+/** GET /api/v1/map/complexes → ResidentialComplex for MapSearch / map page. */
+export function mapMapComplexToResidential(api: ApiMapComplex): ResidentialComplex {
+  const c = mapMapComplexToModel(api);
+  const images = c.images?.length ? c.images : ['/placeholder-complex.svg'];
+  return {
+    id: c.id,
+    slug: c.slug,
+    name: c.name,
+    description: c.description ?? '',
+    builder: c.builder ?? '',
+    district: c.district ?? '',
+    subway: c.subway ?? '',
+    subwayDistance: c.subway_distance ?? '',
+    address: c.address ?? '',
+    deadline: c.deadline ?? '',
+    status: (c.status ?? 'building') as ResidentialComplex['status'],
+    priceFrom: c.price_from ?? 0,
+    priceTo: c.price_to ?? c.price_from ?? 0,
+    availableApartments: c.total_available_apartments ?? 0,
+    images,
+    coords: [c.lat ?? 0, c.lng ?? 0],
+    advantages: c.advantages ?? [],
+    infrastructure: c.infrastructure ?? [],
     buildings: [],
   };
 }

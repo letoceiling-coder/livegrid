@@ -10,6 +10,7 @@ import { defaultFilters, type CatalogFilters, type ObjectType } from '@/redesign
 import { SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
+import { useMapPageComplexes } from '@/hooks/useMapPageComplexes';
 import { mapApiBlockListRowToResidentialComplex, type ApiBlockListRow } from '@/redesign/lib/blocks-from-api';
 import { formatPrice } from '@/lib/formatPrice';
 import { cn } from '@/lib/utils';
@@ -81,6 +82,7 @@ const RedesignMap = () => {
 
   const deferredSearch = useDeferredValue(filters.search);
   const objectType = filters.objectType;
+  const isApartments = objectType === 'apartments';
 
   // Kind counts – drives the type switcher
   const kindCountsQuery = useQuery({
@@ -182,10 +184,36 @@ const RedesignMap = () => {
     [blocksQuery.data],
   );
 
+  // R2.1+: Laravel map/complexes — state gates migrated in R2.2b; blocksQuery kept for parallel fetch.
+  const laravelMapQuery = useMapPageComplexes({
+    filters,
+    search: deferredSearch,
+    enabled: regionId != null && objectType === 'apartments',
+  });
+  const complexesFromLaravel = useMemo(
+    () => laravelMapQuery.data ?? [],
+    [laravelMapQuery.data],
+  );
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !laravelMapQuery.isSuccess) return;
+    console.debug(
+      '[RedesignMap R2.1] map/complexes:',
+      complexesFromLaravel.length,
+      '| legacy /blocks:',
+      blocks.length,
+    );
+  }, [laravelMapQuery.isSuccess, complexesFromLaravel, blocks.length]);
+
+  const laravelMapSettled =
+    laravelMapQuery.isFetched || laravelMapQuery.isError;
+
   // Listings query – used when:
   //   1. objectType is not apartments, OR
-  //   2. objectType is apartments but no blocks found
-  const needListings = objectType !== 'apartments' || (blocksQuery.isFetched && blocks.length === 0);
+  //   2. objectType is apartments but Laravel map/complexes returned nothing (after settled)
+  const needListings =
+    !isApartments ||
+    (laravelMapSettled && complexesFromLaravel.length === 0);
 
   const listingsQuery = useQuery({
     queryKey: [
@@ -230,17 +258,52 @@ const RedesignMap = () => {
       }));
   }, [listingsQuery.data]);
 
-  // Decide what to show on map: blocks (for new-build apartments) or individual listings
-  const useBlocksMap = objectType === 'apartments' && blocks.length > 0;
+  const useBlocksMap = isApartments && complexesFromLaravel.length > 0;
+
+  const showListingsUi =
+    needListings && (!isApartments || laravelMapSettled);
+
+  /** R2.2b: apartments map + sidebar use Laravel data; gates driven by laravelMapQuery. */
+  const apartmentMapComplexes =
+    isApartments ? complexesFromLaravel : blocks;
+
+  /** R2.2b: apartments awaiting Laravel → MapSearch (not ListingsMapSearch). */
+  const showApartmentsMapUi =
+    useBlocksMap || (isApartments && !laravelMapSettled);
+
+  const apartmentsMapLoading =
+    isApartments &&
+    (laravelMapQuery.isPending || laravelMapQuery.isFetching);
+
+  const listingsBranchLoading =
+    regionId != null &&
+    needListings &&
+    (listingsQuery.isPending || listingsQuery.isFetching);
 
   const loading =
-    regionLoading ||
-    (regionId != null &&
-      (useBlocksMap
-        ? blocksQuery.isPending || blocksQuery.isFetching
-        : listingsQuery.isPending || listingsQuery.isFetching));
+    regionLoading || apartmentsMapLoading || listingsBranchLoading;
 
-  const totalCount = useBlocksMap ? blocks.length : listingItems.length;
+  const totalCount = useBlocksMap ? complexesFromLaravel.length : listingItems.length;
+
+  useEffect(() => {
+    if (isApartments) setActiveBlock(null);
+  }, [
+    isApartments,
+    deferredSearch,
+    filters.marketType,
+    filters.priceMin,
+    filters.priceMax,
+    filters.rooms,
+    filters.areaMin,
+    filters.areaMax,
+    filters.floorMin,
+    filters.floorMax,
+    filters.status,
+    filters.district,
+    filters.subway,
+    filters.builder,
+    filters.deadline,
+  ]);
   const subtitle = loading ? 'Загрузка…' : `${totalCount} объектов на карте`;
 
   // Derive available objectType options from kindCounts
@@ -277,16 +340,16 @@ const RedesignMap = () => {
               </Button>
             </div>
             <div className="relative min-h-0 flex-1">
-              {useBlocksMap ? (
+              {showApartmentsMapUi ? (
                 <MapSearch
-                  complexes={blocks}
+                  complexes={apartmentMapComplexes}
                   regionId={regionId}
                   activeSlug={activeBlock}
                   onSelect={setActiveBlock}
                   height="100%"
                   compact
                 />
-              ) : (
+              ) : showListingsUi ? (
                 <ListingsMapSearch
                   listings={listingItems}
                   regionId={regionId}
@@ -295,7 +358,7 @@ const RedesignMap = () => {
                   height="100%"
                   compact
                 />
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -318,10 +381,10 @@ const RedesignMap = () => {
               {loading ? (
                 <p className="text-xs text-muted-foreground p-3">Загрузка…</p>
               ) : useBlocksMap ? (
-                blocks.length === 0 ? (
+                apartmentMapComplexes.length === 0 ? (
                   <p className="text-xs text-muted-foreground p-3">Нет объектов по фильтрам.</p>
                 ) : (
-                  blocks.map((c) => (
+                  apartmentMapComplexes.map((c) => (
                     <div key={c.id} className="flex gap-1">
                       <button
                         type="button"

@@ -1,0 +1,265 @@
+---
+description: LiveGrid security, auth, validation, and production hardening rules
+alwaysApply: true
+---
+
+# LiveGrid Security Rules
+
+## SECURITY IS CRITICAL
+
+LiveGrid contains:
+
+* production CRM
+* user data
+* lead data
+* Telegram integrations
+* admin functionality
+* authentication systems
+* production APIs
+
+Security integrity is mandatory.
+
+---
+
+# AUTH RULES
+
+Current production auth:
+
+* Sanctum
+* CRM auth
+* partial Telegram auth
+
+DO NOT:
+
+* invent parallel auth systems
+* bypass Sanctum
+* bypass middleware
+* create unsafe auth shortcuts
+* mix auth paradigms blindly
+
+ALWAYS:
+
+* inspect existing auth flow
+* inspect middleware
+* inspect permissions
+* inspect token handling
+
+---
+
+# TOKEN SAFETY
+
+Tokens are sensitive.
+
+DO NOT:
+
+* expose tokens
+* log tokens
+* hardcode tokens
+* expose secrets to frontend
+* store secrets in source files
+
+ALWAYS:
+
+* use environment variables
+* preserve secure token handling
+* explain auth impact
+
+---
+
+# AUTHORIZATION RULES
+
+RBAC integrity is mandatory.
+
+DO NOT:
+
+* bypass permissions
+* bypass policies
+* trust frontend authorization
+* expose admin-only endpoints
+* create hidden admin access
+
+ALWAYS:
+
+* verify middleware
+* verify policies
+* verify role checks
+* verify ownership rules
+
+---
+
+# VALIDATION RULES
+
+ALL external input MUST be validated.
+
+This includes:
+
+* API requests
+* query params
+* uploads
+* auth payloads
+* CRM mutations
+* filters
+
+DO NOT:
+
+* trust frontend input
+* use unchecked request data
+* mass assign sensitive fields
+* bypass validation
+
+Prefer:
+
+* FormRequest classes
+* explicit validation rules
+* typed DTO patterns
+
+---
+
+# DATABASE SECURITY
+
+Production DB integrity is critical.
+
+DO NOT:
+
+* expose sensitive fields
+* return internal DB structures
+* leak hidden attributes
+* expose internal IDs unnecessarily
+
+ALWAYS:
+
+* inspect model fillable/guarded
+* inspect serialization
+* inspect API responses
+
+---
+
+# TELEGRAM SECURITY
+
+Telegram integrations are sensitive.
+
+DO NOT:
+
+* expose bot tokens
+* bypass verification logic
+* trust Telegram payloads blindly
+* remove rate limiting
+
+ALWAYS:
+
+* inspect auth flow
+* inspect verification logic
+* inspect throttling
+
+---
+
+# API SECURITY
+
+APIs must be hardened.
+
+DO NOT:
+
+* expose stack traces
+* expose internal exceptions
+* return debug information
+* create open admin routes
+* create unrestricted mutations
+
+ALWAYS:
+
+* use proper status codes
+* preserve middleware
+* preserve validation
+* preserve auth boundaries
+
+---
+
+# CORS / HEADERS
+
+Security headers matter.
+
+DO NOT:
+
+* blindly allow *
+* disable protections casually
+* expose unsafe origins
+
+ALWAYS:
+
+* inspect existing CORS strategy
+* explain compatibility impact
+* explain frontend impact
+
+---
+
+# FILE / UPLOAD SAFETY
+
+Uploads are sensitive.
+
+DO NOT:
+
+* trust file names
+* trust mime types blindly
+* allow unrestricted uploads
+* expose filesystem paths
+
+ALWAYS:
+
+* validate uploads
+* sanitize names
+* inspect storage paths
+
+---
+
+# FRONTEND SECURITY
+
+Frontend must not leak secrets.
+
+DO NOT:
+
+* expose env secrets
+* expose private APIs
+* expose admin logic
+* hardcode production credentials
+
+ALWAYS:
+
+* inspect public env usage
+* inspect client-side auth
+* inspect exposed configs
+
+---
+
+# SECURITY ENGINEERING PROCESS
+
+Before security-sensitive changes:
+
+1. inspect existing auth
+2. inspect middleware
+3. inspect validation
+4. inspect permissions
+5. inspect token handling
+6. explain risks
+7. implement minimal safe change
+8. review attack surface
+
+---
+
+# PROHIBITED ACTIONS
+
+NEVER:
+
+* disable security middleware
+* bypass validation
+* expose secrets
+* trust frontend authorization
+* introduce unsafe auth shortcuts
+* create hidden admin access
+
+Prefer:
+
+* explicit validation
+* explicit permissions
+* minimal privilege
+* secure defaults
+* production-safe auth

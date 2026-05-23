@@ -10,24 +10,18 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CatalogFilters, Complex, ResidentialComplex } from '@/redesign/data/types';
+import { buildSearchComplexesParams, type SearchParamsBounds } from '@/redesign/lib/searchParams';
 import { getApiUrl, defaultFetchOptions } from '@/shared/config/api';
 import { mapMapComplexToModel, type ApiMapComplex } from '@/redesign/data/mappers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Bounds {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
-}
-
 // Default Moscow area — used before the map fires its first boundschange
-const MOSCOW: Bounds = { north: 56.1, south: 55.5, east: 38.0, west: 37.0 };
+const MOSCOW: SearchParamsBounds = { north: 56.1, south: 55.5, east: 38.0, west: 37.0 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function readBounds(map: any): Bounds | null {
+function readBounds(map: any): SearchParamsBounds | null {
   try {
     const b = map.getBounds(); // [[south, west], [north, east]]
     if (!b) return null;
@@ -35,47 +29,6 @@ function readBounds(map: any): Bounds | null {
   } catch {
     return null;
   }
-}
-
-function buildParams(bounds: Bounds, f: CatalogFilters): URLSearchParams {
-  const p = new URLSearchParams({
-    'bounds[north]': String(bounds.north),
-    'bounds[south]': String(bounds.south),
-    'bounds[east]':  String(bounds.east),
-    'bounds[west]':  String(bounds.west),
-  });
-
-  if (f.search)   p.set('search',   f.search);
-  if (f.priceMin) p.set('priceMin', String(f.priceMin));
-  if (f.priceMax) p.set('priceMax', String(f.priceMax));
-  if (f.areaMin)  p.set('areaMin',  String(f.areaMin));
-  if (f.areaMax)  p.set('areaMax',  String(f.areaMax));
-  if (f.livingAreaMin) p.set('livingAreaMin', String(f.livingAreaMin));
-  if (f.livingAreaMax) p.set('livingAreaMax', String(f.livingAreaMax));
-  if (f.floorMin) p.set('floorMin', String(f.floorMin));
-  if (f.floorMax) p.set('floorMax', String(f.floorMax));
-  if (f.ceilingHeightMin) p.set('ceilingHeightMin', String(f.ceilingHeightMin));
-  if (f.ceilingHeightMax) p.set('ceilingHeightMax', String(f.ceilingHeightMax));
-  if (f.subwayTimeMax) p.set('subwayTimeMax', String(f.subwayTimeMax));
-  if (f.notFirstFloor) p.set('notFirstFloor', '1');
-  if (f.notLastFloor) p.set('notLastFloor', '1');
-  if (f.highFloor) p.set('highFloor', '1');
-  if (f.hasPlan) p.set('hasPlan', '1');
-  if (f.sort) p.set('sort', f.sort);
-
-  f.rooms?.forEach(r     => p.append('rooms[]',     String(r)));
-  f.wc?.forEach(w        => p.append('wc[]',        String(w)));
-  f.subwayDistanceType?.forEach(t => p.append('subwayDistanceType[]', String(t)));
-  f.buildingType?.forEach(bt => p.append('buildingType[]', bt));
-  f.queue?.forEach(q => p.append('queue[]', q));
-  f.district?.forEach(d  => p.append('district[]',  d));
-  f.subway?.forEach(s    => p.append('subway[]',    s));
-  f.builder?.forEach(b   => p.append('builder[]',   b));
-  f.finishing?.forEach(fi => p.append('finishing[]', fi));
-  f.status?.forEach(s    => p.append('status[]',    s));
-  f.deadline?.forEach(d  => p.append('deadline[]',  d));
-
-  return p;
 }
 
 function adapt(c: Complex): ResidentialComplex {
@@ -158,7 +111,11 @@ export function useMapComplexes(
     }
 
     const activeBounds = bounds ?? MOSCOW;
-    const params = buildParams(activeBounds, filters);
+    const params = buildSearchComplexesParams({
+      bounds: activeBounds,
+      filters,
+      includePagination: false,
+    });
     console.log('MAP REQUEST PARAMS', Object.fromEntries(params));
 
     // Cancel the previous in-flight request

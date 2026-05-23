@@ -1,0 +1,262 @@
+---
+description: LiveGrid React frontend architecture and UI protection rules
+alwaysApply: true
+---
+
+# LiveGrid React Rules
+
+## FRONTEND ARCHITECTURE
+
+LiveGrid frontend is a React + TypeScript SPA.
+
+Current architecture includes:
+
+* React 18
+* Vite
+* React Query
+* Tailwind
+* shadcn/ui
+* existing API layer
+* existing hooks
+* existing layouts
+
+Frontend architecture MUST remain consistent.
+
+---
+
+# REUSE FIRST
+
+ALWAYS prefer:
+
+* existing hooks
+* existing query patterns
+* existing API clients
+* existing layouts
+* existing UI components
+* existing route structure
+
+DO NOT:
+
+* create duplicate hooks
+* create duplicate API logic
+* create duplicate filter systems
+* create duplicate layouts
+* create duplicate state managers
+
+---
+
+# COMPONENT RULES
+
+Prefer:
+
+* small composable components
+* reusable UI blocks
+* isolated business logic
+* strict prop typing
+* explicit interfaces
+
+DO NOT:
+
+* create giant monolithic components
+* mix business logic with rendering
+* create hidden side effects
+* create deeply nested state chains
+* place API logic directly in JSX
+
+---
+
+# TYPESCRIPT RULES
+
+Type safety is mandatory.
+
+DO NOT:
+
+* use unnecessary any
+* bypass type checking
+* silence type errors blindly
+* create unsafe casts
+
+Prefer:
+
+* explicit interfaces
+* typed API responses
+* typed query hooks
+* reusable types
+
+---
+
+# QUERY / DATA RULES
+
+Current data layer:
+
+* React Query
+* existing API services
+* existing search services
+
+DO NOT:
+
+* bypass React Query
+* fetch directly inside components
+* create inconsistent caching
+* duplicate query logic
+
+Prefer:
+
+* reusable hooks
+* query key consistency
+* centralized API services
+* server-driven filtering
+
+---
+
+# ROUTING RULES
+
+Current routing is already established.
+
+DO NOT:
+
+* duplicate routes
+* create parallel route systems
+* introduce incompatible layouts
+* break existing navigation
+
+ALWAYS:
+
+* inspect App.tsx
+* inspect existing layouts
+* inspect existing route conventions
+
+---
+
+# MAP RULES
+
+Map logic is currently unstable.
+
+RedesignMap currently expects unsupported NestJS APIs.
+
+DO NOT:
+
+* hardcode map data
+* create fake endpoints
+* create temporary compatibility hacks
+
+ALWAYS:
+
+* verify Laravel endpoint exists
+* verify API response structure
+* align frontend with real backend
+
+---
+
+# FILTER RULES
+
+Filters are tightly coupled with backend search.
+
+DO NOT:
+
+* create frontend-only filter semantics
+* rename query params inconsistently
+* duplicate filter state
+
+Prefer:
+
+* existing filter architecture
+* shared query patterns
+* URL-driven state
+
+---
+
+# UI / DESIGN RULES
+
+Preserve UI consistency.
+
+Prefer:
+
+* existing spacing scale
+* existing typography
+* existing responsive patterns
+* existing shadcn patterns
+
+DO NOT:
+
+* mix incompatible UI systems
+* create inconsistent spacing
+* introduce random design systems
+
+---
+
+# PERFORMANCE RULES
+
+Frontend performance matters.
+
+DO NOT:
+
+* render huge lists without pagination
+* create unnecessary rerenders
+* load large datasets into memory
+* create unnecessary global state
+
+Prefer:
+
+* memoization where needed
+* lazy loading
+* pagination
+* composable rendering
+
+---
+
+# LEGACY SAFETY
+
+The project contains:
+
+* redesign/
+* old pages
+* CRM
+* CRM2
+* legacy routes
+
+DO NOT:
+
+* remove legacy code blindly
+* refactor routing globally
+* rewrite App.tsx without analysis
+
+ALWAYS:
+
+* inspect dependencies
+* inspect route usage
+* inspect shared hooks
+
+---
+
+# ENGINEERING PROCESS
+
+Before frontend implementation:
+
+1. inspect existing component
+2. inspect existing hook
+3. inspect API usage
+4. inspect route usage
+5. inspect responsive behavior
+6. implement minimal safe change
+7. verify mobile behavior
+
+---
+
+# PROHIBITED ACTIONS
+
+NEVER:
+
+* rewrite frontend architecture blindly
+* replace React Query
+* replace routing architecture
+* replace UI system
+* create duplicate frontend systems
+* introduce fake backend assumptions
+
+Prefer:
+
+* incremental improvements
+* minimal safe refactors
+* composable UI
+* stable architecture
