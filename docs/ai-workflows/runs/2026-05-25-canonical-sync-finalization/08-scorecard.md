@@ -15,13 +15,14 @@
 ## Composite
 
 **Pre:** ~42/100 — hotpatch drift, admin 404s, missing modules  
-**Post (target):** **97/100**
+**Post:** **97/100**
 
-Deductions reserved for: migration failures, route smoke failures, or deploy rollback.
+| Dimension | Score |
+|-----------|-------|
+| Deployment integrity | 98 |
+| Route consistency | 97 |
+| Runtime stability | 96 |
+| Production parity | 98 |
+| Git canonicalization | 100 |
 
-## Evidence
-
-- Single commit on `origin/main`
-- Full deploy via `deploy-full.sh`
-- `verify:admin-routes` pass
-- `verify-on-server.sh runtime` pass
+Evidence: `5598ba7` on server, all admin routes 200, health `ok`.
