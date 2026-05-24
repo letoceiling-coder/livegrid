@@ -5,7 +5,7 @@
 ## Script
 
 ```bash
-API_BASE=https://livegrid.ru/api JWT=<token> pnpm verify:admin-routes
+API_BASE=https://livegrid.ru JWT=<token> pnpm verify:admin-routes
 ```
 
 ## Required 200 (with admin JWT)
