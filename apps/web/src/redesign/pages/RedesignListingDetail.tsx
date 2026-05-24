@@ -34,7 +34,7 @@ import { LIVEGRID_LOGO_SRC } from '@/redesign/lib/branding';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/shared/hooks/useAuth';
 import ListingLocationMap from '@/redesign/components/ListingLocationMap';
-import { recordBrowseHistory } from '@/account/pages/AccountHistory';
+import { recordBrowseHistory } from '@/shared/lib/record-browse-history';
 import RelatedListingsCarousel from '@/discovery/components/RelatedListingsCarousel';
 import SessionDiscoverySection from '@/redesign/components/SessionDiscoverySection';
 import CompareSessionChip from '@/shared/components/CompareSessionChip';

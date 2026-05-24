@@ -4,6 +4,7 @@ import { Bookmark } from 'lucide-react';
 import { apiGet } from '@/lib/api';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { savedSearchParamsToCatalogUrl } from '@lg/shared';
+import { optionalAuthQueryOptions } from '@/shared/lib/safe-query';
 import { cn } from '@/lib/utils';
 
 type SavedSearchRow = {
@@ -23,7 +24,7 @@ export default function SavedSearchReminder({ className }: Props) {
   const { data } = useQuery({
     queryKey: ['account', 'saved-searches', 'reminder'],
     queryFn: () => apiGet<SavedSearchRow[]>('/account/saved-searches'),
-    enabled: isAuthenticated,
+    ...optionalAuthQueryOptions({ isAuthenticated }),
     staleTime: 120_000,
   });
 

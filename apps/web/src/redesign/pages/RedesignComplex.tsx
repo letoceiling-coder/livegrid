@@ -45,7 +45,7 @@ import {
   type ApiListingRow,
 } from '@/redesign/lib/blocks-from-api';
 import { buildCatalogFilterUrl } from '@/redesign/lib/catalog-filter-links';
-import { recordBrowseHistory } from '@/account/pages/AccountHistory';
+import { recordBrowseHistory } from '@/shared/lib/record-browse-history';
 import { blockHref } from '@/shared/lib/browse-history-local';
 
 declare global {

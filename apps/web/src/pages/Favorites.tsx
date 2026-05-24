@@ -8,6 +8,7 @@ import { formatPrice } from '@/redesign/data/mock-data';
 import { Button } from '@/components/ui/button';
 import { useFavorites, type FavoriteRow } from '@/shared/hooks/useFavorites';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { optionalAuthQueryOptions } from '@/shared/lib/safe-query';
 import { apiGet, apiGetOrNull, apiPost } from '@/lib/api';
 import { toast } from '@/components/ui/sonner';
 import ListingCard, { type ApiListingCardRow } from '@/redesign/components/ListingCard';
@@ -120,7 +121,7 @@ const Favorites = () => {
   const collectionsQuery = useQuery({
     queryKey: ['collections'],
     queryFn: () => apiGet<Array<{ id: string; name: string }>>('/collections'),
-    enabled: isAuthenticated,
+    ...optionalAuthQueryOptions({ isAuthenticated }),
   });
 
   const ensureCollectionByName = async (rawName: string): Promise<{ id: string; name: string }> => {

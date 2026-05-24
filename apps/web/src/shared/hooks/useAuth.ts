@@ -8,6 +8,7 @@ import {
   getAccessToken,
   getRefreshToken,
 } from '@/lib/api';
+import { isAuthenticatedSession } from '@/shared/lib/auth-guards';
 
 interface AuthTokens {
   accessToken: string;
@@ -184,7 +185,7 @@ export function useAuthState(): AuthState {
   }, []);
 
   return {
-    isAuthenticated: Boolean(user && getAccessToken()),
+    isAuthenticated: isAuthenticatedSession(user),
     user,
     loading,
     login,

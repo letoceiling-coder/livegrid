@@ -23,9 +23,21 @@ describe('safe-array', () => {
 });
 
 describe('authQueryEnabled', () => {
-  it('requires token for enabled queries', () => {
-    expect(authQueryEnabled(false)).toBe(false);
-    expect(authQueryEnabled(true)).toBe(false);
+  it('is false without JWT in test env', () => {
+    expect(authQueryEnabled()).toBe(false);
+  });
+});
+
+describe('recordBrowseHistory guest guard', () => {
+  it('checks canCallAccountApi before apiPost', () => {
+    const src = readFileSync(
+      resolve(__dirname, 'record-browse-history.ts'),
+      'utf8',
+    );
+    const guardIdx = src.indexOf('canCallAccountApi()');
+    const postIdx = src.indexOf("apiPost('/account/history'");
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(postIdx).toBeGreaterThan(guardIdx);
   });
 });
 

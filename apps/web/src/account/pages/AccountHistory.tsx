@@ -99,39 +99,5 @@ export default function AccountHistory() {
   );
 }
 
-/** Record browse event (guest local + authenticated server). */
-export async function recordBrowseHistory(
-  entityKind: 'LISTING' | 'BLOCK',
-  entityId: number,
-  title?: string,
-  href?: string,
-) {
-  const { pushLocalBrowseHistory, blockHref, listingHref } = await import(
-    '@/shared/lib/browse-history-local'
-  );
-  const { patchSessionSnapshot } = await import('@/shared/lib/session-continuity');
-
-  const path =
-    href ??
-    (entityKind === 'BLOCK' ? blockHref(entityId) : listingHref(entityId));
-
-  pushLocalBrowseHistory({
-    entityKind,
-    entityId,
-    title,
-    href: path,
-  });
-
-  if (entityKind === 'LISTING') {
-    patchSessionSnapshot({
-      lastListingHref: path,
-      lastListingTitle: title,
-    });
-  }
-
-  try {
-    await apiPost('/account/history', { entityKind, entityId, title });
-  } catch {
-    /* guest or network — local only */
-  }
-}
+/** Record browse event (guest local + authenticated server). Re-export for callers. */
+export { recordBrowseHistory } from '@/shared/lib/record-browse-history';

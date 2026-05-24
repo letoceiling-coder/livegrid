@@ -40,7 +40,7 @@ import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 import RelatedListingsCarousel from '@/discovery/components/RelatedListingsCarousel';
 import SessionDiscoverySection from '@/redesign/components/SessionDiscoverySection';
 import CompareSessionChip from '@/shared/components/CompareSessionChip';
-import { recordBrowseHistory } from '@/account/pages/AccountHistory';
+import { recordBrowseHistory } from '@/shared/lib/record-browse-history';
 import { listingHref } from '@/shared/lib/browse-history-local';
 
 function parseNumericListingId(id: string | undefined): number | null {
