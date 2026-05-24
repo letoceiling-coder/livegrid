@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * Smoke-test critical admin API routes (Iter 82).
- * Usage: API_BASE=https://livegrid.ru/api JWT=eyJ... node scripts/verify-admin-routes.mjs
+ * Usage: API_BASE=https://livegrid.ru JWT=eyJ... node scripts/verify-admin-routes.mjs
+ * Local:  API_BASE=http://127.0.0.1:3000/api/v1 JWT=...
  */
-const API_BASE = (process.env.API_BASE || 'http://127.0.0.1:3000').replace(/\/$/, '');
+const API_BASE = (process.env.API_BASE || 'http://127.0.0.1:3000/api/v1').replace(/\/$/, '');
 const JWT = process.env.JWT || '';
 
 const ROUTES = [

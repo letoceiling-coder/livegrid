@@ -5,7 +5,7 @@ export const CRITICAL_DB_COLUMNS = [
   { table: 'listings', column: 'owner_user_id' },
   { table: 'listings', column: 'last_activity_at' },
   { table: 'listing_wizard_snapshots', column: 'listing_id' },
-  { table: 'billing_accounts', column: 'owner_user_id' },
+  { table: 'billing_accounts', column: 'user_id' },
   { table: 'agency_profiles', column: 'slug' },
   { table: 'agent_profiles', column: 'slug' },
 ] as const;
@@ -13,7 +13,7 @@ export const CRITICAL_DB_COLUMNS = [
 export const CRITICAL_DB_ENUMS = [
   'ListingVisibility',
   'ListingPromotionTier',
-  'BillingPlanCode',
+  'BillingPlanId',
 ] as const;
 
 export type DbCompatibilityIssue = {
