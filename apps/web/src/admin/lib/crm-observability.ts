@@ -42,6 +42,23 @@ export type CrmSnapshot = {
   observerCount: number;
   memoryEstimateMb: number;
   analyticsBoundaryErrors: number;
+  communicationFetchMs: number;
+  activeThreads: number;
+  unreadConversations: number;
+  avgReplyLatencyMs: number | null;
+  staleConversations: number;
+  callbackOverdueCount: number;
+  automationFetchMs: number;
+  automationPendingTasks: number;
+  automationRecommendations: number;
+  automationRuns: number;
+  automationTasksCreated: number;
+  automationCooldownSkips: number;
+  automationTaskPressure: number;
+  automationEffectiveness: number;
+  reliabilityFailedRequests: number;
+  reliabilityRetryCount: number;
+  reliabilityPollingPressure: number;
 };
 
 let snapshot: CrmSnapshot = {
@@ -82,6 +99,23 @@ let snapshot: CrmSnapshot = {
   observerCount: 0,
   memoryEstimateMb: 0,
   analyticsBoundaryErrors: 0,
+  communicationFetchMs: 0,
+  activeThreads: 0,
+  unreadConversations: 0,
+  avgReplyLatencyMs: null,
+  staleConversations: 0,
+  callbackOverdueCount: 0,
+  automationFetchMs: 0,
+  automationPendingTasks: 0,
+  automationRecommendations: 0,
+  automationRuns: 0,
+  automationTasksCreated: 0,
+  automationCooldownSkips: 0,
+  automationTaskPressure: 0,
+  automationEffectiveness: 0,
+  reliabilityFailedRequests: 0,
+  reliabilityRetryCount: 0,
+  reliabilityPollingPressure: 0,
 };
 
 const listeners = new Set<(s: CrmSnapshot) => void>();
@@ -300,6 +334,79 @@ export function crmObsAnalyticsBoundaryError(message: string, stackHint: string)
     analyticsBoundaryErrors: snapshot.analyticsBoundaryErrors + 1,
     lastAction: `analytics_boundary: ${message.slice(0, 40)}`,
     lastFailedEndpoint: stackHint.slice(0, 80),
+  };
+  emit();
+}
+
+export function crmObsCommunicationFetch(ms: number): void {
+  if (!isCrmDebugEnabled()) return;
+  snapshot = { ...snapshot, communicationFetchMs: ms, lastAction: 'communication_fetch' };
+  emit();
+}
+
+export function crmObsCommunicationMetrics(metrics: {
+  activeThreads: number;
+  unreadConversations: number;
+  avgReplyLatencyMs: number | null;
+  staleConversations: number;
+  callbackOverdueCount: number;
+}): void {
+  if (!isCrmDebugEnabled()) return;
+  snapshot = {
+    ...snapshot,
+    ...metrics,
+    lastAction: 'communication_metrics',
+  };
+  emit();
+}
+
+export function crmObsAutomationFetch(ms: number, pendingTasks: number, recommendations: number): void {
+  if (!isCrmDebugEnabled()) return;
+  snapshot = {
+    ...snapshot,
+    automationFetchMs: ms,
+    automationPendingTasks: pendingTasks,
+    automationRecommendations: recommendations,
+    lastAction: 'automation_fetch',
+  };
+  emit();
+}
+
+export function crmObsAutomationMetrics(metrics: {
+  staleRescueRate: number;
+  overdueCallbacks: number;
+  followUpCompletionRate: number;
+  taskPressure: number;
+  automationEffectiveness: number;
+  cooldownSkips: number;
+  tasksCreated24h: number;
+  tasksCompleted24h: number;
+}): void {
+  if (!isCrmDebugEnabled()) return;
+  snapshot = {
+    ...snapshot,
+    automationRuns: snapshot.automationRuns + 1,
+    automationTasksCreated: metrics.tasksCreated24h,
+    automationCooldownSkips: metrics.cooldownSkips,
+    automationTaskPressure: metrics.taskPressure,
+    automationEffectiveness: metrics.automationEffectiveness,
+    lastAction: 'automation_metrics',
+  };
+  emit();
+}
+
+export function crmObsReliabilityMetrics(metrics: {
+  failedRequests: number;
+  retryCount: number;
+  pollingPressure: number;
+}): void {
+  if (!isCrmDebugEnabled()) return;
+  snapshot = {
+    ...snapshot,
+    reliabilityFailedRequests: metrics.failedRequests,
+    reliabilityRetryCount: metrics.retryCount,
+    reliabilityPollingPressure: metrics.pollingPressure,
+    lastAction: 'reliability_metrics',
   };
   emit();
 }

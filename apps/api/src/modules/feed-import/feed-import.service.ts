@@ -6,7 +6,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { ListingKind, ListingStatus } from '@prisma/client';
+import { ListingKind, ListingStatus, ListingVisibility } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -19,6 +19,8 @@ import {
 } from './feed-import.constants';
 import type { FeedImportBatchJob } from './feed-import.types';
 import { BlocksService } from '../blocks/blocks.service';
+import { SitemapService } from '../sitemap/sitemap.service';
+import { getParityTargets, parityPercent } from './feed-parity.util';
 
 export interface ImportProgress {
   step: string;
@@ -51,6 +53,7 @@ export class FeedImportService implements OnModuleInit {
     private readonly processor: FeedProcessorService,
     private readonly config: ConfigService,
     private readonly blocks: BlocksService,
+    private readonly sitemap: SitemapService,
     @InjectQueue(FEED_IMPORT_QUEUE)
     private readonly feedImportQueue: Queue,
   ) {}
@@ -60,7 +63,9 @@ export class FeedImportService implements OnModuleInit {
       this.logger.log('Repeatable feed import cron disabled (FEED_IMPORT_DISABLE_REPEAT)');
       return;
     }
-    const pattern = this.config.get<string>('FEED_IMPORT_CRON') || '0 */6 * * *';
+    const pattern =
+      this.config.get<string>('FEED_IMPORT_CRON') || '0 4 * * 1';
+    const cronTz = this.config.get<string>('FEED_IMPORT_CRON_TZ') || 'Europe/Moscow';
     const regionCodes = await this.resolveCronRegionCodes();
     if (!regionCodes.length) {
       this.logger.warn('No valid regions resolved for repeatable import cron registration');
@@ -72,13 +77,13 @@ export class FeedImportService implements OnModuleInit {
           FEED_IMPORT_JOB_RUN,
           { regionCode },
           {
-            repeat: { pattern },
+            repeat: { pattern, tz: cronTz },
             jobId: `feed-import-repeat-${regionCode}`,
           },
         );
       }
       this.logger.log(
-        `Registered BullMQ repeatable import: pattern="${pattern}" regions=${regionCodes.join(',')}`,
+        `Registered BullMQ weekly import: pattern="${pattern}" tz="${cronTz}" regions=${regionCodes.join(',')}`,
       );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -94,10 +99,13 @@ export class FeedImportService implements OnModuleInit {
    * Ручной запуск: создаёт import_batch и ставит задачу в BullMQ.
    */
   async triggerImport(regionCode: string, triggeredBy?: string) {
-    const payload = await this.createPendingBatch(this.normalizeRegionCode(regionCode), triggeredBy);
+    const code = this.normalizeRegionCode(regionCode);
+    await this.assertNoOverlappingImport(code);
+    const payload = await this.createPendingBatch(code, triggeredBy);
     await this.feedImportQueue.add(FEED_IMPORT_JOB_RUN, payload, {
       removeOnComplete: { count: 50 },
-      attempts: 1,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 60_000 },
     });
     return { batchId: payload.batchId, status: 'QUEUED' as const };
   }
@@ -302,7 +310,7 @@ export class FeedImportService implements OnModuleInit {
     regionId,
     regionCode,
   }: FeedImportBatchJob): Promise<void> {
-    const stats: Record<string, number> = {};
+    const stats: Record<string, unknown> = {};
     const errors: string[] = [];
 
     try {
@@ -362,6 +370,7 @@ export class FeedImportService implements OnModuleInit {
         try {
           const blocksData = await this.fetcher.fetchFeedFile(blocksUrl);
           await this.ensureBatchIsRunning(batchId);
+          stats.blocks_in_feed = Array.isArray(blocksData) ? blocksData.length : 0;
           stats.blocks_upserted = await this.processor.processBlocks(blocksData, regionId);
           await this.ensureBatchIsRunning(batchId);
         } catch (err: unknown) {
@@ -375,6 +384,7 @@ export class FeedImportService implements OnModuleInit {
         try {
           const buildingsData = await this.fetcher.fetchFeedFile(buildingsUrl);
           await this.ensureBatchIsRunning(batchId);
+          stats.buildings_in_feed = Array.isArray(buildingsData) ? buildingsData.length : 0;
           stats.buildings_upserted =
             await this.processor.processBuildings(buildingsData, regionId);
           await this.ensureBatchIsRunning(batchId);
@@ -389,22 +399,32 @@ export class FeedImportService implements OnModuleInit {
         try {
           const aptData = await this.fetcher.fetchFeedFile(apartmentsUrl);
           await this.ensureBatchIsRunning(batchId);
+          stats.apartments_in_feed = Array.isArray(aptData) ? aptData.length : 0;
           this.setProgress('Processing apartments', `0/${aptData.length} квартир обработано`, 65, {
             processedItems: 0,
             totalItems: aptData.length,
           });
-          stats.apartments_upserted =
-            await this.processor.processApartments(aptData, regionId, {
-              onBatchProgress: async ({ processed, total }) => {
-                await this.ensureBatchIsRunning(batchId);
-                this.setProgress(
-                  'Processing apartments',
-                  `${processed}/${total} квартир обработано`,
-                  this.apartmentProgressPercent(processed, total),
-                  { processedItems: processed, totalItems: total },
-                );
-              },
-            });
+          const previousFeedApartmentCount = await this.getPreviousFeedApartmentCount(regionId);
+          const markSoldMinRatio = Number(this.config.get('FEED_MARK_SOLD_MIN_RATIO') || 0.85);
+          const aptResult = await this.processor.processApartments(aptData, regionId, {
+            onBatchProgress: async ({ processed, total }) => {
+              await this.ensureBatchIsRunning(batchId);
+              this.setProgress(
+                'Processing apartments',
+                `${processed}/${total} квартир обработано`,
+                this.apartmentProgressPercent(processed, total),
+                { processedItems: processed, totalItems: total },
+              );
+            },
+            previousFeedApartmentCount,
+            markSoldMinRatio,
+          });
+          stats.apartments_upserted = aptResult.upserted;
+          stats.apartments_marked_sold = aptResult.markedSold;
+          if (aptResult.markSoldSkipped) {
+            stats.mark_sold_skipped = true;
+            errors.push(aptResult.markSoldSkipReason ?? 'markSold skipped (truncated feed guard)');
+          }
           await this.ensureBatchIsRunning(batchId);
         } catch (err: unknown) {
           await this.rethrowIfBatchStopped(batchId, err);
@@ -423,19 +443,24 @@ export class FeedImportService implements OnModuleInit {
 
       this.setProgress('Finalizing', undefined, 98);
 
-      await this.prisma.importBatch.update({
-        where: { id: batchId },
-        data: {
-          status: 'COMPLETED',
-          finishedAt: new Date(),
-          stats: { ...stats, errors },
-        },
-      });
+      const aptInFeed =
+        typeof stats.apartments_in_feed === 'number' ? stats.apartments_in_feed : 0;
+      const prevFeedCount = await this.getPreviousFeedApartmentCount(regionId);
+      const minRatio = Number(this.config.get('FEED_MARK_SOLD_MIN_RATIO') || 0.85);
+      const degraded =
+        stats.mark_sold_skipped === true ||
+        (prevFeedCount != null &&
+          aptInFeed > 0 &&
+          aptInFeed < Math.floor(prevFeedCount * minRatio)) ||
+        errors.some((e) => e.startsWith('apartments:'));
 
-      await this.prisma.feedRegion.update({
-        where: { id: regionId },
-        data: { lastImportedAt: new Date() },
-      });
+      stats.degraded = degraded;
+      stats.integrity_checkpoint = degraded ? 'QUARANTINED' : 'PASSED';
+      stats.healthy_import =
+        !degraded &&
+        aptInFeed > 0 &&
+        stats.mark_sold_skipped !== true &&
+        !errors.some((e) => e.startsWith('apartments:'));
 
       try {
         await this.refreshCatalogSearchCache();
@@ -444,6 +469,40 @@ export class FeedImportService implements OnModuleInit {
         const msg = e instanceof Error ? e.message : String(e);
         errors.push(`catalog_mv_refresh: ${msg}`);
         this.logger.warn(`catalog_apartment_active_mv refresh failed: ${msg}`);
+      }
+
+      if (degraded) {
+        stats.last_imported_at_skipped = true;
+      }
+
+      await this.prisma.importBatch.update({
+        where: { id: batchId },
+        data: {
+          status: 'COMPLETED',
+          finishedAt: new Date(),
+          stats: {
+            ...stats,
+            errors,
+            hasWarnings: errors.length > 0 || degraded,
+          },
+        },
+      });
+
+      if (!degraded) {
+        await this.prisma.feedRegion.update({
+          where: { id: regionId },
+          data: { lastImportedAt: new Date() },
+        });
+        if (this.config.get('SITEMAP_AUTO_REGENERATE') !== 'false') {
+          void this.sitemap.generateAll(`post_import_batch_${batchId}`).catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : String(e);
+            this.logger.warn(`Post-import sitemap regeneration failed: ${msg}`);
+          });
+        }
+      } else {
+        this.logger.error(
+          `Import batch ${batchId} QUARANTINED (degraded) — lastImportedAt not updated, status mutations blocked`,
+        );
       }
 
       this.setProgress('Completed', JSON.stringify(stats), 100);
@@ -906,5 +965,643 @@ export class FeedImportService implements OnModuleInit {
 
   private isRegionImportAllowed(regionCode: string): boolean {
     return this.allowedImportRegionCodes().has(this.normalizeRegionCode(regionCode));
+  }
+
+  private async assertNoOverlappingImport(regionCode: string): Promise<void> {
+    const region = await this.prisma.feedRegion.findUnique({ where: { code: regionCode } });
+    if (!region) return;
+
+    const running = await this.prisma.importBatch.count({
+      where: { regionId: region.id, status: { in: ['RUNNING', 'PENDING'] } },
+    });
+    if (running > 0) {
+      throw new ConflictException(`Import already queued or running for ${regionCode}`);
+    }
+
+    try {
+      const [active, waiting] = await Promise.all([
+        this.feedImportQueue.getJobs(['active']),
+        this.feedImportQueue.getJobs(['waiting', 'delayed']),
+      ]);
+      const pending = [...active, ...waiting].some((job) => {
+        const data = job.data as { regionCode?: string; batchId?: number };
+        return data?.regionCode === regionCode || job.id?.includes(regionCode);
+      });
+      if (pending) {
+        throw new ConflictException(`BullMQ job already pending for ${regionCode}`);
+      }
+    } catch (e) {
+      if (e instanceof ConflictException) throw e;
+    }
+  }
+
+  private async getPreviousFeedApartmentCount(regionId: number): Promise<number | null> {
+    const batches = await this.prisma.importBatch.findMany({
+      where: { regionId, status: 'COMPLETED' },
+      orderBy: { finishedAt: 'desc' },
+      take: 15,
+      select: { stats: true },
+    });
+    for (const batch of batches) {
+      if (!batch.stats || typeof batch.stats !== 'object') continue;
+      const n = (batch.stats as Record<string, unknown>).apartments_in_feed;
+      if (typeof n === 'number' && n > 0) return n;
+    }
+    return null;
+  }
+
+  /**
+   * Forensic-сравнение TrendAgent feed vs БД с integrity score.
+   * @param includeApartmentsCount — загрузить apartments.json целиком (тяжело, только для ручного аудита)
+   */
+  async getFeedIntegrityReport(regionCodeRaw: string, includeApartmentsCount = false) {
+    const regionCode = this.normalizeRegionCode(regionCodeRaw);
+    const region = await this.prisma.feedRegion.findFirst({
+      where: { code: { equals: regionCode, mode: 'insensitive' } },
+    });
+    if (!region) throw new NotFoundException(`Регион не найден: ${regionCode}`);
+
+    const about = await this.fetcher.fetchAbout(regionCode);
+    const fileMap = new Map(about.map((e) => [e.name, e.url]));
+    const exportedAt = about[0]?.exported_at ?? null;
+
+    let blocksInFeed: number | null = null;
+    let buildingsInFeed: number | null = null;
+    let apartmentsInFeed: number | null = null;
+    let feedCountErrors: string[] = [];
+
+    const blocksUrl = fileMap.get('blocks');
+    if (blocksUrl) {
+      try {
+        const r = await this.fetcher.countFeedArrayEntries(blocksUrl);
+        blocksInFeed = r.count;
+      } catch (e: unknown) {
+        feedCountErrors.push(`blocks: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    const buildingsUrl = fileMap.get('buildings');
+    if (buildingsUrl) {
+      try {
+        const r = await this.fetcher.countFeedArrayEntries(buildingsUrl);
+        buildingsInFeed = r.count;
+      } catch (e: unknown) {
+        feedCountErrors.push(`buildings: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    if (includeApartmentsCount) {
+      const apartmentsUrl = fileMap.get('apartments');
+      if (apartmentsUrl) {
+        try {
+          const r = await this.fetcher.countFeedArrayEntries(apartmentsUrl);
+          apartmentsInFeed = r.count;
+        } catch (e: unknown) {
+          feedCountErrors.push(`apartments: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    }
+
+    const [
+      buildersDb,
+      blocksDb,
+      buildingsDb,
+      listingBreakdown,
+      orphanApartments,
+      soldFeedApartments,
+      catalogEligible,
+      blocksWithListings,
+      lastCompleted,
+      recentCompletedBatches,
+    ] = await Promise.all([
+      this.prisma.builder.count({ where: { regionId: region.id } }),
+      this.prisma.block.count({ where: { regionId: region.id } }),
+      this.prisma.building.count({ where: { regionId: region.id } }),
+      this.prisma.listing.groupBy({
+        by: ['status'],
+        where: { regionId: region.id, kind: ListingKind.APARTMENT, dataSource: 'FEED' },
+        _count: { _all: true },
+      }),
+      this.prisma.listing.count({
+        where: {
+          regionId: region.id,
+          kind: ListingKind.APARTMENT,
+          dataSource: 'FEED',
+          status: ListingStatus.ACTIVE,
+          isPublished: true,
+          blockId: null,
+        },
+      }),
+      this.prisma.listing.count({
+        where: {
+          regionId: region.id,
+          kind: ListingKind.APARTMENT,
+          dataSource: 'FEED',
+          status: ListingStatus.SOLD,
+        },
+      }),
+      this.prisma.listing.count({
+        where: {
+          regionId: region.id,
+          kind: ListingKind.APARTMENT,
+          dataSource: 'FEED',
+          status: { in: [ListingStatus.ACTIVE, ListingStatus.RESERVED] },
+          isPublished: true,
+          blockId: { not: null },
+          price: { gte: 100_000 },
+        },
+      }),
+      this.prisma.listing.groupBy({
+        by: ['blockId'],
+        where: {
+          regionId: region.id,
+          kind: ListingKind.APARTMENT,
+          status: { in: [ListingStatus.ACTIVE, ListingStatus.RESERVED] },
+          isPublished: true,
+          blockId: { not: null },
+        },
+      }),
+      this.prisma.importBatch.findFirst({
+        where: { regionId: region.id, status: 'COMPLETED' },
+        orderBy: { finishedAt: 'desc' },
+        select: { id: true, finishedAt: true, feedExportedAt: true, stats: true },
+      }),
+      this.prisma.importBatch.findMany({
+        where: { regionId: region.id, status: 'COMPLETED' },
+        orderBy: { finishedAt: 'desc' },
+        take: 20,
+        select: { id: true, finishedAt: true, stats: true },
+      }),
+    ]);
+
+    const lastFullImport = recentCompletedBatches.find((b) => {
+      const n = (b.stats as Record<string, unknown> | null)?.apartments_in_feed;
+      return typeof n === 'number' && n > 0;
+    }) ?? null;
+
+    const activePublished = listingBreakdown
+      .filter((r) => r.status === ListingStatus.ACTIVE || r.status === ListingStatus.RESERVED)
+      .reduce((s, r) => s + r._count._all, 0);
+
+    const importStats = lastCompleted?.stats as Record<string, unknown> | null | undefined;
+    const lastImportApartmentsInFeed =
+      typeof importStats?.apartments_in_feed === 'number' ? importStats.apartments_in_feed : null;
+    const lastImportUpserted =
+      typeof importStats?.apartments_upserted === 'number' ? importStats.apartments_upserted : null;
+
+    const expectedApartments =
+      apartmentsInFeed ?? lastImportApartmentsInFeed ?? null;
+
+    const vitrine = await this.blocks.countCatalog({
+      region_id: region.id,
+      require_active_listings: true,
+    });
+
+    const vitrineBlocks = blocksWithListings.filter((g) => g.blockId != null).length;
+
+    const explanations: string[] = [];
+    if (soldFeedApartments > 0 && expectedApartments && activePublished < expectedApartments * 0.5) {
+      explanations.push(
+        `В БД ${soldFeedApartments.toLocaleString('ru-RU')} FEED-квартир со статусом SOLD при ${activePublished.toLocaleString('ru-RU')} ACTIVE — возможен массовый markSold после усечённого/частичного импорта (см. stats.mark_sold_skipped).`,
+      );
+    }
+    if (orphanApartments > 0) {
+      explanations.push(
+        `${orphanApartments} активных квартир без block_id — не попадают в vitrine catalog-counts.`,
+      );
+    }
+    explanations.push(
+      'Публичный счётчик (14917-тип) = ACTIVE+RESERVED, isPublished, block_id NOT NULL. TrendAgent ~67k — все записи apartments.json без фильтра витрины.',
+    );
+    if (blocksInFeed != null && blocksInFeed > vitrine.blocks) {
+      explanations.push(
+        `Во фиде ${blocksInFeed} ЖК, на витрине ${vitrine.blocks} — ЖК без активных опубликованных квартир скрыты (require_active_listings).`,
+      );
+    }
+
+    const apartmentIntegrityPct =
+      expectedApartments && expectedApartments > 0
+        ? Math.round((activePublished / expectedApartments) * 1000) / 10
+        : null;
+    const blockIntegrityPct =
+      blocksInFeed && blocksInFeed > 0
+        ? Math.round((vitrine.blocks / blocksInFeed) * 1000) / 10
+        : null;
+
+    let integrityScore = 100;
+    if (apartmentIntegrityPct != null) integrityScore = Math.min(integrityScore, apartmentIntegrityPct);
+    if (blockIntegrityPct != null) integrityScore = Math.min(integrityScore, blockIntegrityPct);
+    if (orphanApartments > 100) integrityScore -= 5;
+    if (soldFeedApartments > activePublished) integrityScore -= 10;
+    integrityScore = Math.max(0, Math.round(integrityScore * 10) / 10);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      region: {
+        id: region.id,
+        code: region.code,
+        name: region.name,
+        lastImportedAt: region.lastImportedAt,
+      },
+      feed: {
+        exported_at: exportedAt,
+        blocks_in_feed: blocksInFeed,
+        buildings_in_feed: buildingsInFeed,
+        apartments_in_feed: apartmentsInFeed ?? lastImportApartmentsInFeed,
+        apartments_count_source: apartmentsInFeed != null ? 'live_fetch' : 'last_import_stats',
+        feed_count_errors: feedCountErrors,
+      },
+      database: {
+        builders: buildersDb,
+        blocks: blocksDb,
+        buildings: buildingsDb,
+        listings_feed_by_status: listingBreakdown.map((r) => ({
+          status: r.status,
+          count: r._count._all,
+        })),
+        active_published: activePublished,
+        sold: soldFeedApartments,
+        orphan_apartments: orphanApartments,
+        catalog_eligible: catalogEligible,
+        blocks_with_active_listings: vitrineBlocks,
+      },
+      vitrine_catalog_counts: vitrine,
+      last_completed_import: lastCompleted
+        ? {
+            batch_id: lastCompleted.id,
+            finished_at: lastCompleted.finishedAt,
+            feed_exported_at: lastCompleted.feedExportedAt,
+            stats: lastCompleted.stats,
+            apartments_in_feed: lastImportApartmentsInFeed,
+            apartments_upserted: lastImportUpserted,
+          }
+        : null,
+      last_full_import: lastFullImport
+        ? {
+            batch_id: lastFullImport.id,
+            finished_at: lastFullImport.finishedAt,
+            apartments_in_feed: (lastFullImport.stats as Record<string, unknown>)?.apartments_in_feed ?? null,
+          }
+        : null,
+      comparison: {
+        apartments_feed_vs_active_db: {
+          feed_expected: expectedApartments,
+          db_active_published: activePublished,
+          delta: expectedApartments != null ? expectedApartments - activePublished : null,
+        },
+        apartments_feed_vs_vitrine: {
+          feed_expected: expectedApartments,
+          vitrine_apartments: vitrine.apartments,
+          delta: expectedApartments != null ? expectedApartments - vitrine.apartments : null,
+        },
+        blocks_feed_vs_db: {
+          feed: blocksInFeed,
+          db: blocksDb,
+          delta: blocksInFeed != null ? blocksInFeed - blocksDb : null,
+        },
+        blocks_feed_vs_vitrine: {
+          feed: blocksInFeed,
+          vitrine: vitrine.blocks,
+          delta: blocksInFeed != null ? blocksInFeed - vitrine.blocks : null,
+        },
+      },
+      integrity_score: integrityScore,
+      integrity_percent: {
+        apartments: apartmentIntegrityPct,
+        blocks: blockIntegrityPct,
+      },
+      explanations,
+    };
+  }
+
+  /**
+   * Быстрая сводка здоровья фидов для /admin/system и /admin/feed-import/health.
+   * Без тяжёлых HTTP-проб фида — только БД + очередь BullMQ.
+   */
+  async getHealthSummary() {
+    const staleHours = Number(this.config.get('FEED_HEALTH_STALE_HOURS') || 200);
+    const stuckMinutes = Number(this.config.get('FEED_HEALTH_STUCK_MINUTES') || 120);
+    const now = Date.now();
+    const staleCutoff = new Date(now - staleHours * 3_600_000);
+    const stuckCutoff = new Date(now - stuckMinutes * 60_000);
+    const dayAgo = new Date(now - 86_400_000);
+
+    const enabledRegions = await this.prisma.feedRegion.findMany({
+      where: { isEnabled: true, baseUrl: { not: null } },
+      orderBy: { id: 'asc' },
+      select: { id: true, code: true, name: true, lastImportedAt: true, baseUrl: true },
+    });
+
+    const importableRegions = enabledRegions.filter(
+      (r) => r.baseUrl?.trim() && this.isRegionImportAllowed(r.code),
+    );
+
+    const staleRegions = importableRegions.filter(
+      (r) => !r.lastImportedAt || r.lastImportedAt < staleCutoff,
+    );
+
+    const [
+      runningBatches,
+      failedLast24h,
+      orphanApartments,
+      recentCompleted,
+      duplicateRows,
+      degradedLast7d,
+    ] = await Promise.all([
+      this.prisma.importBatch.findMany({
+        where: { status: 'RUNNING' },
+        include: { region: { select: { code: true, name: true } } },
+      }),
+      this.prisma.importBatch.count({
+        where: { status: 'FAILED', createdAt: { gte: dayAgo } },
+      }),
+      this.prisma.listing.count({
+        where: {
+          kind: ListingKind.APARTMENT,
+          status: ListingStatus.ACTIVE,
+          isPublished: true,
+          blockId: null,
+        },
+      }),
+      this.prisma.importBatch.findMany({
+        where: { status: 'COMPLETED', finishedAt: { gte: dayAgo } },
+        orderBy: { finishedAt: 'desc' },
+        take: 30,
+        include: { region: { select: { code: true } } },
+      }),
+      this.prisma.$queryRaw<Array<{ region_id: number; external_id: string; cnt: bigint }>>`
+        SELECT region_id, external_id, COUNT(*)::bigint AS cnt
+        FROM listings
+        WHERE external_id IS NOT NULL AND external_id <> ''
+        GROUP BY region_id, external_id
+        HAVING COUNT(*) > 1
+        LIMIT 10
+      `,
+      this.prisma.importBatch.count({
+        where: {
+          status: 'COMPLETED',
+          finishedAt: { gte: new Date(now - 7 * 86_400_000) },
+          stats: { path: ['degraded'], equals: true },
+        },
+      }),
+    ]);
+
+    const stuckBatches = runningBatches.filter(
+      (b) => b.startedAt != null && b.startedAt < stuckCutoff,
+    );
+
+    const incompleteImports = recentCompleted.filter((b) => {
+      const stats = b.stats as Record<string, unknown> | null;
+      const errors = stats?.errors;
+      return Array.isArray(errors) && errors.length > 0;
+    });
+
+    let queue: {
+      waiting: number;
+      active: number;
+      delayed: number;
+      failed: number;
+    } | null = null;
+    try {
+      const [waiting, active, delayed, failed] = await Promise.all([
+        this.feedImportQueue.getWaitingCount(),
+        this.feedImportQueue.getActiveCount(),
+        this.feedImportQueue.getDelayedCount(),
+        this.feedImportQueue.getFailedCount(),
+      ]);
+      queue = { waiting, active, delayed, failed };
+    } catch {
+      queue = null;
+    }
+
+    type FeedHealthIssue = {
+      kind: string;
+      severity: 'critical' | 'warning' | 'info';
+      messageRu: string;
+    };
+    const issues: FeedHealthIssue[] = [];
+
+    if (staleRegions.length) {
+      issues.push({
+        kind: 'stale_sync',
+        severity: 'warning',
+        messageRu: `Устаревший импорт (> ${staleHours}ч): ${staleRegions.map((r) => r.code).join(', ')}`,
+      });
+    }
+    if (stuckBatches.length) {
+      issues.push({
+        kind: 'stuck_batch',
+        severity: 'critical',
+        messageRu: `Зависшие импорты (RUNNING > ${stuckMinutes} мин): ${stuckBatches.map((b) => `#${b.id}`).join(', ')}`,
+      });
+    }
+    if (failedLast24h > 0) {
+      issues.push({
+        kind: 'failed_imports',
+        severity: 'warning',
+        messageRu: `Неудачных импортов за 24ч: ${failedLast24h}`,
+      });
+    }
+    if (incompleteImports.length) {
+      issues.push({
+        kind: 'incomplete_import',
+        severity: 'warning',
+        messageRu: `Частичных импортов за 24ч (COMPLETED с ошибками): ${incompleteImports.length}`,
+      });
+    }
+    if (orphanApartments > 0) {
+      issues.push({
+        kind: 'orphan_apartments',
+        severity: 'warning',
+        messageRu: `Квартир без ЖК (block_id=null): ${orphanApartments}`,
+      });
+    }
+    if (duplicateRows.length > 0) {
+      issues.push({
+        kind: 'duplicate_external_id',
+        severity: 'critical',
+        messageRu: `Дубликаты external_id в listings: ${duplicateRows.length} групп`,
+      });
+    }
+    if (queue?.failed && queue.failed > 0) {
+      issues.push({
+        kind: 'queue_failed_jobs',
+        severity: 'warning',
+        messageRu: `Неудачных задач в очереди BullMQ: ${queue.failed}`,
+      });
+    }
+    if (degradedLast7d > 0) {
+      issues.push({
+        kind: 'degraded_import',
+        severity: 'critical',
+        messageRu: `Деградированных импортов за 7 дней (quarantine): ${degradedLast7d}`,
+      });
+    }
+
+    const integrityMinScore = Number(this.config.get('FEED_INTEGRITY_MIN_SCORE') || 85);
+    const cronPattern = this.config.get<string>('FEED_IMPORT_CRON') || '0 4 * * 1';
+    const cronTz = this.config.get<string>('FEED_IMPORT_CRON_TZ') || 'Europe/Moscow';
+    const cronDisabled = this.config.get('FEED_IMPORT_DISABLE_REPEAT') === 'true';
+
+    const criticalCount = issues.filter((i) => i.severity === 'critical').length;
+
+    const catalogListingWhere = {
+      kind: ListingKind.APARTMENT,
+      status: { in: [ListingStatus.ACTIVE, ListingStatus.RESERVED] as ListingStatus[] },
+      isPublished: true,
+      visibility: ListingVisibility.PUBLIC,
+      blockId: { not: null },
+    };
+
+    const regionHealth = await Promise.all(
+      enabledRegions.map(async (r) => {
+        const [apartments, blocks] = await Promise.all([
+          this.prisma.listing.count({ where: { regionId: r.id, ...catalogListingWhere } }),
+          this.prisma.block.count({
+            where: {
+              regionId: r.id,
+              listings: { some: catalogListingWhere },
+            },
+          }),
+        ]);
+        const isStale =
+          this.isRegionImportAllowed(r.code) &&
+          (!r.lastImportedAt || r.lastImportedAt < staleCutoff);
+        const targets = getParityTargets(r.code, this.config);
+        const aptParity = parityPercent(apartments, targets.donorApartments);
+        const blkParity = parityPercent(blocks, targets.donorBlocks);
+        return {
+          code: r.code,
+          name: r.name,
+          lastImportedAt: r.lastImportedAt,
+          catalogApartments: apartments,
+          catalogBlocks: blocks,
+          isStale,
+          importAllowed: this.isRegionImportAllowed(r.code),
+          parityPercent: { apartments: aptParity, blocks: blkParity },
+          parityTargets: targets,
+        };
+      }),
+    );
+
+    const parityMin = Number(this.config.get('FEED_PARITY_MIN_PERCENT') || 90);
+    for (const rh of regionHealth) {
+      if (!rh.importAllowed) continue;
+      const aptPct = rh.parityPercent.apartments;
+      const blkPct = rh.parityPercent.blocks;
+      if (aptPct != null && aptPct < parityMin) {
+        issues.push({
+          kind: 'parity_drift_apartments',
+          severity: 'warning',
+          messageRu: `Parity drift ${rh.code}: квартиры ${aptPct}% (min ${parityMin}%)`,
+        });
+      }
+      if (blkPct != null && blkPct < parityMin) {
+        issues.push({
+          kind: 'parity_drift_blocks',
+          severity: 'warning',
+          messageRu: `Parity drift ${rh.code}: ЖК ${blkPct}% (min ${parityMin}%)`,
+        });
+      }
+    }
+
+    const sitemapMetrics = this.sitemap.getMetrics();
+    const sitemapGeneratedAt = sitemapMetrics.lastGeneration?.generatedAt
+      ? new Date(sitemapMetrics.lastGeneration.generatedAt).getTime()
+      : null;
+    const sitemapStaleDays = Number(this.config.get('SITEMAP_STALE_DAYS') || 8);
+    if (!sitemapGeneratedAt) {
+      issues.push({
+        kind: 'sitemap_missing',
+        severity: 'warning',
+        messageRu: 'Sitemap не сгенерирован — индексация может быть неполной',
+      });
+    } else if (sitemapGeneratedAt < now - sitemapStaleDays * 86_400_000) {
+      issues.push({
+        kind: 'sitemap_stale',
+        severity: 'warning',
+        messageRu: `Sitemap устарел (> ${sitemapStaleDays} дн.) — запустите regen в Feed Import`,
+      });
+    }
+
+    const aptInSitemap = sitemapMetrics.lastGeneration?.counts?.apartments ?? 0;
+    const totalCatalogApartments = regionHealth.reduce((s, r) => s + r.catalogApartments, 0);
+    if (aptInSitemap > 0 && totalCatalogApartments > 0) {
+      const ratio = aptInSitemap / totalCatalogApartments;
+      if (ratio < 0.9) {
+        issues.push({
+          kind: 'sitemap_coverage_drift',
+          severity: 'warning',
+          messageRu: `Sitemap coverage drift: ${aptInSitemap.toLocaleString('ru-RU')} URL vs ${totalCatalogApartments.toLocaleString('ru-RU')} в каталоге`,
+        });
+      }
+    }
+
+    const completedBatchCount = await this.prisma.importBatch.count({
+      where: { status: 'COMPLETED' },
+    });
+    const snapshotWarn = Number(this.config.get('FEED_SNAPSHOT_RETENTION_WARN') || 400);
+    if (completedBatchCount > snapshotWarn) {
+      issues.push({
+        kind: 'snapshot_retention',
+        severity: 'info',
+        messageRu: `История импортов: ${completedBatchCount} batch (рекомендуется архив > ${snapshotWarn})`,
+      });
+    }
+
+    return {
+      generatedAt: new Date().toISOString(),
+      ok: criticalCount === 0 && stuckBatches.length === 0,
+      staleThresholdHours: staleHours,
+      regions: {
+        enabled: importableRegions.length,
+        stale: staleRegions.map((r) => ({
+          code: r.code,
+          name: r.name,
+          lastImportedAt: r.lastImportedAt,
+        })),
+        health: regionHealth,
+      },
+      batches: {
+        running: runningBatches.length,
+        stuck: stuckBatches.map((b) => ({
+          id: b.id,
+          regionCode: b.region.code,
+          startedAt: b.startedAt,
+        })),
+        failedLast24h,
+        incompleteLast24h: incompleteImports.length,
+      },
+      dataIntegrity: {
+        orphanApartments,
+        duplicateExternalIdGroups: duplicateRows.map((r) => ({
+          regionId: r.region_id,
+          externalId: r.external_id,
+          count: Number(r.cnt),
+        })),
+      },
+      queue,
+      issues,
+      governance: {
+        cronPattern,
+        cronTz,
+        cronDisabled,
+        weeklyOnlyPolicy: cronPattern.includes('* * 1') || cronPattern.includes('* * 0'),
+        overlapProtection: true,
+        degradedQuarantine: true,
+        markSoldMinRatio: Number(this.config.get('FEED_MARK_SOLD_MIN_RATIO') || 0.85),
+        integrityMinScore,
+        degradedImportsLast7d: degradedLast7d,
+        legacyShellCron: 'deploy/cron-feed-import.sh (emergency fallback only — remove duplicate 6h crons)',
+      },
+      recentIncomplete: incompleteImports.slice(0, 5).map((b) => ({
+        batchId: b.id,
+        regionCode: b.region?.code ?? null,
+        finishedAt: b.finishedAt,
+        errorCount: Array.isArray((b.stats as Record<string, unknown> | null)?.errors)
+          ? ((b.stats as { errors: string[] }).errors.length)
+          : 0,
+      })),
+    };
   }
 }

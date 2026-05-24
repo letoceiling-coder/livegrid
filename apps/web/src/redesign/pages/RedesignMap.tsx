@@ -25,6 +25,7 @@ import {
 } from '@/redesign/lib/catalog-interaction';
 import { useDebouncedValue } from '@/redesign/hooks/useDebouncedValue';
 import { useBodyScrollLock } from '@/redesign/hooks/useBodyScrollLock';
+import { initMapSessionDiagnostics } from '@/redesign/lib/map-session-diagnostics';
 import {
   buildBlocksSearchParams,
   buildListingsSearchParams,
@@ -32,6 +33,9 @@ import {
 } from '@/redesign/lib/catalog-api-params';
 import MapSidebarVirtualList from '@/redesign/components/MapSidebarVirtualList';
 import { cn } from '@/lib/utils';
+import CompareSessionChip from '@/shared/components/CompareSessionChip';
+import SessionResumeBanner from '@/redesign/components/SessionResumeBanner';
+import { patchSessionSnapshot } from '@/shared/lib/session-continuity';
 
 const PER_PAGE = 200;
 
@@ -137,6 +141,17 @@ const RedesignMap = () => {
   const debouncedSearch = useDebouncedValue(filters.search, CATALOG_SEARCH_DEBOUNCE_MS);
   const isSearchPending = filters.search !== debouncedSearch;
   useBodyScrollLock(showFilters);
+
+  useEffect(() => {
+    initMapSessionDiagnostics();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const qs = searchParams.toString();
+    patchSessionSnapshot({ mapHref: qs ? `/map?${qs}` : '/map' });
+  }, [searchParams]);
+
   const objectType = filters.objectType;
   const isUnsupportedSeparateType = objectType === 'rooms' || objectType === 'dachas';
   const useBlocksForApartments = objectType === 'apartments' && filters.marketType !== 'secondary';
@@ -480,6 +495,9 @@ const RedesignMap = () => {
   return (
     <div className="flex h-svh flex-col bg-background">
       <RedesignHeader />
+      <div className="shrink-0 px-3 pt-2 lg:px-4 print:hidden">
+        <SessionResumeBanner />
+      </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
         {/* Sidebar filters */}
         <aside className="hidden min-h-0 w-[280px] shrink-0 overflow-y-auto border-r border-border bg-background p-4 lg:block">
@@ -669,6 +687,8 @@ const RedesignMap = () => {
           </div>
         </div>
       )}
+
+      <CompareSessionChip />
     </div>
   );
 };

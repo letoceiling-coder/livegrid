@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
-import { Prisma, RequestEventType, RequestStatus, RequestType } from '@prisma/client';
+import { Prisma, RequestEventType, RequestStatus, RequestType, CrmMessageType } from '@prisma/client';
 import { compareSlaPriority, computeSlaState, SlaState, analyzeRequestTimeline } from '@lg/shared';
 import { CrmAttributionService } from './crm-attribution.service';
 import { CrmLifecycleService } from './crm-lifecycle.service';
@@ -16,6 +18,7 @@ import { RequestEventsService } from './request-events.service';
 import { assertStatusTransition } from './request-status';
 import { TelegramNotifyService } from './telegram-notify.service';
 import { AttentionRoutingService } from '../crm-notifications/attention-routing.service';
+import { CrmCommunicationService } from '../crm-communication/crm-communication.service';
 
 const assignedUserSelect = {
   id: true,
@@ -38,6 +41,7 @@ const listSelect = {
   telegramSent: true,
   createdAt: true,
   lastActivityAt: true,
+  interactionCount: true,
   assignedTo: true,
   assignedUser: { select: assignedUserSelect },
 } as const;
@@ -62,11 +66,16 @@ export class RequestsService {
     private readonly lifecycle: CrmLifecycleService,
     private readonly outcomeQuality: CrmOutcomeQualityService,
     private readonly forecast: CrmForecastService,
+    @Inject(forwardRef(() => CrmCommunicationService))
+    private readonly communication: CrmCommunicationService,
   ) {}
 
   async create(dto: CreateRequestDto, userId?: string | null) {
     const type = this.resolveType(dto.type);
     const now = new Date();
+    const duplicateWarning = dto.phone
+      ? await this.findRecentDuplicatePhone(dto.phone)
+      : null;
     const row = await this.prisma.request.create({
       data: {
         name: dto.name,
@@ -89,6 +98,13 @@ export class RequestsService {
       note: dto.comment ?? null,
     });
 
+    const buyerToken = this.communication.generateBuyerToken();
+    void this.communication.bootstrapForRequest(row, buyerToken).catch((e) => {
+      this.logger.warn(
+        `Communication thread bootstrap failed for request ${row.id}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    });
+
     if (await this.telegramNotify.isConfigured()) {
       void (async () => {
         try {
@@ -107,7 +123,43 @@ export class RequestsService {
       })();
     }
 
-    return row;
+    return {
+      ...row,
+      buyerToken,
+      ...(duplicateWarning ? { duplicateWarning } : {}),
+    };
+  }
+
+  private normalizePhoneDigits(phone: string): string {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('8')) return `7${digits.slice(1)}`;
+    return digits;
+  }
+
+  private async findRecentDuplicatePhone(
+    phone: string,
+  ): Promise<{ recentRequestId: number; messageRu: string } | null> {
+    const normalized = this.normalizePhoneDigits(phone);
+    if (normalized.length < 10) return null;
+    const since = new Date(Date.now() - 48 * 3_600_000);
+    const recent = await this.prisma.request.findMany({
+      where: {
+        createdAt: { gte: since },
+        phone: { not: '' },
+        status: { not: RequestStatus.SPAM },
+      },
+      select: { id: true, phone: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+    });
+    const match = recent.find(
+      (r) => r.phone && this.normalizePhoneDigits(r.phone) === normalized,
+    );
+    if (!match) return null;
+    return {
+      recentRequestId: match.id,
+      messageRu: `Недавно уже была заявка #${match.id} с этим номером (${match.createdAt.toLocaleString('ru-RU')})`,
+    };
   }
 
   async findByUserId(userId: string, take = 100) {
@@ -436,6 +488,9 @@ export class RequestsService {
         actorId: actorId ?? null,
         note: assignedTo,
       });
+      void this.communication.ensureThreadForRequest(id).then((thread) =>
+        this.communication.syncAssigneeParticipant(thread.id, assignedTo),
+      );
       this.attention.onAssigned(
         { ...updated, lastActivityAt: updated.lastActivityAt, createdAt: existing.createdAt },
         prevAssignee,
@@ -461,6 +516,16 @@ export class RequestsService {
       actorId: actorId ?? null,
       note: trimmed,
     });
+    void this.communication.ensureThreadForRequest(id).then((thread) =>
+      this.communication.appendMessage({
+        threadId: thread.id,
+        type: CrmMessageType.NOTE,
+        body: trimmed,
+        actorId: actorId ?? null,
+        requestId: id,
+        syncTimeline: false,
+      }),
+    );
     this.attention.onNoteAdded(
       {
         id: existing.id,

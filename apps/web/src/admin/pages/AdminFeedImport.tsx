@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, Loader2, Play, RefreshCw, CheckCircle2, XCircle, Clock, FileJson, Square, Trash2 } from 'lucide-react';
+import { Download, Loader2, Play, RefreshCw, CheckCircle2, XCircle, Clock, FileJson, Square, Trash2, AlertTriangle, Activity } from 'lucide-react';
 import { apiDelete, apiGet, apiPost } from '@/lib/api';
 import { useAuth } from '@/shared/hooks/useAuth';
+import AdminLoadingState from '@/admin/components/AdminLoadingState';
+import AdminStatusBadge from '@/admin/components/AdminStatusBadge';
+import CrmInlineError from '@/admin/components/CrmInlineError';
 
 interface ImportHistoryRow {
   id: number;
@@ -25,6 +28,8 @@ interface ImportHistoryRow {
     blocks_upserted?: number;
     buildings_upserted?: number;
     apartments_upserted?: number;
+    hasWarnings?: boolean;
+    errors?: string[];
   } | null;
   errorMessage: string | null;
 }
@@ -52,6 +57,123 @@ interface FeedSourceRow {
   canImport: boolean;
   reason: string | null;
   files: { name: string; required: boolean; url: string | null }[];
+}
+
+interface FeedHealthSummary {
+  ok: boolean;
+  generatedAt: string;
+  staleThresholdHours: number;
+  regions: {
+    enabled: number;
+    stale: { code: string; name: string; lastImportedAt: string | null }[];
+      health?: {
+      code: string;
+      name: string;
+      lastImportedAt: string | null;
+      catalogApartments: number;
+      catalogBlocks: number;
+      isStale: boolean;
+      importAllowed: boolean;
+      parityPercent?: { apartments: number | null; blocks: number | null };
+    }[];
+  };
+  batches: {
+    running: number;
+    stuck: { id: number; regionCode: string; startedAt: string | null }[];
+    failedLast24h: number;
+    incompleteLast24h: number;
+  };
+  dataIntegrity: { orphanApartments: number; duplicateExternalIdGroups: unknown[] };
+  queue: { waiting: number; active: number; delayed: number; failed: number } | null;
+  issues: { kind: string; severity: string; messageRu: string }[];
+  integrityScore?: number | null;
+  governance?: {
+    cronPattern: string;
+    cronTz: string;
+    cronDisabled: boolean;
+    weeklyOnlyPolicy: boolean;
+    overlapProtection: boolean;
+    degradedQuarantine: boolean;
+    markSoldMinRatio: number;
+    integrityMinScore: number;
+    degradedImportsLast7d: number;
+  };
+}
+
+interface PublicDataQualityAudit {
+  catalogEligible: number;
+  orphanApartments: number;
+  orphanBlocks: number;
+  duplicateExternalIds: number;
+  duplicateBlockSlugs: number;
+  invalidCoordinates: number;
+  apartmentsWithoutPlan: number;
+  withoutGeo: number;
+  blocksWithoutImages: number;
+  parityPercent: { apartments: number | null; blocks: number | null };
+  parityTargets: { donorApartments: number; donorBlocks: number };
+}
+
+interface SitemapMetrics {
+  indexUrl: string;
+  totalUrls: number | null;
+  lastGeneration: { generatedAt: string; durationMs: number; counts: { total: number; apartments: number; complexes: number; listings: number } } | null;
+}
+
+interface FeedIntegrityReport {
+  integrity_score: number;
+  integrity_percent: { apartments: number | null; blocks: number | null };
+  feed: {
+    apartments_in_feed: number | null;
+    blocks_in_feed: number | null;
+    apartments_count_source: string;
+  };
+  database: {
+    active_published: number;
+    sold: number;
+    orphan_apartments: number;
+    catalog_eligible: number;
+    blocks_with_active_listings: number;
+  };
+  vitrine_catalog_counts: { blocks: number; apartments: number };
+  comparison: {
+    apartments_feed_vs_active_db: { feed_expected: number | null; db_active_published: number; delta: number | null };
+    blocks_feed_vs_vitrine: { feed: number | null; vitrine: number; delta: number | null };
+  };
+  last_completed_import: { apartments_in_feed?: number | null; apartments_upserted?: number | null } | null;
+  explanations: string[];
+}
+
+interface FeedIncidentStatus {
+  recoveryMode: boolean;
+  degradedImportDetected: boolean;
+  soldSpikeAlert: boolean;
+  integrityScore: number | null;
+  counts: { activePublished: number; sold: number; feedApartmentsInLastImport: number | null };
+  recoveryRecommended: boolean;
+  lastHealthyImport: { batchId: number; finishedAt: string | null; apartmentsInFeed: unknown } | null;
+}
+
+interface SoldRecoveryPlan {
+  dryRun: boolean;
+  falseSoldCandidates: number;
+  legitimateSold: number;
+  feedApartmentCount: number;
+  safeToRestore: boolean;
+  warnings: string[];
+  restored?: number;
+}
+
+function batchHasWarnings(row: ImportHistoryRow): boolean {
+  const stats = row.stats;
+  if (stats?.hasWarnings) return true;
+  return Array.isArray(stats?.errors) && stats.errors.length > 0;
+}
+
+function batchWarningCount(row: ImportHistoryRow): number {
+  const stats = row.stats;
+  if (Array.isArray(stats?.errors)) return stats.errors.length;
+  return stats?.hasWarnings ? 1 : 0;
 }
 
 const statusIcon: Record<string, typeof CheckCircle2> = {
@@ -137,6 +259,7 @@ export default function AdminFeedImport() {
   const [region, setRegion] = useState('all');
   const [selectedFeedCodes, setSelectedFeedCodes] = useState<string[]>([]);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [integrityHeavy, setIntegrityHeavy] = useState(false);
   const canTrigger = user?.role === 'admin';
 
   const { data: regions = [] } = useQuery({
@@ -174,7 +297,13 @@ export default function AdminFeedImport() {
   const { data: progress, isFetching: progressFetching } = useQuery({
     queryKey: ['admin', 'feed-import', 'progress'],
     queryFn: () => apiGet<Progress>('/admin/feed-import/progress'),
-    refetchInterval: 3000,
+    refetchInterval: (query) => {
+      const step = query.state.data?.step;
+      if (!step || ['idle', 'Failed', 'Completed'].includes(step)) return false;
+      const pct = query.state.data?.percent ?? 0;
+      if (pct >= 100) return false;
+      return 3000;
+    },
     staleTime: 2000,
   });
 
@@ -182,6 +311,72 @@ export default function AdminFeedImport() {
     queryKey: ['admin', 'feed-import', 'history'],
     queryFn: () => apiGet<{ data: ImportHistoryRow[] }>('/admin/feed-import/history?per_page=20'),
     staleTime: 10_000,
+  });
+
+  const { data: feedHealth, isFetching: healthFetching, refetch: refetchHealth } = useQuery({
+    queryKey: ['admin', 'feed-import', 'health'],
+    queryFn: () => apiGet<FeedHealthSummary>('/admin/feed-import/health'),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const integrityRegion = selectedRegionCode ?? 'msk';
+
+  const { data: incident } = useQuery({
+    queryKey: ['admin', 'feed-import', 'incident', integrityRegion],
+    queryFn: () => apiGet<FeedIncidentStatus>(`/admin/feed-import/recovery/incident?region=${encodeURIComponent(integrityRegion)}`),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const { data: snapshots } = useQuery({
+    queryKey: ['admin', 'feed-import', 'snapshots', integrityRegion],
+    queryFn: () => apiGet<{ points: { finishedAt: string | null; apartmentsInFeed: number | null; degraded: boolean }[] }>(
+      `/admin/feed-import/snapshots?region=${encodeURIComponent(integrityRegion)}&limit=8`,
+    ),
+    staleTime: 60_000,
+  });
+
+  const soldPlanMutation = useMutation({
+    mutationFn: (dryRun: boolean) =>
+      apiPost<SoldRecoveryPlan>(
+        `/admin/feed-import/recovery/sold-restore?region=${encodeURIComponent(integrityRegion)}${dryRun ? '&dry_run=1' : ''}`,
+        {},
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'feed-import'] });
+    },
+  });
+
+  const { data: integrity, isFetching: integrityLoading, refetch: refetchIntegrity } = useQuery({
+    queryKey: ['admin', 'feed-import', 'integrity', integrityRegion, integrityHeavy],
+    queryFn: () =>
+      apiGet<FeedIntegrityReport>(
+        `/admin/feed-import/integrity?region=${encodeURIComponent(integrityRegion)}${integrityHeavy ? '&include_apartments=1' : ''}`,
+      ),
+    staleTime: 60_000,
+  });
+
+  const { data: dataQuality } = useQuery({
+    queryKey: ['admin', 'feed-import', 'data-quality', integrityRegion],
+    queryFn: () =>
+      apiGet<PublicDataQualityAudit>(
+        `/admin/feed-import/recovery/data-quality?region=${encodeURIComponent(integrityRegion)}`,
+      ),
+    staleTime: 60_000,
+  });
+
+  const { data: sitemapMetrics } = useQuery({
+    queryKey: ['admin', 'sitemap', 'metrics'],
+    queryFn: () => apiGet<SitemapMetrics>('/admin/sitemap/metrics'),
+    staleTime: 30_000,
+  });
+
+  const sitemapGenerateMutation = useMutation({
+    mutationFn: () => apiPost<SitemapMetrics['lastGeneration']>('/admin/sitemap/generate', {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'sitemap'] });
+    },
   });
 
   const { data: diagnostics, isFetching: diagLoading, refetch: refetchDiag } = useQuery({
@@ -239,11 +434,23 @@ export default function AdminFeedImport() {
   const selectedCount = selectedFeedCodes.length;
 
   return (
-    <div className="p-6 max-w-5xl">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Download className="w-6 h-6 text-primary" />
-          <h1 className="text-2xl font-bold">Импорт фидов</h1>
+    <div className="p-4 sm:p-6 max-w-5xl pb-24">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3 min-w-0">
+          <Download className="w-6 h-6 text-primary shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">Импорт фидов</h1>
+            {feedHealth ? (
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <AdminStatusBadge tone={feedHealth.ok ? 'ok' : 'warn'}>
+                  {feedHealth.ok ? 'healthy' : 'attention'}
+                </AdminStatusBadge>
+                {feedHealth.governance?.weeklyOnlyPolicy ? (
+                  <AdminStatusBadge tone="neutral">weekly cron</AdminStatusBadge>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -307,6 +514,331 @@ export default function AdminFeedImport() {
           </button>
         </div>
       </div>
+
+      {incident?.recoveryRecommended || incident?.soldSpikeAlert ? (
+        <div className="mb-6 rounded-2xl border border-destructive/50 bg-destructive/5 p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <div>
+              <h2 className="font-semibold text-sm text-destructive">Production feed incident</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                ACTIVE {incident.counts.activePublished.toLocaleString('ru-RU')} · SOLD {incident.counts.sold.toLocaleString('ru-RU')}
+                {incident.integrityScore != null ? ` · integrity ${incident.integrityScore}%` : ''}
+              </p>
+              {incident.degradedImportDetected ? (
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">Degraded import detected in recent history</p>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={soldPlanMutation.isPending}
+              onClick={() => soldPlanMutation.mutate(true)}
+              className="text-xs h-9 px-3 rounded-lg border bg-background hover:bg-muted"
+            >
+              {soldPlanMutation.isPending ? '…' : 'Preview SOLD recovery'}
+            </button>
+            {canTrigger ? (
+              <button
+                type="button"
+                disabled={soldPlanMutation.isPending}
+                onClick={() => {
+                  if (!window.confirm('Restore false SOLD from current feed snapshot? Requires ~67k feed.')) return;
+                  soldPlanMutation.mutate(false);
+                }}
+                className="text-xs h-9 px-3 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Execute recovery
+              </button>
+            ) : null}
+          </div>
+          {soldPlanMutation.data ? (
+            <pre className="text-[10px] bg-muted/50 rounded-lg p-2 overflow-x-auto max-h-40">
+              {JSON.stringify(soldPlanMutation.data, null, 2)}
+            </pre>
+          ) : null}
+        </div>
+      ) : null}
+
+      {dataQuality ? (
+        <div className="mb-6 rounded-2xl border bg-background p-4">
+          <h2 className="font-semibold text-sm mb-2">Public catalog data quality</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-2">
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Catalog eligible</p>
+              <p className="font-semibold tabular-nums">{dataQuality.catalogEligible.toLocaleString('ru-RU')}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Donor parity (apt)</p>
+              <p className="font-semibold">{dataQuality.parityPercent.apartments ?? '—'}%</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Donor parity (ЖК)</p>
+              <p className="font-semibold">{dataQuality.parityPercent.blocks ?? '—'}%</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Orphans / dupes</p>
+              <p className="font-semibold">{dataQuality.orphanApartments} / {dataQuality.duplicateExternalIds}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-2">
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Empty ЖК</p>
+              <p className="font-semibold">{dataQuality.orphanBlocks}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">No plan image</p>
+              <p className="font-semibold">{dataQuality.apartmentsWithoutPlan}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Dup slugs / bad geo</p>
+              <p className="font-semibold">{dataQuality.duplicateBlockSlugs} / {dataQuality.invalidCoordinates}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Blocks w/o images</p>
+              <p className="font-semibold">{dataQuality.blocksWithoutImages}</p>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Target ~{dataQuality.parityTargets.donorApartments.toLocaleString('ru-RU')} apt · ~{dataQuality.parityTargets.donorBlocks} ЖК · without geo: {dataQuality.withoutGeo} · blocks w/o images: {dataQuality.blocksWithoutImages}
+          </p>
+        </div>
+      ) : null}
+
+      <div className="mb-6 rounded-2xl border bg-background p-4">
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div>
+            <h2 className="font-semibold text-sm">SEO sitemap scale</h2>
+            <p className="text-xs text-muted-foreground">
+              {sitemapMetrics?.totalUrls != null
+                ? `${sitemapMetrics.totalUrls.toLocaleString('ru-RU')} URLs indexed`
+                : 'Not generated yet'}
+              {sitemapMetrics?.lastGeneration
+                ? ` · last ${new Date(sitemapMetrics.lastGeneration.generatedAt).toLocaleString('ru-RU')} (${sitemapMetrics.lastGeneration.durationMs}ms)`
+                : ''}
+            </p>
+          </div>
+          {canTrigger ? (
+            <button
+              type="button"
+              disabled={sitemapGenerateMutation.isPending}
+              onClick={() => sitemapGenerateMutation.mutate()}
+              className="text-xs h-9 px-3 rounded-lg border hover:bg-muted"
+            >
+              {sitemapGenerateMutation.isPending ? 'Generating…' : 'Regenerate sitemaps'}
+            </button>
+          ) : null}
+        </div>
+        {sitemapMetrics?.indexUrl ? (
+          <p className="text-[10px] text-muted-foreground break-all">Index: {sitemapMetrics.indexUrl}</p>
+        ) : null}
+        {sitemapMetrics?.lastGeneration?.counts ? (
+          <p className="text-[10px] text-muted-foreground mt-1">
+            apt {sitemapMetrics.lastGeneration.counts.apartments.toLocaleString('ru-RU')} · ЖК {sitemapMetrics.lastGeneration.counts.complexes.toLocaleString('ru-RU')} · listings {sitemapMetrics.lastGeneration.counts.listings.toLocaleString('ru-RU')}
+          </p>
+        ) : null}
+      </div>
+
+      {snapshots?.points?.length ? (
+        <div className="mb-6 rounded-2xl border bg-background p-4">
+          <h2 className="font-semibold text-sm mb-2">Import snapshot trend</h2>
+          <div className="flex gap-1 items-end h-16">
+            {snapshots.points.map((p, i) => {
+              const h = p.apartmentsInFeed ? Math.min(100, (p.apartmentsInFeed / 70000) * 100) : 4;
+              return (
+                <div
+                  key={`${p.finishedAt ?? i}`}
+                  title={`${p.apartmentsInFeed ?? '?'} apt${p.degraded ? ' (degraded)' : ''}`}
+                  className={`flex-1 rounded-t ${p.degraded ? 'bg-amber-500' : 'bg-primary/70'}`}
+                  style={{ height: `${h}%`, minHeight: 4 }}
+                />
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2">Bar height ∝ apartments_in_feed (last {snapshots.points.length} imports)</p>
+        </div>
+      ) : null}
+
+      {feedHealth ? (
+        <section className="bg-background border rounded-2xl p-4 mb-6 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Activity className={`w-5 h-5 ${feedHealth.ok ? 'text-green-600' : 'text-amber-600'}`} />
+              <div>
+                <h2 className="font-semibold text-sm">Диагностика фидов</h2>
+                <p className="text-xs text-muted-foreground">
+                  Регионов: {feedHealth.regions.enabled} · running: {feedHealth.batches.running} · failed 24ч: {feedHealth.batches.failedLast24h}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void refetchHealth()}
+              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+            >
+              <RefreshCw className={`w-3 h-3 ${healthFetching ? 'animate-spin' : ''}`} />
+              Обновить
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Устаревшие</p>
+              <p className="font-semibold">{feedHealth.regions.stale.length}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Зависшие</p>
+              <p className="font-semibold">{feedHealth.batches.stuck.length}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Сироты (без ЖК)</p>
+              <p className="font-semibold">{feedHealth.dataIntegrity.orphanApartments}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Частичные 24ч</p>
+              <p className="font-semibold">{feedHealth.batches.incompleteLast24h}</p>
+            </div>
+          </div>
+          {feedHealth.regions.health?.length ? (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/40 text-left">
+                    <th className="p-2 font-medium">Регион</th>
+                    <th className="p-2 font-medium">Квартир</th>
+                    <th className="p-2 font-medium">ЖК</th>
+                    <th className="p-2 font-medium">Parity</th>
+                    <th className="p-2 font-medium">Импорт</th>
+                    <th className="p-2 font-medium">Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {feedHealth.regions.health.map((r) => (
+                    <tr key={r.code} className="border-b last:border-0">
+                      <td className="p-2">{r.name} <span className="text-muted-foreground">({r.code})</span></td>
+                      <td className="p-2 tabular-nums">{r.catalogApartments.toLocaleString('ru-RU')}</td>
+                      <td className="p-2 tabular-nums">{r.catalogBlocks.toLocaleString('ru-RU')}</td>
+                      <td className="p-2 tabular-nums text-muted-foreground">
+                        {r.parityPercent?.apartments != null ? `${r.parityPercent.apartments}%` : '—'}
+                      </td>
+                      <td className="p-2 text-muted-foreground">
+                        {r.lastImportedAt
+                          ? new Date(r.lastImportedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                          : '—'}
+                      </td>
+                      <td className="p-2">
+                        {r.isStale ? (
+                          <AdminStatusBadge tone="warn">устарел</AdminStatusBadge>
+                        ) : r.importAllowed ? (
+                          <AdminStatusBadge tone="ok">ok</AdminStatusBadge>
+                        ) : (
+                          <AdminStatusBadge tone="neutral">не в allowlist</AdminStatusBadge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+          {feedHealth.governance ? (
+            <p className="text-[10px] text-muted-foreground">
+              Cron {feedHealth.governance.cronDisabled ? 'disabled' : `${feedHealth.governance.cronPattern} (${feedHealth.governance.cronTz})`}
+              · overlap guard · quarantine on degraded
+              · degraded 7d: {feedHealth.governance.degradedImportsLast7d}
+            </p>
+          ) : null}
+          {feedHealth.issues.length ? (
+            <ul className="space-y-1">
+              {feedHealth.issues.map((issue) => (
+                <li
+                  key={issue.kind}
+                  className={`text-xs flex items-start gap-1.5 ${issue.severity === 'critical' ? 'text-destructive' : 'text-amber-700 dark:text-amber-400'}`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  {issue.messageRu}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-green-700">Критических проблем не обнаружено</p>
+          )}
+          {feedHealth.queue ? (
+            <p className="text-[10px] text-muted-foreground">
+              BullMQ: wait {feedHealth.queue.waiting} · active {feedHealth.queue.active} · failed {feedHealth.queue.failed}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {integrity ? (
+        <section className="bg-background border rounded-2xl p-4 mb-6 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-sm">Feed integrity · {selectedRegionCode?.toUpperCase() ?? 'MSK'}</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Score {integrity.integrity_score}% · источник квартир: {integrity.feed.apartments_count_source}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={integrityHeavy}
+                  onChange={(e) => setIntegrityHeavy(e.target.checked)}
+                />
+                Полный apartments.json
+              </label>
+              <button type="button" onClick={() => void refetchIntegrity()} className="text-xs text-primary hover:underline">
+                {integrityLoading ? '…' : 'Обновить'}
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Фид квартир</p>
+              <p className="font-semibold">{integrity.feed.apartments_in_feed?.toLocaleString('ru-RU') ?? '—'}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">DB ACTIVE</p>
+              <p className="font-semibold">{integrity.database.active_published.toLocaleString('ru-RU')}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Витрина</p>
+              <p className="font-semibold">{integrity.vitrine_catalog_counts.apartments.toLocaleString('ru-RU')}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">SOLD (feed)</p>
+              <p className="font-semibold">{integrity.database.sold.toLocaleString('ru-RU')}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">ЖК фид / витрина</p>
+              <p className="font-semibold">
+                {integrity.feed.blocks_in_feed ?? '—'} / {integrity.vitrine_catalog_counts.blocks}
+              </p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Δ квартир</p>
+              <p className="font-semibold">
+                {integrity.comparison.apartments_feed_vs_active_db.delta?.toLocaleString('ru-RU') ?? '—'}
+              </p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Сироты</p>
+              <p className="font-semibold">{integrity.database.orphan_apartments}</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-muted-foreground">Посл. upsert</p>
+              <p className="font-semibold">
+                {integrity.last_completed_import?.apartments_upserted?.toLocaleString('ru-RU') ?? '—'}
+              </p>
+            </div>
+          </div>
+          {integrity.explanations.slice(0, 4).map((line) => (
+            <p key={line.slice(0, 40)} className="text-xs text-muted-foreground">{line}</p>
+          ))}
+        </section>
+      ) : null}
 
       <div className="bg-background border rounded-2xl p-4 mb-6">
         <div className="flex items-start justify-between gap-3 mb-3">
@@ -453,11 +985,7 @@ export default function AdminFeedImport() {
         </button>
       </div>
 
-      {historyLoading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
+      {historyLoading ? <AdminLoadingState compact label="Загрузка истории…" /> : null}
 
       {!historyLoading && rows.length === 0 && (
         <div className="bg-background border rounded-2xl p-8 text-center text-sm text-muted-foreground">
@@ -484,13 +1012,18 @@ export default function AdminFeedImport() {
               </thead>
               <tbody className="divide-y">
                 {rows.map(r => {
-                  const Icon = statusIcon[r.status] ?? Clock;
+                  const hasWarnings = r.status === 'COMPLETED' && batchHasWarnings(r);
+                  const Icon = hasWarnings ? AlertTriangle : (statusIcon[r.status] ?? Clock);
+                  const rowStatusColor = hasWarnings ? 'text-amber-600' : (statusColor[r.status] ?? '');
+                  const rowStatusLabel = hasWarnings
+                    ? `С предупрежд. (${batchWarningCount(r)})`
+                    : (statusLabel[r.status] ?? r.status);
                   return (
                     <tr key={r.id} className="hover:bg-muted/50 transition-colors">
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${statusColor[r.status] ?? ''}`}>
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${rowStatusColor}`}>
                           <Icon className={`w-3.5 h-3.5 ${r.status === 'IN_PROGRESS' || r.status === 'RUNNING' ? 'animate-spin' : ''}`} />
-                          {statusLabel[r.status] ?? r.status}
+                          {rowStatusLabel}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs uppercase">{historyRegionCode(r)}</td>
@@ -509,8 +1042,14 @@ export default function AdminFeedImport() {
                       <td className="px-4 py-3 text-right text-xs">
                         <span className="text-green-600">+{statValue(r, 'listingsCreated')}</span> / <span className="text-amber-600">{statValue(r, 'listingsUpdated')}</span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-destructive max-w-[320px] whitespace-pre-wrap break-words" title={r.errorMessage ?? ''}>
-                        {r.errorMessage ?? '—'}
+                      <td className="px-4 py-3 text-xs max-w-[320px] whitespace-pre-wrap break-words" title={r.errorMessage ?? ''}>
+                        {r.errorMessage ? (
+                          <span className="text-destructive">{r.errorMessage}</span>
+                        ) : hasWarnings ? (
+                          <span className="text-amber-700">{batchWarningCount(r)} предупр. в stats.errors</span>
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-1">

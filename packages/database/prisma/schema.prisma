@@ -46,11 +46,22 @@ enum ListingStatus {
 }
 
 /// Iter 44 — marketplace visibility (separate from operational status)
+/// Iter 50 — REVIEW/REJECTED for moderation workflow
 enum ListingVisibility {
   PUBLIC
   HIDDEN
   ARCHIVED
   DRAFT
+  REVIEW
+  REJECTED
+}
+
+/// Iter 53 — marketplace promotion tier (monetization layer)
+enum ListingPromotionTier {
+  STANDARD
+  VIP
+  BOOSTED
+  PREMIUM
 }
 
 /// Iter 20 — listing geo provenance (nullable until normalization; no UI_ONLY)
@@ -159,6 +170,41 @@ enum CrmNotificationType {
   VIEWING_REMINDER
   REASSIGNED
   TG_CLAIMED
+  BUYER_REPLY
+  CALLBACK_OVERDUE
+  MANAGER_MENTIONED
+  UNREAD_CONVERSATION
+  FOLLOWUP_DUE
+  ESCALATION_ASSIGNED
+  STALE_RESCUE_TRIGGERED
+}
+
+enum CrmThreadType {
+  LISTING_INQUIRY
+  COMPLEX_INQUIRY
+  SUPPORT
+  INTERNAL
+}
+
+enum CrmMessageType {
+  TEXT
+  SYSTEM
+  NOTE
+  CONTACT_ATTEMPT
+  CALLBACK_SCHEDULED
+}
+
+enum CrmMessageVisibility {
+  INTERNAL
+  BUYER_VISIBLE
+  MANAGER_ONLY
+}
+
+enum CrmParticipantRole {
+  BUYER
+  AGENT
+  MANAGER
+  SYSTEM
 }
 
 enum CrmNotificationPriority {
@@ -166,6 +212,38 @@ enum CrmNotificationPriority {
   NORMAL
   HIGH
   URGENT
+}
+
+enum CrmAutomationRuleType {
+  CALLBACK_OVERDUE
+  STALE_NEGOTIATION
+  NO_REPLY
+  REOPEN_RISK
+  NEW_VIP_INQUIRY
+  SAVED_SEARCH_HOT_LEAD
+}
+
+enum CrmFollowupTaskType {
+  CALL_CLIENT
+  SEND_REMINDER
+  REVISIT_STALE
+  ESCALATE_NEGOTIATION
+  SCHEDULE_VIEWING
+  RESCUE_REOPEN
+}
+
+enum CrmFollowupTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DISMISSED
+  EXPIRED
+}
+
+enum CrmAutomationActionKind {
+  CREATE_TASK
+  NOTIFY
+  ESCALATE
 }
 
 enum CrmSnapshotKind {
@@ -281,14 +359,32 @@ model User {
   requestEvents      RequestEvent[]  @relation("RequestEventActor")
   crmNotificationsReceived CrmNotification[] @relation("CrmNotificationRecipient")
   crmNotificationsActed    CrmNotification[] @relation("CrmNotificationActor")
+  crmThreadsAsBuyer        CrmThread[]       @relation("CrmThreadBuyer")
+  crmThreadParticipants    CrmThreadParticipant[] @relation("CrmThreadParticipantUser")
+  crmMessagesAuthored        CrmMessage[]      @relation("CrmMessageActor")
+  crmAutomationActions       CrmAutomationAction[] @relation("CrmAutomationActionAssignee")
+  crmFollowupTasksAssigned   CrmFollowupTask[] @relation("CrmFollowupTaskAssignee")
+  crmFollowupTasksCompleted  CrmFollowupTask[] @relation("CrmFollowupTaskCompleter")
   reviewedTelegramRequests TelegramNotifyAccessRequest[] @relation("ReviewedTelegramRequests")
   approvedTelegramRecipients TelegramNotifyRecipient[] @relation("ApprovedTelegramRecipients")
   favorites          Favorite[]
   collections      UserCollection[]
+  savedSearches    SavedSearch[]
+  userNotifications UserNotification[]
+  browseHistory    UserBrowseHistory[]
   telegramAuthCodes TelegramAuthCode[]
   createdSellers    Seller[] @relation("SellerCreatedBy")
   updatedSellers    Seller[] @relation("SellerUpdatedBy")
   ownedListings     Listing[] @relation("ListingOwner")
+  wizardSnapshotsUpdated ListingWizardSnapshot[] @relation("WizardSnapshotEditor")
+  listingEditHistory ListingEditHistory[] @relation("ListingEditActor")
+  agentTrustScore    AgentTrustScore?
+  agencyVerification AgencyVerification?
+  listingFlags       ListingFlag[]
+  verifiedAgencies   AgencyVerification[] @relation("AgencyVerifier")
+  billingAccount     BillingAccount?
+  agencyProfile      AgencyProfile?
+  agentProfile       AgentProfile?
 
   @@map("users")
 }
@@ -351,6 +447,7 @@ model FeedRegion {
   importBatches ImportBatch[]
   news          News[]
   telegramNewsChannels NewsTelegramChannel[]
+  savedSearches SavedSearch[]
 
   @@map("feed_regions")
 }
@@ -595,10 +692,16 @@ model Listing {
   visibility ListingVisibility @default(PUBLIC)
   isPublished Boolean      @default(true) @map("is_published")
   isHot       Boolean      @default(false) @map("is_hot")
+  promotionTier   ListingPromotionTier @default(STANDARD) @map("promotion_tier")
+  promotedUntil   DateTime?  @map("promoted_until")
+  boostScore      Int        @default(0) @map("boost_score")
+  vipPriority     Int        @default(0) @map("vip_priority")
   publishedAt DateTime?    @map("published_at")
   archivedAt  DateTime?    @map("archived_at")
   lastActivityAt DateTime? @map("last_activity_at")
   ownerUserId String?       @map("owner_user_id") @db.Uuid
+  moderationNote String?    @map("moderation_note") @db.Text
+  draftVersion   Int         @default(1) @map("draft_version")
   title       String?       @db.Text
   address     String?       @db.Text
   description String?       @db.Text
@@ -632,6 +735,11 @@ model Listing {
   favorites  Favorite[]
   geoReviewDecisions ListingGeoReviewDecision[]
   geoMaterializationSnapshots ListingGeoMaterializationSnapshot[]
+  wizardSnapshot ListingWizardSnapshot?
+  editHistory    ListingEditHistory[]
+  trustScore     ListingTrustScore?
+  trustFlags     ListingFlag[]
+  promotionOrders PromotionOrder[]
 
   @@unique([regionId, externalId])
   @@index([regionId, kind])
@@ -646,6 +754,8 @@ model Listing {
   @@index([visibility])
   @@index([ownerUserId])
   @@index([lastActivityAt])
+  @@index([promotionTier, promotedUntil])
+  @@index([vipPriority])
   @@index([geoQuality, regionId])
   @@index([geoSource])
   @@index([geoEntityKind, geoEntityId])
@@ -697,6 +807,350 @@ model ListingGeoMaterializationSnapshot {
   @@index([runId])
   @@index([listingId])
   @@map("listing_geo_materialization_snapshots")
+}
+
+/// Iter 50 — wizard draft payload (source of truth for in-progress edits)
+model ListingWizardSnapshot {
+  id                 Int      @id @default(autoincrement())
+  listingId          Int      @unique @map("listing_id")
+  payload            Json
+  wizardStep         Int      @default(0) @map("wizard_step")
+  isPendingRevision  Boolean  @default(false) @map("is_pending_revision")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  updatedByUserId    String?  @map("updated_by_user_id") @db.Uuid
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("WizardSnapshotEditor", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedAt])
+  @@map("listing_wizard_snapshots")
+}
+
+/// Iter 50 — lightweight listing edit / moderation history
+model ListingEditHistory {
+  id        Int      @id @default(autoincrement())
+  listingId Int      @map("listing_id")
+  userId    String?  @map("user_id") @db.Uuid
+  action    String   @db.VarChar(64)
+  summary   Json?
+  note      String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user    User?   @relation("ListingEditActor", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, createdAt(sort: Desc)])
+  @@map("listing_edit_history")
+}
+
+enum ListingTrustFlagType {
+  DUPLICATE_LISTING
+  REPOST_LOOP
+  RAPID_ARCHIVE_REPOST
+  CONTACT_SPAM
+  PROMOTION_CHURN
+  GEO_MISMATCH
+  PRICE_OSCILLATION
+  LOW_QUALITY
+  STALE_LISTING
+}
+
+enum ListingTrustFlagSeverity {
+  INFO
+  WARN
+  ALERT
+}
+
+enum AgencyVerificationStatus {
+  PENDING
+  VERIFIED
+  REVOKED
+}
+
+/// Iter 59 — operational billing (no payment gateway)
+enum BillingPlanId {
+  FREE
+  AGENT
+  AGENCY
+  PREMIUM_AGENCY
+}
+
+enum BillingAccountStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  TRIAL
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum UsageEventKind {
+  LISTING
+  PROMOTION
+  CRM_SEAT
+  AUTOMATION
+  NOTIFICATION
+  SAVED_SEARCH
+}
+
+enum PromotionOrderStatus {
+  PENDING
+  INVOICED
+  FULFILLED
+  CANCELLED
+}
+
+/// Iter 60 — public agency/agent ecosystem
+enum PublicProfileStatus {
+  DRAFT
+  PUBLISHED
+  SUSPENDED
+}
+
+model ListingTrustScore {
+  id              Int      @id @default(autoincrement())
+  listingId       Int      @unique @map("listing_id")
+  qualityScore    Int      @default(0) @map("quality_score")
+  fingerprintHash String?  @map("fingerprint_hash") @db.VarChar(64)
+  factorsJson     Json     @default("{}") @map("factors_json")
+  flagCodes       Json     @default("[]") @map("flag_codes")
+  lastScoredAt    DateTime @default(now()) @map("last_scored_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([qualityScore])
+  @@index([fingerprintHash])
+  @@map("listing_trust_scores")
+}
+
+model AgentTrustScore {
+  id            Int      @id @default(autoincrement())
+  userId        String   @unique @map("user_id") @db.Uuid
+  trustScore    Int      @default(50) @map("trust_score")
+  rejectCount   Int      @default(0) @map("reject_count")
+  duplicateCount Int     @default(0) @map("duplicate_count")
+  approvedCount Int      @default(0) @map("approved_count")
+  listingCount  Int      @default(0) @map("listing_count")
+  flagsJson     Json     @default("[]") @map("flags_json")
+  lastScoredAt  DateTime @default(now()) @map("last_scored_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([trustScore])
+  @@map("agent_trust_scores")
+}
+
+model AgencyVerification {
+  id         Int                      @id @default(autoincrement())
+  userId     String                   @unique @map("user_id") @db.Uuid
+  status     AgencyVerificationStatus @default(PENDING)
+  verifiedAt DateTime?                @map("verified_at")
+  verifiedBy String?                  @map("verified_by") @db.Uuid
+  notes      String?                  @db.Text
+  createdAt  DateTime                 @default(now()) @map("created_at")
+  updatedAt  DateTime                 @updatedAt @map("updated_at")
+
+  user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verifier User? @relation("AgencyVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
+
+  @@map("agency_verifications")
+}
+
+model ListingFlag {
+  id         Int                      @id @default(autoincrement())
+  listingId  Int                      @map("listing_id")
+  userId     String?                  @map("user_id") @db.Uuid
+  flagType   ListingTrustFlagType     @map("flag_type")
+  severity   ListingTrustFlagSeverity @default(WARN)
+  dedupeKey  String                   @unique @map("dedupe_key") @db.VarChar(320)
+  metaJson   Json                     @default("{}") @map("meta_json")
+  resolvedAt DateTime?                @map("resolved_at")
+  createdAt  DateTime                 @default(now()) @map("created_at")
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, createdAt])
+  @@index([flagType])
+  @@index([userId])
+  @@map("listing_flags")
+}
+
+// ============================================================
+// Iter 59 — Billing & Subscriptions
+// ============================================================
+
+model BillingAccount {
+  id        String               @id @default(uuid()) @db.Uuid
+  userId    String               @unique @map("user_id") @db.Uuid
+  plan      BillingPlanId        @default(FREE)
+  status    BillingAccountStatus @default(ACTIVE)
+  notes     String?              @db.Text
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptions    Subscription[]
+  invoices         Invoice[]
+  usageEvents      UsageEvent[]
+  promotionOrders  PromotionOrder[]
+
+  @@index([plan])
+  @@index([status])
+  @@map("billing_accounts")
+}
+
+model Subscription {
+  id               String             @id @default(uuid()) @db.Uuid
+  billingAccountId String             @map("billing_account_id") @db.Uuid
+  plan             BillingPlanId
+  status           SubscriptionStatus @default(ACTIVE)
+  startsAt         DateTime           @default(now()) @map("starts_at")
+  endsAt           DateTime?          @map("ends_at")
+  cancelledAt      DateTime?          @map("cancelled_at")
+  metaJson         Json               @default("{}") @map("meta_json")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  billingAccount BillingAccount @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+
+  @@index([billingAccountId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id               String        @id @default(uuid()) @db.Uuid
+  billingAccountId String        @map("billing_account_id") @db.Uuid
+  number           String        @unique @db.VarChar(32)
+  status           InvoiceStatus @default(DRAFT)
+  amountRub        Int           @map("amount_rub")
+  currency         String        @default("RUB") @db.VarChar(3)
+  dueAt            DateTime      @map("due_at")
+  paidAt           DateTime?     @map("paid_at")
+  lineItemsJson    Json          @default("[]") @map("line_items_json")
+  notes            String?       @db.Text
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  billingAccount  BillingAccount   @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+  promotionOrders PromotionOrder[]
+
+  @@index([billingAccountId])
+  @@index([status])
+  @@index([dueAt])
+  @@map("invoices")
+}
+
+model UsageEvent {
+  id               String         @id @default(uuid()) @db.Uuid
+  billingAccountId String         @map("billing_account_id") @db.Uuid
+  kind             UsageEventKind
+  quantity         Int            @default(1)
+  metaJson         Json           @default("{}") @map("meta_json")
+  recordedAt       DateTime       @default(now()) @map("recorded_at")
+
+  billingAccount BillingAccount @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+
+  @@index([billingAccountId])
+  @@index([kind, recordedAt])
+  @@map("usage_events")
+}
+
+model PromotionOrder {
+  id               String               @id @default(uuid()) @db.Uuid
+  billingAccountId String               @map("billing_account_id") @db.Uuid
+  listingId        Int                  @map("listing_id")
+  productId        String               @map("product_id") @db.VarChar(32)
+  tier             ListingPromotionTier
+  durationDays     Int                  @map("duration_days")
+  amountRub        Int                  @map("amount_rub")
+  status           PromotionOrderStatus @default(PENDING)
+  invoiceId        String?              @map("invoice_id") @db.Uuid
+  fulfilledAt      DateTime?            @map("fulfilled_at")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  billingAccount BillingAccount @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+  listing        Listing        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  invoice        Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([billingAccountId])
+  @@index([listingId])
+  @@index([status])
+  @@index([invoiceId])
+  @@map("promotion_orders")
+}
+
+// ============================================================
+// Iter 60 — Agency + Agent Public Ecosystem
+// ============================================================
+
+model AgencyProfile {
+  id              String              @id @default(uuid()) @db.Uuid
+  userId          String              @unique @map("user_id") @db.Uuid
+  slug            String              @unique @db.VarChar(64)
+  displayName     String              @map("display_name") @db.VarChar(255)
+  logoUrl         String?             @map("logo_url") @db.Text
+  bannerUrl       String?             @map("banner_url") @db.Text
+  about           String?             @db.Text
+  phone           String?             @db.VarChar(64)
+  email           String?             @db.VarChar(255)
+  website         String?             @db.Text
+  socialLinksJson Json                @default("{}") @map("social_links_json")
+  status          PublicProfileStatus @default(DRAFT)
+  themeKey        String              @default("default") @map("theme_key") @db.VarChar(32)
+  regionIdsJson   Json                @default("[]") @map("region_ids_json")
+  moderationNote  String?             @map("moderation_note") @db.Text
+  publishedAt     DateTime?           @map("published_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agents AgentProfile[]
+
+  @@index([status])
+  @@map("agency_profiles")
+}
+
+model AgentProfile {
+  id                  String              @id @default(uuid()) @db.Uuid
+  userId              String              @unique @map("user_id") @db.Uuid
+  agencyProfileId     String?             @map("agency_profile_id") @db.Uuid
+  slug                String              @unique @db.VarChar(64)
+  bio                 String?             @db.Text
+  specializationsJson Json                @default("[]") @map("specializations_json")
+  regionIdsJson       Json                @default("[]") @map("region_ids_json")
+  status              PublicProfileStatus @default(DRAFT)
+  showPhone           Boolean             @default(false) @map("show_phone")
+  showEmail           Boolean             @default(false) @map("show_email")
+  moderationNote      String?             @map("moderation_note") @db.Text
+  publishedAt         DateTime?           @map("published_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agency AgencyProfile? @relation(fields: [agencyProfileId], references: [id], onDelete: SetNull)
+
+  @@index([agencyProfileId])
+  @@index([status])
+  @@map("agent_profiles")
 }
 
 // ============================================================
@@ -1006,11 +1460,15 @@ model Request {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
   lastActivityAt DateTime    @default(now()) @map("last_activity_at")
+  interactionCount Int       @default(0) @map("interaction_count")
 
   user         User? @relation("SubmittedRequests", fields: [userId], references: [id], onDelete: SetNull)
   assignedUser User? @relation("AssignedRequests", fields: [assignedTo], references: [id])
   events       RequestEvent[]
   notifications CrmNotification[]
+  communicationThread CrmThread?
+  automationActions CrmAutomationAction[]
+  followupTasks     CrmFollowupTask[]
 
   @@index([userId])
   @@index([status, createdAt])
@@ -1060,6 +1518,131 @@ model CrmNotification {
   @@index([recipientId, readAt, createdAt])
   @@index([requestId])
   @@map("crm_notifications")
+}
+
+model CrmThread {
+  id            Int           @id @default(autoincrement())
+  threadType    CrmThreadType @map("thread_type")
+  requestId     Int?          @unique @map("request_id")
+  listingId     Int?          @map("listing_id")
+  blockId       Int?          @map("block_id")
+  buyerUserId   String?       @map("buyer_user_id") @db.Uuid
+  buyerToken    String?       @unique @map("buyer_token") @db.VarChar(64)
+  subject       String?
+  messageCount  Int           @default(0) @map("message_count")
+  lastMessageAt DateTime?     @map("last_message_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  request      Request?               @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  buyerUser    User?                  @relation("CrmThreadBuyer", fields: [buyerUserId], references: [id], onDelete: SetNull)
+  messages     CrmMessage[]
+  participants CrmThreadParticipant[]
+
+  @@index([lastMessageAt])
+  @@index([buyerUserId])
+  @@index([listingId])
+  @@index([blockId])
+  @@map("crm_threads")
+}
+
+model CrmThreadParticipant {
+  id         Int                @id @default(autoincrement())
+  threadId   Int                @map("thread_id")
+  userId     String?            @map("user_id") @db.Uuid
+  buyerToken String?            @map("buyer_token") @db.VarChar(64)
+  role       CrmParticipantRole
+  lastReadAt DateTime?          @map("last_read_at")
+  createdAt  DateTime           @default(now()) @map("created_at")
+
+  thread CrmThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User?     @relation("CrmThreadParticipantUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@unique([threadId, buyerToken])
+  @@index([userId, lastReadAt])
+  @@map("crm_thread_participants")
+}
+
+model CrmMessage {
+  id         Int                  @id @default(autoincrement())
+  threadId   Int                  @map("thread_id")
+  type       CrmMessageType
+  visibility CrmMessageVisibility @default(INTERNAL)
+  body       String               @db.Text
+  meta       Json                 @default("{}")
+  actorId    String?              @map("actor_id") @db.Uuid
+  createdAt  DateTime             @default(now()) @map("created_at")
+
+  thread CrmThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  actor  User?     @relation("CrmMessageActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([threadId, createdAt])
+  @@map("crm_messages")
+}
+
+model CrmAutomationRule {
+  id               Int                   @id @default(autoincrement())
+  ruleType         CrmAutomationRuleType @unique @map("rule_type")
+  enabled          Boolean               @default(true)
+  configJson       Json                  @default("{}") @map("config_json")
+  cooldownHours    Int                   @default(24) @map("cooldown_hours")
+  maxActionsPerDay Int                   @default(50) @map("max_actions_per_day")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  actions CrmAutomationAction[]
+
+  @@map("crm_automation_rules")
+}
+
+model CrmAutomationAction {
+  id         Int                     @id @default(autoincrement())
+  ruleId     Int                     @map("rule_id")
+  requestId  Int?                    @map("request_id")
+  assigneeId String?                 @map("assignee_id") @db.Uuid
+  actionKind CrmAutomationActionKind @map("action_kind")
+  dedupeKey  String                  @unique @map("dedupe_key") @db.VarChar(320)
+  metaJson   Json                    @default("{}") @map("meta_json")
+  createdAt  DateTime                @default(now()) @map("created_at")
+
+  rule     CrmAutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  request  Request?          @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  assignee User?             @relation("CrmAutomationActionAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  tasks    CrmFollowupTask[]
+
+  @@index([ruleId, createdAt])
+  @@index([requestId])
+  @@map("crm_automation_actions")
+}
+
+model CrmFollowupTask {
+  id            Int                    @id @default(autoincrement())
+  requestId     Int                    @map("request_id")
+  assigneeId    String                 @map("assignee_id") @db.Uuid
+  taskType      CrmFollowupTaskType    @map("task_type")
+  ruleType      CrmAutomationRuleType? @map("rule_type")
+  status        CrmFollowupTaskStatus  @default(PENDING)
+  title         String
+  body          String?                @db.Text
+  priorityScore Int                    @default(50) @map("priority_score")
+  dueAt         DateTime?              @map("due_at")
+  dedupeKey     String                 @unique @map("dedupe_key") @db.VarChar(320)
+  actionId      Int?                   @map("action_id")
+  completedAt   DateTime?              @map("completed_at")
+  completedBy   String?                @map("completed_by") @db.Uuid
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+
+  request   Request              @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  assignee  User                 @relation("CrmFollowupTaskAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  action    CrmAutomationAction? @relation(fields: [actionId], references: [id], onDelete: SetNull)
+  completer User?                @relation("CrmFollowupTaskCompleter", fields: [completedBy], references: [id], onDelete: SetNull)
+
+  @@index([assigneeId, status, dueAt])
+  @@index([requestId])
+  @@index([status, dueAt])
+  @@map("crm_followup_tasks")
 }
 
 model CrmAnalyticsSnapshot {
@@ -1119,18 +1702,26 @@ model TelegramNotifyRecipient {
 // ============================================================
 
 model Favorite {
-  id        Int      @id @default(autoincrement())
-  userId    String   @map("user_id") @db.Uuid
-  blockId   Int?     @map("block_id")
-  listingId Int?     @map("listing_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  id                 Int       @id @default(autoincrement())
+  userId             String    @map("user_id") @db.Uuid
+  blockId            Int?      @map("block_id")
+  listingId          Int?      @map("listing_id")
+  collectionId       String?   @map("collection_id") @db.Uuid
+  note               String?   @db.Text
+  lastViewedAt       DateTime? @map("last_viewed_at")
+  priceAtSave        Decimal?  @map("price_at_save") @db.Decimal(14, 2)
+  lastNotifiedPrice  Decimal?  @map("last_notified_price") @db.Decimal(14, 2)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  block   Block?   @relation(fields: [blockId], references: [id], onDelete: Cascade)
-  listing Listing? @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  block      Block?          @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  listing    Listing?        @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  collection UserCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
 
   @@unique([userId, blockId, listingId])
   @@index([userId])
+  @@index([collectionId])
   @@map("favorites")
 }
 
@@ -1148,6 +1739,7 @@ model UserCollection {
 
   user  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   items UserCollectionItem[]
+  favorites Favorite[]
 
   @@index([userId])
   @@map("user_collections")
@@ -1165,6 +1757,80 @@ model UserCollectionItem {
   @@unique([collectionId, kind, entityId])
   @@index([collectionId])
   @@map("user_collection_items")
+}
+
+// ============================================================
+// Retention — saved searches, alerts, browse history (Iter 52)
+// ============================================================
+
+enum UserNotificationType {
+  SAVED_SEARCH_MATCH
+  PRICE_DROP
+  FAVORITE_UPDATE
+  LISTING_RESTORED
+  SIMILAR_TO_FAVORITE
+  SIMILAR_TO_SAVED_SEARCH
+  TRENDING_NEARBY
+  RECOMMENDATION_MATCH
+}
+
+model SavedSearch {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  name              String
+  paramsJson        Json      @map("params_json")
+  regionId          Int?      @map("region_id")
+  geoContext        Json?     @map("geo_context")
+  queryHash         String    @map("query_hash")
+  alertsEnabled     Boolean   @default(true) @map("alerts_enabled")
+  alertNewMatches   Boolean   @default(true) @map("alert_new_matches")
+  alertPriceDrop    Boolean   @default(true) @map("alert_price_drop")
+  alertRestored     Boolean   @default(true) @map("alert_restored")
+  lastMatchAt       DateTime? @map("last_match_at")
+  lastCheckedAt     DateTime? @map("last_checked_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  region FeedRegion? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, queryHash])
+  @@index([userId])
+  @@index([alertsEnabled, lastCheckedAt])
+  @@map("saved_searches")
+}
+
+model UserNotification {
+  id        String               @id @default(uuid()) @db.Uuid
+  userId    String               @map("user_id") @db.Uuid
+  type      UserNotificationType
+  title     String
+  body      String?              @db.Text
+  payload   Json                 @default("{}")
+  readAt    DateTime?            @map("read_at")
+  dedupeKey String?              @map("dedupe_key")
+  createdAt DateTime             @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+  @@map("user_notifications")
+}
+
+model UserBrowseHistory {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  entityKind String   @map("entity_kind")
+  entityId   Int      @map("entity_id")
+  title      String?
+  viewedAt   DateTime @default(now()) @map("viewed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entityKind, entityId])
+  @@index([userId, viewedAt])
+  @@map("user_browse_history")
 }
 
 // ============================================================

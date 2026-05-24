@@ -1,7 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
+
+const FEED_USER_AGENT = 'LiveGrid-FeedImporter/1.0 (backend; server-side-only)';
 
 export interface AboutEntry {
   name: string;
@@ -42,8 +44,31 @@ export class FeedFetcherService {
       return JSON.parse(fs.readFileSync(localPath, 'utf8')) as T;
     }
 
+    this.assertHttpFetchAllowed();
     this.logger.log(`Fetching feed: ${url}`);
     return this.fetchJson(url);
+  }
+
+  /** Только подсчёт записей в JSON-массиве фида (для forensic-отчёта). */
+  async countFeedArrayEntries(url: string): Promise<{ count: number; source: 'local' | 'remote' }> {
+    const data = await this.fetchFeedFile<unknown[]>(url);
+    return {
+      count: Array.isArray(data) ? data.length : 0,
+      source: this.urlToLocalPath(url) ? 'local' : 'remote',
+    };
+  }
+
+  /**
+   * HTTP-запросы к TrendAgent разрешены только на backend-сервере с whitelist IP.
+   * FEED_HTTP_FETCH_ALLOWED=true обязателен для production HTTP (локально — FEED_LOCAL_DIR).
+   */
+  private assertHttpFetchAllowed(): void {
+    if (this.config.get('FEED_LOCAL_DIR')) return;
+    const allowed = this.config.get<string>('FEED_HTTP_FETCH_ALLOWED');
+    if (allowed === 'true' || allowed === '1') return;
+    throw new ForbiddenException(
+      'HTTP fetch to TrendAgent disabled. Set FEED_HTTP_FETCH_ALLOWED=true on backend server or use FEED_LOCAL_DIR.',
+    );
   }
 
   private getLocalPath(regionCode: string, filename: string): string | null {
@@ -70,6 +95,7 @@ export class FeedFetcherService {
       try {
         const response = await fetch(url, {
           signal: AbortSignal.timeout(300_000),
+          headers: { 'User-Agent': FEED_USER_AGENT, Accept: 'application/json' },
         });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);

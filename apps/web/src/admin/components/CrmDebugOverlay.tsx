@@ -45,6 +45,19 @@ export default function CrmDebugOverlay() {
       {stats.lastFailedEndpoint ? (
         <p className="truncate text-red-600">fail: {stats.lastFailedEndpoint}</p>
       ) : null}
+      <p>comm: {stats.communicationFetchMs.toFixed(0)}ms</p>
+      <p>threads: {stats.activeThreads} · unread: {stats.unreadConversations}</p>
+      <p>stale: {stats.staleConversations} · cb: {stats.callbackOverdueCount}</p>
+      {stats.avgReplyLatencyMs != null ? (
+        <p>reply lat: {(stats.avgReplyLatencyMs / 1000).toFixed(1)}s</p>
+      ) : null}
+      <p>auto: {stats.automationFetchMs.toFixed(0)}ms</p>
+      <p>tasks: {stats.automationPendingTasks} · rec: {stats.automationRecommendations}</p>
+      <p>pressure: {stats.automationTaskPressure} · eff: {stats.automationEffectiveness}%</p>
+      <p>runs: {stats.automationRuns} · created: {stats.automationTasksCreated}</p>
+      <p>cooldown skips: {stats.automationCooldownSkips}</p>
+      <p>rel fails: {stats.reliabilityFailedRequests} · retries: {stats.reliabilityRetryCount}</p>
+      <p>poll pressure: {stats.reliabilityPollingPressure}</p>
       <p className="truncate">last: {stats.lastAction}</p>
     </div>
   );

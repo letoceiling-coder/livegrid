@@ -5,31 +5,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ScrollToTop from "./components/ScrollToTop";
 import { lazy, Suspense } from "react";
-
-// Auto-reload once on ChunkLoadError (happens after new deploy while old SPA is open)
-function lazyWithReload<T extends React.ComponentType<any>>(
-  factory: () => Promise<{ default: T }>
-): React.LazyExoticComponent<T> {
-  return lazy(() =>
-    factory().catch((err: unknown) => {
-      const msg = (err as Error)?.message ?? '';
-      const isChunk =
-        (err as Error)?.name === 'ChunkLoadError' ||
-        /Loading chunk \d+ failed|Failed to fetch dynamically imported module|Importing a module script failed/.test(msg);
-      if (isChunk && sessionStorage.getItem('chunk_reload') !== '1') {
-        sessionStorage.setItem('chunk_reload', '1');
-        window.location.reload();
-        return new Promise<{ default: T }>(() => {});
-      }
-      throw err;
-    })
-  );
-}
-
-
+import { lazyWithReload } from "@/shared/lib/lazy-route";
+import RouteErrorBoundary from "@/shared/components/RouteErrorBoundary";
 import { AuthProvider, useAuth, useAuthState } from "@/shared/hooks/useAuth";
 import { RequireAuth } from "@/shared/components/RequireAuth";
 import SeoRouteMeta from "@/shared/components/SeoRouteMeta";
+import SeoJsonLd from "@/shared/components/SeoJsonLd";
 
 // Main pages
 const RedesignIndex = lazyWithReload(() => import("./redesign/pages/RedesignIndex"));
@@ -49,6 +30,15 @@ const Presentation = lazyWithReload(() => import("./pages/Presentation"));
 const ListingPresentation = lazyWithReload(() => import("./pages/ListingPresentation"));
 const Compare = lazy(() => import("./pages/Compare"));
 const Favorites = lazyWithReload(() => import("./pages/Favorites"));
+const AccountLayout = lazyWithReload(() => import("./account/components/AccountLayout"));
+const AccountFavoritesPage = lazyWithReload(() => import("./account/pages/AccountFavoritesPage"));
+const AccountSavedSearches = lazyWithReload(() => import("./account/pages/AccountSavedSearches"));
+const AccountRecommendationsPage = lazyWithReload(() => import("./account/pages/AccountRecommendationsPage"));
+const AccountHistory = lazyWithReload(() => import("./account/pages/AccountHistory"));
+const AccountNotifications = lazyWithReload(() => import("./account/pages/AccountNotifications"));
+const AccountBillingPage = lazyWithReload(() => import("./account/pages/AccountBillingPage"));
+const PublicAgencyPage = lazyWithReload(() => import("./ecosystem/pages/PublicAgencyPage"));
+const PublicAgentPage = lazyWithReload(() => import("./ecosystem/pages/PublicAgentPage"));
 const Contacts = lazy(() => import("./pages/Contacts"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const AboutCompany = lazy(() => import("./pages/AboutCompany"));
@@ -71,39 +61,48 @@ const News = lazy(() => import("./pages/News"));
 const NewsDetail = lazy(() => import("./pages/NewsDetail"));
 
 // Admin
-const AdminLayout = lazy(() => import("./admin/layout/AdminLayout"));
-const AdminDashboard = lazy(() => import("./admin/pages/AdminDashboard"));
-const AdminPages = lazy(() => import("./admin/pages/AdminPages"));
-const AdminPageEditor = lazy(() => import("./admin/pages/AdminPageEditor"));
-const AdminMedia = lazy(() => import("./admin/pages/AdminMedia"));
-const AdminUsers = lazy(() => import("./admin/pages/AdminUsers"));
-const AdminSettings = lazy(() => import("./admin/pages/AdminSettings"));
-const AdminTokens = lazy(() => import("./admin/pages/AdminTokens"));
-const AdminDocs = lazy(() => import("./admin/pages/AdminDocs"));
-const AdminAudit = lazy(() => import("./admin/pages/AdminAudit"));
-const AdminRequests = lazy(() => import("./admin/pages/AdminRequests"));
-const AdminOpsCenter = lazy(() => import("./admin/pages/AdminOpsCenter"));
-const AdminRequestDetail = lazy(() => import("./admin/pages/AdminRequestDetail"));
-const AdminTelegramNotify = lazy(() => import("./admin/pages/AdminTelegramNotify"));
-const AdminBlocks = lazy(() => import("./admin/pages/AdminBlocks"));
-const AdminBlockEditor = lazy(() => import("./admin/pages/AdminBlockEditor"));
-const AdminBuilders = lazy(() => import("./admin/pages/AdminBuilders"));
-const AdminBuildings = lazy(() => import("./admin/pages/AdminBuildings"));
-const AdminMyListings = lazy(() => import("./admin/pages/AdminMyListings"));
-const AdminListings = lazy(() => import("./admin/pages/AdminListings"));
-const AdminSellers = lazy(() => import("./admin/pages/AdminSellers"));
-const AdminManualListing = lazy(() => import("./admin/pages/AdminManualListing"));
-const AdminListingWizard = lazy(() => import("./admin/pages/AdminListingWizard"));
-const AdminManualHouse = lazy(() => import("./admin/pages/AdminManualHouse"));
-const AdminManualLand = lazy(() => import("./admin/pages/AdminManualLand"));
-const AdminManualCommercial = lazy(() => import("./admin/pages/AdminManualCommercial"));
-const AdminManualParking = lazy(() => import("./admin/pages/AdminManualParking"));
-const AdminFeedImport = lazy(() => import("./admin/pages/AdminFeedImport"));
-const AdminNews = lazy(() => import("./admin/pages/AdminNews"));
-const AdminRegions = lazy(() => import("./admin/pages/AdminRegions"));
-const AdminHomepage = lazy(() => import("./admin/pages/AdminHomepage"));
-const AdminReference = lazy(() => import("./admin/pages/AdminReference"));
-const EditorPage = lazy(() => import("./admin/components/editor/EditorPage"));
+const AdminLayout = lazyWithReload('AdminLayout', () => import("./admin/layout/AdminLayout"));
+const AdminDashboard = lazyWithReload('AdminDashboard', () => import("./admin/pages/AdminDashboard"));
+const AdminPages = lazyWithReload('AdminPages', () => import("./admin/pages/AdminPages"));
+const AdminPageEditor = lazyWithReload('AdminPageEditor', () => import("./admin/pages/AdminPageEditor"));
+const AdminMedia = lazyWithReload('AdminMedia', () => import("./admin/pages/AdminMedia"));
+const AdminUsers = lazyWithReload('AdminUsers', () => import("./admin/pages/AdminUsers"));
+const AdminSettings = lazyWithReload('AdminSettings', () => import("./admin/pages/AdminSettings"));
+const AdminTokens = lazyWithReload('AdminTokens', () => import("./admin/pages/AdminTokens"));
+const AdminDocs = lazyWithReload('AdminDocs', () => import("./admin/pages/AdminDocs"));
+const AdminAudit = lazyWithReload('AdminAudit', () => import("./admin/pages/AdminAudit"));
+const AdminRequests = lazyWithReload('AdminRequests', () => import("./admin/pages/AdminRequests"));
+const AdminOpsCenter = lazyWithReload('AdminOpsCenter', () => import("./admin/pages/AdminOpsCenter"));
+const AdminRequestDetail = lazyWithReload('AdminRequestDetail', () => import("./admin/pages/AdminRequestDetail"));
+const AdminConversationsPage = lazyWithReload('AdminConversationsPage', () => import("./admin/pages/AdminConversationsPage"));
+const AdminTasksPage = lazyWithReload('AdminTasksPage', () => import("./admin/pages/AdminTasksPage"));
+const AdminTrustPage = lazyWithReload('AdminTrustPage', () => import("./admin/pages/AdminTrustPage"));
+const AdminSystemPage = lazyWithReload('AdminSystemPage', () => import("./admin/pages/AdminSystemPage"));
+const AdminBillingPage = lazyWithReload('AdminBillingPage', () => import("./admin/pages/AdminBillingPage"));
+const AdminEcosystemPage = lazyWithReload('AdminEcosystemPage', () => import("./admin/pages/AdminEcosystemPage"));
+const AdminTelegramNotify = lazyWithReload('AdminTelegramNotify', () => import("./admin/pages/AdminTelegramNotify"));
+const AdminBlocks = lazyWithReload('AdminBlocks', () => import("./admin/pages/AdminBlocks"));
+const AdminBlockEditor = lazyWithReload('AdminBlockEditor', () => import("./admin/pages/AdminBlockEditor"));
+const AdminBuilders = lazyWithReload('AdminBuilders', () => import("./admin/pages/AdminBuilders"));
+const AdminBuildings = lazyWithReload('AdminBuildings', () => import("./admin/pages/AdminBuildings"));
+const AdminMyListings = lazyWithReload('AdminMyListings', () => import("./admin/pages/AdminMyListings"));
+const AdminListings = lazyWithReload('AdminListings', () => import("./admin/pages/AdminListings"));
+const AdminSellers = lazyWithReload('AdminSellers', () => import("./admin/pages/AdminSellers"));
+const AdminManualListing = lazyWithReload('AdminManualListing', () => import("./admin/pages/AdminManualListing"));
+const AdminListingWizard = lazyWithReload('AdminListingWizard', () => import("./admin/pages/AdminListingWizard"));
+const AdminModerationListings = lazyWithReload('AdminModerationListings', () => import("./admin/pages/AdminModerationListings"));
+const AdminModerationReview = lazyWithReload('AdminModerationReview', () => import("./admin/pages/AdminModerationReview"));
+const AdminListingsPromotions = lazyWithReload('AdminListingsPromotions', () => import("./admin/pages/AdminListingsPromotions"));
+const AdminManualHouse = lazyWithReload('AdminManualHouse', () => import("./admin/pages/AdminManualHouse"));
+const AdminManualLand = lazyWithReload('AdminManualLand', () => import("./admin/pages/AdminManualLand"));
+const AdminManualCommercial = lazyWithReload('AdminManualCommercial', () => import("./admin/pages/AdminManualCommercial"));
+const AdminManualParking = lazyWithReload('AdminManualParking', () => import("./admin/pages/AdminManualParking"));
+const AdminFeedImport = lazyWithReload('AdminFeedImport', () => import("./admin/pages/AdminFeedImport"));
+const AdminNews = lazyWithReload('AdminNews', () => import("./admin/pages/AdminNews"));
+const AdminRegions = lazyWithReload('AdminRegions', () => import("./admin/pages/AdminRegions"));
+const AdminHomepage = lazyWithReload('AdminHomepage', () => import("./admin/pages/AdminHomepage"));
+const AdminReference = lazyWithReload('AdminReference', () => import("./admin/pages/AdminReference"));
+const EditorPage = lazyWithReload('EditorPage', () => import("./admin/components/editor/EditorPage"));
 
 const NotFound = lazyWithReload(() => import("./pages/NotFound"));
 
@@ -129,7 +128,8 @@ const AdminIndexRedirect = () => {
 };
 
 const AppRoutes = () => (
-  <Routes>
+  <RouteErrorBoundary scope="app-routes">
+    <Routes>
     {/* Main */}
     <Route path="/" element={<RedesignIndex />} />
     <Route path="/catalog" element={<RedesignCatalog />} />
@@ -147,7 +147,15 @@ const AppRoutes = () => (
     <Route path="/map" element={<RedesignMap />} />
     <Route path="/mortgage" element={<Navigate to="/catalog" replace />} />
     <Route path="/compare" element={<Compare />} />
-    <Route path="/favorites" element={<RequireAuth><Favorites /></RequireAuth>} />
+    <Route path="/favorites" element={<Navigate to="/account/favorites" replace />} />
+    <Route path="/account" element={<RequireAuth><AccountLayout /></RequireAuth>}>
+      <Route path="favorites" element={<AccountFavoritesPage />} />
+      <Route path="recommendations" element={<AccountRecommendationsPage />} />
+      <Route path="saved-searches" element={<AccountSavedSearches />} />
+      <Route path="history" element={<AccountHistory />} />
+      <Route path="notifications" element={<AccountNotifications />} />
+      <Route path="billing" element={<AccountBillingPage />} />
+    </Route>
     <Route path="/contacts" element={<Contacts />} />
     <Route path="/about" element={<AboutCompany />} />
     <Route path="/selection" element={<SelectionPage />} />
@@ -157,6 +165,10 @@ const AppRoutes = () => (
     <Route path="/terms" element={<TermsPage />} />
     <Route path="/offer" element={<OfferPage />} />
     <Route path="/privacy" element={<Privacy />} />
+
+    {/* Ecosystem — public agency/agent profiles */}
+    <Route path="/agency/:slug" element={<PublicAgencyPage />} />
+    <Route path="/agent/:slug" element={<PublicAgentPage />} />
 
     {/* Auth */}
     <Route path="/login" element={<Login />} />
@@ -177,6 +189,12 @@ const AppRoutes = () => (
       <Route path="ops" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminOpsCenter /></RequireAuth>} />
       <Route path="requests" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminRequests /></RequireAuth>} />
       <Route path="requests/:id" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminRequestDetail /></RequireAuth>} />
+      <Route path="tasks" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminTasksPage /></RequireAuth>} />
+      <Route path="trust" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminTrustPage /></RequireAuth>} />
+      <Route path="system" element={<RequireAuth roles={['admin', 'editor']}><AdminSystemPage /></RequireAuth>} />
+      <Route path="billing" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminBillingPage /></RequireAuth>} />
+      <Route path="ecosystem" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminEcosystemPage /></RequireAuth>} />
+      <Route path="conversations" element={<RequireAuth roles={['admin', 'editor', 'manager', 'agent']}><AdminConversationsPage /></RequireAuth>} />
       <Route path="telegram-notify" element={<RequireAuth roles={['admin']}><AdminTelegramNotify /></RequireAuth>} />
       <Route path="audit" element={<RequireAuth roles={['admin']}><AdminAudit /></RequireAuth>} />
       <Route path="blocks" element={<RequireAuth roles={['admin', 'editor']}><AdminBlocks /></RequireAuth>} />
@@ -187,6 +205,10 @@ const AppRoutes = () => (
       <Route path="listings" element={<AdminListings />} />
       <Route path="sellers" element={<RequireAuth roles={['admin', 'editor', 'manager', 'agent']}><AdminSellers /></RequireAuth>} />
       <Route path="listings/wizard/new" element={<RequireAuth roles={['admin', 'editor', 'manager', 'agent']}><AdminListingWizard /></RequireAuth>} />
+      <Route path="listings/wizard/:listingId/edit" element={<RequireAuth roles={['admin', 'editor', 'manager', 'agent']}><AdminListingWizard /></RequireAuth>} />
+      <Route path="moderation/listings" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminModerationListings /></RequireAuth>} />
+      <Route path="moderation/listings/:listingId" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminModerationReview /></RequireAuth>} />
+      <Route path="listings/promotions" element={<RequireAuth roles={['admin', 'editor', 'manager']}><AdminListingsPromotions /></RequireAuth>} />
       <Route path="listings/manual/new" element={<RequireAuth roles={['admin', 'editor', 'agent']}><AdminManualListing /></RequireAuth>} />
       <Route path="listings/manual/:listingId/edit" element={<RequireAuth roles={['admin', 'editor', 'agent']}><AdminManualListing /></RequireAuth>} />
       <Route path="listings/manual-house/new" element={<RequireAuth roles={['admin', 'editor', 'agent']}><AdminManualHouse /></RequireAuth>} />
@@ -212,6 +234,7 @@ const AppRoutes = () => (
 
     <Route path="*" element={<NotFound />} />
   </Routes>
+  </RouteErrorBoundary>
 );
 
 const AppWithAuth = () => {
@@ -231,8 +254,15 @@ const App = () => (
       <BrowserRouter>
         <ScrollToTop />
         <SeoRouteMeta />
+        <SeoJsonLd />
         <Suspense fallback={<Loading />}>
-          <AppWithAuth />
+          <RouteErrorBoundary
+            scope="auth-boot"
+            fallbackTitle="Ошибка инициализации"
+            fallbackMessage="Не удалось загрузить модуль авторизации. Обновите страницу или очистите кэш."
+          >
+            <AppWithAuth />
+          </RouteErrorBoundary>
         </Suspense>
       </BrowserRouter>
     </TooltipProvider>

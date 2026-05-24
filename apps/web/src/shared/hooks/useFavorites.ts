@@ -13,8 +13,20 @@ export type FavoriteRow = {
   blockId: number | null;
   listingId: number | null;
   createdAt: string;
+  notes?: string | null;
+  priceChangePct?: number | null;
+  hasPriceDrop?: boolean;
   block: { id: number; name: string; slug: string } | null;
-  listing: { id: number; kind: string; price: unknown } | null;
+  listing: {
+    id: number;
+    kind: string;
+    price: unknown;
+    status?: string;
+    visibility?: string;
+    isPublished?: boolean;
+    updatedAt?: string;
+    block?: { slug: string | null };
+  } | null;
 };
 
 function readGuest(): { blockIds: number[]; listingIds: number[] } {

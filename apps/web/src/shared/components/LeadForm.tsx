@@ -11,6 +11,7 @@ import {
   conversionObsFormSubmit,
   conversionObsFormSuccess,
 } from '@/redesign/lib/conversion-observability';
+import ResponsivenessHint from '@/shared/components/ResponsivenessHint';
 
 type PublicRequestType =
   | 'CONSULTATION'
@@ -62,7 +63,22 @@ function normalizePhoneForApi(masked: string): string {
   return masked.trim();
 }
 
-function inferRequestType(source: string): PublicRequestType {
+const BUYER_TOKEN_KEY = 'lg_inquiry_threads';
+
+type StoredInquiry = { requestId?: number; buyerToken: string; createdAt: string };
+
+function persistBuyerToken(buyerToken: string, requestId?: number) {
+  try {
+    const raw = localStorage.getItem(BUYER_TOKEN_KEY);
+    const list: StoredInquiry[] = raw ? (JSON.parse(raw) as StoredInquiry[]) : [];
+    list.unshift({ buyerToken, requestId, createdAt: new Date().toISOString() });
+    localStorage.setItem(BUYER_TOKEN_KEY, JSON.stringify(list.slice(0, 20)));
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+function inferRequestType(source?: string): PublicRequestType {
   if (source === 'mortgage') return 'MORTGAGE';
   if (source === 'contacts') return 'CONTACT';
   return 'CONSULTATION';
@@ -86,6 +102,7 @@ const LeadForm = ({
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [duplicateNote, setDuplicateNote] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -105,7 +122,11 @@ const LeadForm = ({
         .filter(Boolean)
         .join('\n\n') || undefined;
     try {
-      await apiPost('/requests', {
+      const res = await apiPost<{
+        id?: number;
+        buyerToken?: string;
+        duplicateWarning?: { recentRequestId: number; messageRu: string };
+      }>('/requests', {
         name: name.trim(),
         phone: normalizedPhone,
         type,
@@ -114,8 +135,12 @@ const LeadForm = ({
         ...(blockId != null ? { blockId } : {}),
         ...(listingId != null ? { listingId } : {}),
       });
+      if (res?.buyerToken) {
+        persistBuyerToken(res.buyerToken, res.id);
+      }
       void queryClient.invalidateQueries({ queryKey: ['requests', 'me'] });
       conversionObsFormSuccess();
+      setDuplicateNote(res?.duplicateWarning?.messageRu ?? null);
       setSubmitted(true);
       onSuccess?.();
     } catch (err) {
@@ -147,7 +172,12 @@ const LeadForm = ({
       <div className="text-center py-2">
         <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
         <h3 className="font-bold text-lg mb-1">Спасибо!</h3>
-        <p className="text-sm text-muted-foreground">Менеджер свяжется в течение 2 часов</p>
+        <p className="text-sm text-muted-foreground">Менеджер свяжется с вами в рабочее время</p>
+        {duplicateNote ? (
+          <p className="text-xs text-amber-700 dark:text-amber-400 mt-3 rounded-lg border border-amber-200/60 bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+            {duplicateNote}
+          </p>
+        ) : null}
       </div>,
     );
   }
@@ -155,6 +185,7 @@ const LeadForm = ({
   return shell(
     <>
       {title ? <h3 className="font-bold text-lg mb-4">{title}</h3> : null}
+      <ResponsivenessHint className="mb-4" />
       <form onSubmit={handleSubmit} className="space-y-3">
         <Input
           placeholder="Имя"

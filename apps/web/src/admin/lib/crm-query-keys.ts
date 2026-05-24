@@ -21,6 +21,19 @@ export const CRM_QUERY_KEYS = {
     detail: (id: number) => ['admin', 'requests', 'detail', id] as const,
     listPrefix: ['admin', 'requests'] as const,
   },
+  communication: {
+    root: ['admin', 'crm-communication'] as const,
+    inbox: (filter: string) => ['admin', 'crm-communication', 'inbox', filter] as const,
+    request: (id: number) => ['admin', 'crm-communication', 'request', id] as const,
+    metrics: ['admin', 'crm-communication', 'metrics'] as const,
+  },
+  automation: {
+    root: ['admin', 'automation'] as const,
+    summary: ['admin', 'tasks', 'summary'] as const,
+    list: (filter: string, page: number) => ['admin', 'tasks', 'list', filter, page] as const,
+    request: (id: number) => ['admin', 'automation', 'request', id] as const,
+    metrics: ['admin', 'automation', 'metrics'] as const,
+  },
   stats: {
     dashboard: ['admin', 'stats', 'dashboard'] as const,
     counters: ['admin', 'stats', 'counters'] as const,

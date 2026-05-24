@@ -1,4 +1,27 @@
-import type { ViewportBboxMeta, ViewportResponseMeta } from './viewport-contract.types';
+import type { ViewportBboxMeta, ViewportDetailLevel, ViewportResponseMeta } from './viewport-contract.types';
+
+/** Zoom < 10: cluster/lightweight; 10–13: summary; > 13: detail */
+export function resolveViewportDetailLevel(zoom?: number | null): ViewportDetailLevel {
+  const z = zoom ?? 11;
+  if (z < 10) return 'cluster';
+  if (z <= 13) return 'summary';
+  return 'detail';
+}
+
+export function resolveViewportFetchLimit(zoom?: number | null, override?: number): number {
+  if (override != null && override > 0) return Math.min(override, 1200);
+  const level = resolveViewportDetailLevel(zoom);
+  switch (level) {
+    case 'cluster':
+      return 180;
+    case 'summary':
+      return 450;
+    case 'detail':
+      return 900;
+    default:
+      return 450;
+  }
+}
 
 export function bboxAreaDeg2(bbox: ViewportBboxMeta): number {
   const h = Math.max(bbox.ne_lat - bbox.sw_lat, 1e-9);
@@ -32,6 +55,7 @@ export function invalidBboxMeta(
 ): ViewportResponseMeta {
   return {
     prototype: true,
+    detailLevel: resolveViewportDetailLevel(zoom),
     reason: 'invalid_bbox',
     total: 0,
     visible: 0,
@@ -59,11 +83,17 @@ export function buildViewportMeta(args: {
   catalogParity: 'shared-where' | 'id-fallback';
   sortApplied: string;
   visibleExact?: boolean;
+  production?: boolean;
+  detailLevel?: ViewportDetailLevel;
+  queryMs?: number;
 }): ViewportResponseMeta {
   const visible = args.visible;
   const returned = args.returned;
+  const detailLevel = args.detailLevel ?? resolveViewportDetailLevel(args.zoom);
   return {
-    prototype: true,
+    prototype: !args.production,
+    detailLevel,
+    queryMs: args.queryMs,
     total: args.total,
     visible,
     returned,

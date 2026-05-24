@@ -32,9 +32,16 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import { useFavorites } from '@/shared/hooks/useFavorites';
 import { useCompare } from '@/shared/hooks/useCompare';
 import { shareCurrentPage } from '@/lib/share-page';
+import { useEntitySeoMeta } from '@/shared/hooks/useEntitySeoMeta';
 import { toast } from '@/components/ui/sonner';
 import { useYandexMapsReady } from '@/shared/hooks/useYandexMapsReady';
-import { prefersReducedMotion } from '@/redesign/lib/map-sidebar-scroll-utils';
+import { buildCatalogFilterUrl } from '@/redesign/lib/catalog-filter-links';
+import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
+import RelatedListingsCarousel from '@/discovery/components/RelatedListingsCarousel';
+import SessionDiscoverySection from '@/redesign/components/SessionDiscoverySection';
+import CompareSessionChip from '@/shared/components/CompareSessionChip';
+import { recordBrowseHistory } from '@/account/pages/AccountHistory';
+import { listingHref } from '@/shared/lib/browse-history-local';
 
 function parseNumericListingId(id: string | undefined): number | null {
   if (!id) return null;
@@ -68,6 +75,7 @@ const RedesignApartment = () => {
   const { isListingFavorite, toggleListing } = useFavorites();
   const { isCompared, toggle: toggleCompare, count: compareCount } = useCompare();
   const { ready: ymapsReady } = useYandexMapsReady();
+  const { data: defaultRegionId } = useDefaultRegionId();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const mapInitializedRef = useRef(false);
@@ -129,6 +137,33 @@ const RedesignApartment = () => {
     const fromApartment = apt?.galleryImages?.filter(isValidImageSrc) ?? [];
     return Array.from(new Set([...fromApartment, ...fromListing]));
   }, [apt?.galleryImages, listingQuery.data]);
+
+  const entitySeo = useMemo(() => {
+    if (!apt) return null;
+    const roomsLabel = apt.rooms != null ? `${apt.rooms}-комн.` : 'Квартира';
+    const priceLabel = apt.price > 0 ? formatDisplayPrice(apt.price) : '';
+    const title = [roomsLabel, complex?.name].filter(Boolean).join(' · ');
+    const description = [priceLabel, complex?.name, apt.area ? `${apt.area} м²` : '']
+      .filter(Boolean)
+      .join(' · ')
+      .slice(0, 160);
+    const path = listingId != null ? `/apartment/${listingId}` : location.pathname;
+    return {
+      title: title || 'Квартира',
+      description: description || 'Карточка квартиры на LiveGrid',
+      pathname: path,
+      imageUrl: mediaImages[0] ?? null,
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'Apartment',
+        name: title,
+        url: `${window.location.origin}${path}`,
+        ...(priceLabel ? { offers: { '@type': 'Offer', price: apt.price, priceCurrency: 'RUB' } } : {}),
+        ...(apt.area ? { floorSize: { '@type': 'QuantitativeValue', value: apt.area, unitCode: 'MTK' } } : {}),
+      },
+    };
+  }, [apt, complex, listingId, location.pathname, mediaImages]);
+  useEntitySeoMeta(entitySeo);
 
   const similarApts = useMemo(() => {
     if (mockResult?.complex && mockResult.apartment) {
@@ -242,6 +277,17 @@ const RedesignApartment = () => {
   }, [complex, initMap]);
 
   useEffect(() => {
+    if (listingId == null || !apt || !complex) return;
+    const title = `${complex.name} · ${apt.area} м²`;
+    void recordBrowseHistory(
+      'LISTING',
+      listingId,
+      title,
+      listingHref(listingId, 'APARTMENT', complex.slug),
+    );
+  }, [listingId, apt?.id, apt?.area, complex?.name, complex?.slug]);
+
+  useEffect(() => {
     mapInstanceRef.current?.destroy?.();
     mapInstanceRef.current = null;
     mapInitializedRef.current = false;
@@ -312,6 +358,17 @@ const RedesignApartment = () => {
     contextFooter: `${roomLabel}, ${apt.area} м² · ${complex.name}`,
   };
 
+  const regionId = defaultRegionId ?? null;
+  const districtCatalogUrl =
+    regionId && complex.district && complex.district !== '—'
+      ? buildCatalogFilterUrl(regionId, { district: complex.district })
+      : null;
+  const subwayCatalogUrl =
+    regionId && complex.subway && complex.subway !== '—'
+      ? buildCatalogFilterUrl(regionId, { subway: complex.subway })
+      : null;
+  const catalogUrl = regionId ? buildCatalogFilterUrl(regionId) : '/catalog';
+
   const openConsultation = (ctx: ConsultationContext) => {
     setConsultContext(ctx);
     setConsultOpen(true);
@@ -326,7 +383,15 @@ const RedesignApartment = () => {
           <nav className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground min-w-0 flex-wrap">
             <Link to="/" className="hover:text-foreground">Главная</Link>
             <span>/</span>
-            <Link to="/catalog" className="hover:text-foreground">Каталог</Link>
+            <Link to={catalogUrl} className="hover:text-foreground">Каталог</Link>
+            {districtCatalogUrl ? (
+              <>
+                <span>/</span>
+                <Link to={districtCatalogUrl} className="hover:text-foreground truncate max-w-[100px] sm:max-w-none">
+                  {complex.district}
+                </Link>
+              </>
+            ) : null}
             <span>/</span>
             <Link to={`/complex/${complex.slug}`} className="hover:text-foreground truncate max-w-[140px] sm:max-w-none">
               {complex.name}
@@ -431,10 +496,34 @@ const RedesignApartment = () => {
                 {roomLabel} площадью {apt.area} м²
                 {apt.floor > 0 ? ` на ${apt.floor} этаже ${apt.totalFloors}-этажного дома` : ''} в ЖК «{complex.name}».
                 {apt.finishing !== 'без отделки' ? ` Отделка: ${apt.finishing}.` : ' Без отделки.'}
-                {complex.district && complex.district !== '—' ? ` Район: ${complex.district}.` : ''}
-                {complex.subway && complex.subway !== '—'
-                  ? ` Метро ${complex.subway}${complex.subwayDistance !== '—' ? ` (${complex.subwayDistance})` : ''}.`
-                  : ''}
+                {complex.district && complex.district !== '—' ? (
+                  <>
+                    {' '}
+                    Район:{' '}
+                    {districtCatalogUrl ? (
+                      <Link to={districtCatalogUrl} className="text-primary hover:underline">
+                        {complex.district}
+                      </Link>
+                    ) : (
+                      complex.district
+                    )}
+                    .
+                  </>
+                ) : null}
+                {complex.subway && complex.subway !== '—' ? (
+                  <>
+                    {' '}
+                    Метро{' '}
+                    {subwayCatalogUrl ? (
+                      <Link to={subwayCatalogUrl} className="text-primary hover:underline">
+                        {complex.subway}
+                      </Link>
+                    ) : (
+                      complex.subway
+                    )}
+                    {complex.subwayDistance !== '—' ? ` (${complex.subwayDistance})` : ''}.
+                  </>
+                ) : null}
                 {apt.kitchenArea > 0 ? ` Кухня ${apt.kitchenArea} м².` : ''}
               </p>
               {complex.description?.trim() && complex.description !== `Жилой комплекс «${complex.name}».` ? (
@@ -456,6 +545,16 @@ const RedesignApartment = () => {
               <div ref={mapRef} className="h-[min(360px,45vh)] min-h-[220px] bg-muted" />
             </div>
           </section>
+
+          {listingId != null ? (
+            <RelatedListingsCarousel
+              title="Похожие по цене"
+              fetchUrl={`/discovery/listings/${listingId}/price-neighbors?limit=8`}
+              queryKey={['discovery', 'price-neighbors', listingId]}
+              excludeId={listingId}
+              className="scroll-mt-32"
+            />
+          ) : null}
 
           {similarApts.length > 0 ? (
             <section id="similar" className="scroll-mt-32">
@@ -488,6 +587,14 @@ const RedesignApartment = () => {
                 ))}
               </div>
             </section>
+          ) : null}
+
+          {listingId != null ? (
+            <SessionDiscoverySection
+              regionId={regionId}
+              excludeListingId={listingId}
+              className="scroll-mt-32"
+            />
           ) : null}
 
           <section id="lead" className="scroll-mt-32">
@@ -525,6 +632,8 @@ const RedesignApartment = () => {
         context={consultContext}
       />
       <ConversionDebugOverlay />
+
+      <CompareSessionChip />
 
       <FooterSection />
     </div>

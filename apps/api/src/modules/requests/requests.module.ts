@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { BullSharedModule } from '../../bull/bull-shared.module';
 import { ContentModule } from '../content/content.module';
 import { UsersModule } from '../users/users.module';
 import { CrmNotificationsModule } from '../crm-notifications/crm-notifications.module';
+import { CrmCommunicationModule } from '../crm-communication/crm-communication.module';
 import {
   RequestsAdminController,
   RequestsController,
@@ -21,6 +22,7 @@ import { CrmOutcomeQualityService } from './crm-outcome-quality.service';
 import { CrmForecastService } from './crm-forecast.service';
 import { OpsCenterController } from './ops-center.controller';
 import { RequestsAdminMetaController } from './requests-admin-meta.controller';
+import { ResponseVelocityService } from './response-velocity.service';
 import { TelegramNotifyService } from './telegram-notify.service';
 import { CRM_SNAPSHOT_QUEUE } from '../crm-snapshot/crm-snapshot.constants';
 import { CrmSnapshotService } from '../crm-snapshot/crm-snapshot.service';
@@ -33,6 +35,7 @@ import { CrmSnapshotSchedulerService } from '../crm-snapshot/crm-snapshot-schedu
     ContentModule,
     UsersModule,
     CrmNotificationsModule,
+    forwardRef(() => CrmCommunicationModule),
     BullSharedModule,
     BullModule.registerQueue({ name: CRM_SNAPSHOT_QUEUE }),
   ],
@@ -48,6 +51,7 @@ import { CrmSnapshotSchedulerService } from '../crm-snapshot/crm-snapshot-schedu
     RequestsService,
     RequestEventsService,
     RequestSlaService,
+    ResponseVelocityService,
     OpsSummaryService,
     CrmAnalyticsService,
     CrmAttributionService,
@@ -60,6 +64,6 @@ import { CrmSnapshotSchedulerService } from '../crm-snapshot/crm-snapshot-schedu
     CrmSnapshotSchedulerService,
     TelegramNotifyService,
   ],
-  exports: [RequestsService, RequestEventsService, RequestSlaService, CrmAnalyticsService],
+  exports: [RequestsService, RequestEventsService, RequestSlaService, CrmAnalyticsService, ResponseVelocityService],
 })
 export class RequestsModule {}

@@ -29,6 +29,20 @@ import {
 } from '@/redesign/lib/catalog-interaction';
 import { useDebouncedValue } from '@/redesign/hooks/useDebouncedValue';
 import { useBodyScrollLock } from '@/redesign/hooks/useBodyScrollLock';
+import SaveSearchButton from '@/account/components/SaveSearchButton';
+import CatalogActiveFilterChips from '@/redesign/components/CatalogActiveFilterChips';
+import CatalogFilterPresets from '@/redesign/components/CatalogFilterPresets';
+import PublicTrustStrip from '@/redesign/components/PublicTrustStrip';
+import CatalogLandingPanel from '@/redesign/components/CatalogLandingPanel';
+import SelectionInquiryBar from '@/redesign/components/SelectionInquiryBar';
+import ContinueBrowsingSection from '@/redesign/components/ContinueBrowsingSection';
+import SessionResumeBanner from '@/redesign/components/SessionResumeBanner';
+import SavedSearchReminder from '@/redesign/components/SavedSearchReminder';
+import CompareSessionChip from '@/shared/components/CompareSessionChip';
+import { patchSessionSnapshot } from '@/shared/lib/session-continuity';
+import { detectCatalogLanding } from '@/redesign/lib/catalog-landing';
+import { buildCatalogSeoMeta } from '@/redesign/lib/catalog-seo-meta';
+import { normalizeSearchQuery } from '@/redesign/lib/search-normalize';
 import {
   buildBlocksSearchParams,
   buildListingsSearchParams,
@@ -166,6 +180,29 @@ const RedesignCatalog = () => {
     setFilters(catalogFiltersFromSearchParams(sp, finishingRows ?? undefined));
   }, [catalogUrlSig, finishingRows]);
 
+  const urlView = searchParams.get('view');
+  useEffect(() => {
+    if (urlView === 'grid' || urlView === 'list' || urlView === 'map') {
+      setView(urlView);
+    }
+  }, [urlView]);
+
+  const handleViewChange = useCallback(
+    (mode: ViewMode) => {
+      setView(mode);
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          if (mode === 'grid') p.delete('view');
+          else p.set('view', mode);
+          return p;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   const debouncedSearch = useDebouncedValue(filters.search, CATALOG_SEARCH_DEBOUNCE_MS);
   const isSearchPending = filters.search !== debouncedSearch;
   useBodyScrollLock(showMobileFilters);
@@ -174,6 +211,14 @@ const RedesignCatalog = () => {
     syncDebouncedSearchInUrl(setSearchParams, filters.search, debouncedSearch);
   }, [debouncedSearch, filters.search, setSearchParams]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const qs = window.location.search;
+    if (qs) {
+      patchSessionSnapshot({ catalogHref: `/catalog${qs}` });
+    }
+  }, [searchParams]);
+
   const regionLoading = regionId == null;
   const catalogSort = parseCatalogSort(searchParams.get('sort'));
 
@@ -181,7 +226,22 @@ const RedesignCatalog = () => {
   const isUnsupportedSeparateType = filters.objectType === 'rooms' || filters.objectType === 'dachas';
   const useBlocksCatalog = isApartmentMode && filters.marketType !== 'secondary';
   const listingKind = LISTING_KIND_BY_OBJECT_TYPE[filters.objectType];
-  const pageTitle = OBJECT_TYPE_TITLE[filters.objectType] ?? OBJECT_TYPE_TITLE.apartments;
+  const regionName = useMemo(
+    () => regionRows?.find((row) => row.id === regionId)?.name ?? null,
+    [regionId, regionRows],
+  );
+  const catalogLanding = useMemo(
+    () => detectCatalogLanding(filters, { sort: catalogSort }),
+    [filters, catalogSort],
+  );
+  const catalogSeo = useMemo(
+    () => buildCatalogSeoMeta(debouncedSearch, filters, { sort: catalogSort, regionName }),
+    [debouncedSearch, filters, catalogSort, regionName],
+  );
+  const pageTitle =
+    catalogLanding.kind === 'district' || catalogLanding.kind === 'subway'
+      ? catalogSeo.title.replace(regionName ? `${regionName} — ` : '', '')
+      : OBJECT_TYPE_TITLE[filters.objectType] ?? OBJECT_TYPE_TITLE.apartments;
 
   const listingsInfinite = useInfiniteQuery({
     queryKey: [
@@ -363,8 +423,9 @@ const RedesignCatalog = () => {
 
   const handleFiltersChange = useCallback(
     (f: CatalogFilters) => {
-      setFilters(f);
-      replaceCatalogFiltersInUrl(setSearchParams, f, finishingRows ?? undefined, regionId);
+      const next = { ...f, search: normalizeSearchQuery(f.search) };
+      setFilters(next);
+      replaceCatalogFiltersInUrl(setSearchParams, next, finishingRows ?? undefined, regionId);
     },
     [setSearchParams, finishingRows, regionId],
   );
@@ -372,6 +433,10 @@ const RedesignCatalog = () => {
   const handleSearchInputChange = useCallback((search: string) => {
     setFilters((prev) => ({ ...prev, search }));
   }, []);
+
+  const handleResetFilters = useCallback(() => {
+    handleFiltersChange({ ...defaultFilters, objectType: filters.objectType });
+  }, [handleFiltersChange, filters.objectType]);
 
   const handleRegionSelect = useCallback(
     (nextRegionId: number) => {
@@ -473,9 +538,14 @@ const RedesignCatalog = () => {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-4 py-5">
+        <SessionResumeBanner className="mb-4" />
+        <SavedSearchReminder className="mb-4" />
+        <ContinueBrowsingSection className="mb-5" />
+
         <div className="flex items-center justify-between mb-5">
           <div>
             <h1 className="text-lg font-bold">{pageTitle}</h1>
+            <PublicTrustStrip regionId={regionId ?? undefined} compact className="mt-1.5" />
             <p className="text-xs text-muted-foreground mt-0.5">
               {loading
                 ? 'Загрузка…'
@@ -485,6 +555,18 @@ const RedesignCatalog = () => {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            <SaveSearchButton
+              filters={filters}
+              regionId={regionId}
+              finishings={finishingRows}
+              geo={{
+                geo_lat: geoLat ? Number(geoLat) : undefined,
+                geo_lng: geoLng ? Number(geoLng) : undefined,
+                geo_radius_m: geoRadius ? Number(geoRadius) : undefined,
+                geo_polygon: geoPolygon ?? undefined,
+                geo_preset: geoPreset ?? undefined,
+              }}
+            />
             <Button variant="outline" size="sm" className="lg:hidden h-9" onClick={() => setShowMobileFilters(true)}>
               <SlidersHorizontal className="w-4 h-4 mr-1.5" /> Фильтры
             </Button>
@@ -513,7 +595,7 @@ const RedesignCatalog = () => {
                   key={mode}
                   title={title}
                   type="button"
-                  onClick={() => setView(mode)}
+                  onClick={() => handleViewChange(mode)}
                   className={cn(
                     'p-2 rounded-lg transition-all duration-200',
                     view === mode ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
@@ -525,6 +607,21 @@ const RedesignCatalog = () => {
             </div>
           </div>
         </div>
+
+        <CatalogFilterPresets
+          filters={filters}
+          onChange={handleFiltersChange}
+          showNewBuildPresets={showBlocks}
+          className="mb-3"
+        />
+
+        <CatalogLandingPanel
+          regionId={regionId}
+          regionName={regionName}
+          landing={catalogLanding}
+        />
+
+        <CatalogActiveFilterChips filters={filters} onChange={handleFiltersChange} className="mb-4" />
 
         {!regionId && !regionLoading && (
           <p className="text-sm text-muted-foreground mb-4">Нет регионов в базе — добавьте регион и ЖК в админке.</p>
@@ -661,7 +758,7 @@ const RedesignCatalog = () => {
                   <div className="h-[calc(100vh-220px)] min-h-[400px] flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground border border-dashed border-border rounded-xl p-6 text-center">
                     <span className="text-2xl">🗺️</span>
                     <p className="font-medium text-foreground">Нет объектов с координатами для отображения на карте</p>
-                    <button onClick={() => setView('grid')} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
+                    <button onClick={() => handleViewChange('grid')} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
                       Показать плиткой
                     </button>
                   </div>
@@ -710,8 +807,13 @@ const RedesignCatalog = () => {
                 <p className="text-muted-foreground text-xs mb-4">
                   {isUnsupportedSeparateType
                     ? 'Для этого типа будет отдельная модель объявлений. Сейчас данные не смешиваем с домами или квартирами.'
-                    : 'Попробуйте изменить параметры фильтров или строку поиска'}
+                    : 'Попробуйте изменить параметры фильтров, быстрые пресеты или строку поиска'}
                 </p>
+                {!isUnsupportedSeparateType ? (
+                  <Button variant="outline" size="sm" onClick={handleResetFilters}>
+                    Сбросить фильтры
+                  </Button>
+                ) : null}
                 {objectKindLinks.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 justify-center">
                     {objectKindLinks
@@ -763,13 +865,24 @@ const RedesignCatalog = () => {
               finishingsReference={finishingRows ?? []}
             />
           </div>
-          <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
+          <div className="fixed bottom-0 left-0 right-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-background border-t border-border">
             <Button className="w-full h-11" onClick={() => setShowMobileFilters(false)}>
               Показать {totalShown} объектов
             </Button>
           </div>
         </div>
       )}
+
+      {catalogLanding.kind !== 'none' && regionId != null ? (
+        <SelectionInquiryBar
+          sticky
+          source={`catalog-landing-mobile:${catalogLanding.kind}`}
+          contextFooter={catalogSeo.title.slice(0, 80)}
+          className="lg:hidden"
+        />
+      ) : null}
+
+      <CompareSessionChip />
     </div>
   );
 };

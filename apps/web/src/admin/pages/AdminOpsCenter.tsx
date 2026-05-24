@@ -4,13 +4,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Bell,
+  Bot,
   ClipboardList,
   Clock,
   Loader2,
   RefreshCw,
+  Shield,
   Users,
+  CreditCard,
 } from 'lucide-react';
-import { crmApiGet } from '@/admin/lib/crm-api';
+import { crmApiGet, crmApiGetOptional } from '@/admin/lib/crm-api';
 import { crmQueryOptions, crmErrorMessage } from '@/admin/lib/crm-query-options';
 import CrmInlineError from '@/admin/components/CrmInlineError';
 import { cn } from '@/lib/utils';
@@ -61,6 +64,35 @@ type OpsSummary = {
     stale: number;
   }>;
   heat: { overdue: number; stale: number; open: number; pressure: number };
+};
+
+type AutomationMetrics = {
+  staleRescueRate: number;
+  overdueCallbacks: number;
+  followUpCompletionRate: number;
+  taskPressure: number;
+  automationEffectiveness: number;
+  tasksCreated24h: number;
+  tasksCompleted24h: number;
+};
+
+type TrustMetrics = {
+  rejectRate: number;
+  repeatedViolations: number;
+  duplicateFrequency: number;
+  suspiciousAgentCount: number;
+  qualityDistribution: { high: number; medium: number; low: number };
+  flaggedListings: number;
+  avgQualityScore: number;
+};
+
+type BillingOpsMetrics = {
+  activeSubscriptions: number;
+  overdueInvoices: number;
+  promotionRevenue30dRub: number;
+  pendingPromotionOrders: number;
+  planDistribution: Record<string, number>;
+  quotaPressureHint: string;
 };
 
 const QueueSection = memo(function QueueSection({
@@ -174,6 +206,39 @@ export default function AdminOpsCenter() {
       refetchInterval: analyticsInterval,
       staleTime: CRM_CACHE_ANALYTICS.staleTime,
       gcTime: CRM_CACHE_ANALYTICS.gcTime,
+      enabled: online,
+    }),
+  });
+
+  const automationQuery = useQuery({
+    queryKey: CRM_QUERY_KEYS.automation.metrics,
+    queryFn: () => crmApiGetOptional<AutomationMetrics>('/admin/automation/metrics', 'automation_metrics'),
+    retry: false,
+    ...crmQueryOptions({
+      refetchInterval: pollInterval === false ? false : (pollInterval as number) * 2,
+      staleTime: CRM_CACHE_OPERATIONAL.staleTime,
+      enabled: online,
+    }),
+  });
+
+  const trustQuery = useQuery({
+    queryKey: ['admin', 'trust', 'metrics'],
+    queryFn: () => crmApiGetOptional<TrustMetrics>('/admin/trust/metrics', 'trust_metrics'),
+    retry: false,
+    ...crmQueryOptions({
+      refetchInterval: pollInterval === false ? false : (pollInterval as number) * 3,
+      staleTime: CRM_CACHE_OPERATIONAL.staleTime,
+      enabled: online,
+    }),
+  });
+
+  const billingQuery = useQuery({
+    queryKey: ['admin', 'billing', 'metrics'],
+    queryFn: () => crmApiGetOptional<BillingOpsMetrics>('/admin/billing/metrics', 'billing_metrics'),
+    retry: false,
+    ...crmQueryOptions({
+      refetchInterval: pollInterval === false ? false : (pollInterval as number) * 4,
+      staleTime: CRM_CACHE_OPERATIONAL.staleTime,
       enabled: online,
     }),
   });
@@ -302,6 +367,130 @@ export default function AdminOpsCenter() {
                   Перегруз: {data.escalation.overloadManagers} менеджер(ов) с высокой нагрузкой
                 </p>
               ) : null}
+            </section>
+          ) : null}
+
+          {automationQuery.data ? (
+            <section className="rounded-xl border bg-card p-4 mb-4">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h2 className="font-semibold text-sm flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-primary" />
+                  Automation Engine
+                </h2>
+                <Link to="/admin/tasks" className="text-xs text-primary hover:underline">
+                  Task Center →
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Stale rescue</p>
+                  <p className="text-lg font-bold">{automationQuery.data.staleRescueRate}%</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Callback overdue</p>
+                  <p className="text-lg font-bold text-red-600">{automationQuery.data.overdueCallbacks}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Follow-up done</p>
+                  <p className="text-lg font-bold">{automationQuery.data.followUpCompletionRate}%</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Task pressure</p>
+                  <p className="text-lg font-bold">{automationQuery.data.taskPressure}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Effectiveness</p>
+                  <p className="text-lg font-bold">{automationQuery.data.automationEffectiveness}%</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">24h tasks</p>
+                  <p className="text-lg font-bold">
+                    {automationQuery.data.tasksCompleted24h}/{automationQuery.data.tasksCreated24h}
+                  </p>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {trustQuery.data ? (
+            <section className="rounded-xl border bg-card p-4 mb-4">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h2 className="font-semibold text-sm flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  Trust & Quality
+                </h2>
+                <Link to="/admin/trust" className="text-xs text-primary hover:underline">
+                  Trust Center →
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Avg quality</p>
+                  <p className="text-lg font-bold">{trustQuery.data.avgQualityScore}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Reject rate</p>
+                  <p className="text-lg font-bold">{trustQuery.data.rejectRate}%</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Flagged</p>
+                  <p className="text-lg font-bold text-amber-700">{trustQuery.data.flaggedListings}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Duplicates</p>
+                  <p className="text-lg font-bold">{trustQuery.data.duplicateFrequency}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">High quality</p>
+                  <p className="text-lg font-bold">{trustQuery.data.qualityDistribution.high}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Suspicious</p>
+                  <p className="text-lg font-bold">{trustQuery.data.suspiciousAgentCount}</p>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {billingQuery.data ? (
+            <section className="rounded-xl border bg-card p-4 mb-4">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h2 className="font-semibold text-sm flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-primary" />
+                  Billing
+                </h2>
+                <Link to="/admin/billing" className="text-xs text-primary hover:underline">
+                  Billing Center →
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Subscriptions</p>
+                  <p className="text-lg font-bold">{billingQuery.data.activeSubscriptions}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Overdue</p>
+                  <p className="text-lg font-bold text-red-600">{billingQuery.data.overdueInvoices}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Rev 30d</p>
+                  <p className="text-lg font-bold">
+                    {(billingQuery.data.promotionRevenue30dRub / 1000).toFixed(0)}k
+                  </p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Pending orders</p>
+                  <p className="text-lg font-bold">{billingQuery.data.pendingPromotionOrders}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">FREE plan</p>
+                  <p className="text-lg font-bold">{billingQuery.data.planDistribution.FREE ?? 0}</p>
+                </div>
+                <div className="rounded-lg border p-2">
+                  <p className="text-[10px] text-muted-foreground">Pressure</p>
+                  <p className="text-lg font-bold">{billingQuery.data.quotaPressureHint}</p>
+                </div>
+              </div>
             </section>
           ) : null}
 

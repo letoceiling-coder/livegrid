@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public, Roles, CurrentUser } from '../../auth/decorators';
 import { ContentService } from './content.service';
@@ -63,5 +63,22 @@ export class ContentController {
   @ApiOperation({ summary: 'Active mortgage banks' })
   getBanks() {
     return this.service.getBanks(true);
+  }
+
+  @Public()
+  @Get('seo-landing')
+  @ApiOperation({ summary: 'CMS SEO copy for catalog filter landings' })
+  getSeoLanding(
+    @Query('region_id') regionId?: string,
+    @Query('region_name') regionName?: string,
+    @Query('district') district?: string,
+    @Query('subway') subway?: string,
+  ) {
+    return this.service.resolveSeoLanding({
+      regionId: regionId ? Number(regionId) : undefined,
+      regionName,
+      district,
+      subway,
+    });
   }
 }

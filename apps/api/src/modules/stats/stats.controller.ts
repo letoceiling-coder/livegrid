@@ -1,12 +1,23 @@
 import { Controller, Get, Query, BadRequestException } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public, Roles } from '../../auth/decorators';
+import { ResponseVelocityService } from '../requests/response-velocity.service';
 import { StatsService } from './stats.service';
 
 @ApiTags('Stats')
 @Controller('stats')
 export class StatsController {
-  constructor(private readonly service: StatsService) {}
+  constructor(
+    private readonly service: StatsService,
+    private readonly velocity: ResponseVelocityService,
+  ) {}
+
+  @Public()
+  @Get('responsiveness-hint')
+  @ApiOperation({ summary: 'Heuristic public responsiveness copy (no SLA guarantees)' })
+  responsivenessHint() {
+    return this.velocity.getPublicHint();
+  }
 
   @Public()
   @Get('counters')

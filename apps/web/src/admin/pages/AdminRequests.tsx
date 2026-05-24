@@ -67,6 +67,8 @@ export default function AdminRequests() {
     if (sla === 'overdue' || sla === 'stale') setSlaFilter(sla);
     const assignee = searchParams.get('assigned_to');
     if (assignee === 'none') setAssigneeFilter('none');
+    const status = searchParams.get('status');
+    if (status) setStatusFilter(status);
   }, [searchParams]);
 
   const pollInterval = useSmartPollInterval('requestQueue');

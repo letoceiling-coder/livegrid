@@ -14,7 +14,8 @@ export type CrmInvalidationScope =
   | 'focus_ops'
   | 'focus_requests'
   | 'focus_detail'
-  | 'focus_dashboard';
+  | 'focus_dashboard'
+  | 'tasks';
 
 const SCOPE_KEYS: Record<CrmInvalidationScope, readonly (readonly string[])[]> = {
   /** Status/assignment/note change — refresh lists + ops summary, not full analytics */
@@ -48,6 +49,11 @@ const SCOPE_KEYS: Record<CrmInvalidationScope, readonly (readonly string[])[]> =
     CRM_QUERY_KEYS.requests.workload,
     CRM_QUERY_KEYS.stats.dashboard,
     CRM_QUERY_KEYS.notifications.unreadCount,
+  ],
+  tasks: [
+    CRM_QUERY_KEYS.automation.root,
+    CRM_QUERY_KEYS.automation.summary,
+    ['admin', 'tasks'] as const,
   ],
 };
 

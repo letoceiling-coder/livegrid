@@ -1,5 +1,14 @@
 /**
- * Opt-in viewport/bbox experimental mode.
+ * Production map viewport — enabled by default (Iter 64).
+ * Set VITE_MAP_VIEWPORT=0 to fall back to legacy global 200-row fetch for markers.
+ */
+export function isMapViewportProductionEnabled(): boolean {
+  if (import.meta.env.VITE_MAP_VIEWPORT === '0') return false;
+  return true;
+}
+
+/**
+ * Opt-in viewport/bbox experimental mode (DEV shadow parity).
  * NEVER enabled in production builds.
  */
 export function isViewportExperimentalEnabled(): boolean {

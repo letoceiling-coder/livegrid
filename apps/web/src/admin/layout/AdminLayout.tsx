@@ -2,23 +2,37 @@ import { useState } from 'react';
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Image, Users, Settings, ChevronLeft,
-  ChevronRight, Palette, BookOpen, ClipboardList, Building2, Building, Download, Newspaper, Home, History, HardHat,
-  Globe, LayoutTemplate, BellRing, ExternalLink, LogOut, Contact, Radar, Menu, X,
+  ChevronRight, Palette, BookOpen, ClipboardList, ClipboardCheck, Crown, Building2, Building, Download, Newspaper, Home, History, HardHat,
+  Globe, LayoutTemplate, BellRing, ExternalLink, LogOut, Contact, Radar, Menu, X, MessageSquare, ListTodo, Shield, Activity, CreditCard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/shared/hooks/useAuth';
 import CrmNotificationBell from '@/admin/components/CrmNotificationBell';
 import CrmDebugOverlay from '@/admin/components/CrmDebugOverlay';
+import CrmCommunicationMetricsProbe from '@/admin/components/CrmCommunicationMetricsProbe';
+import CrmAutomationMetricsProbe from '@/admin/components/CrmAutomationMetricsProbe';
+import ReliabilityMetricsProbe from '@/admin/components/ReliabilityMetricsProbe';
+import NetworkStatusBanner from '@/admin/components/NetworkStatusBanner';
 import ListingDebugOverlay from '@/admin/components/ListingDebugOverlay';
+import RouteErrorBoundary from '@/shared/components/RouteErrorBoundary';
 import { CrmRefreshProvider } from '@/admin/context/CrmRefreshContext';
 import { useCrmRouteFocusRefresh } from '@/admin/hooks/useCrmRouteFocusRefresh';
 import { useCrmRuntimeMetrics } from '@/admin/hooks/useCrmRuntimeMetrics';
+import { isAdminNavVisible } from '@/admin/lib/admin-governance-nav';
 
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Дашборд', end: true, roles: ['admin', 'editor', 'manager'] },
   { to: '/admin/pages', icon: FileText, label: 'Страницы', roles: ['admin', 'editor'] },
   { to: '/admin/ops', icon: Radar, label: 'Ops Center', roles: ['admin', 'editor', 'manager'] },
   { to: '/admin/requests', icon: ClipboardList, label: 'Заявки', roles: ['admin', 'editor', 'manager'] },
+  { to: '/admin/tasks', icon: ListTodo, label: 'Задачи', roles: ['admin', 'editor', 'manager'] },
+  { to: '/admin/conversations', icon: MessageSquare, label: 'Переписки', roles: ['admin', 'editor', 'manager', 'agent'] },
+  { to: '/admin/moderation/listings', icon: ClipboardCheck, label: 'Модерация', roles: ['admin', 'editor', 'manager'] },
+  { to: '/admin/trust', icon: Shield, label: 'Trust', roles: ['admin', 'editor', 'manager'] },
+  { to: '/admin/system', icon: Activity, label: 'System', roles: ['admin', 'editor'] },
+  { to: '/admin/billing', icon: CreditCard, label: 'Billing', roles: ['admin', 'editor', 'manager'] },
+  { to: '/admin/ecosystem', icon: Building2, label: 'Ecosystem', roles: ['admin', 'editor', 'manager'] },
+  { to: '/admin/listings/promotions', icon: Crown, label: 'Продвижение', roles: ['admin', 'editor', 'manager'] },
   { to: '/admin/my-listings', icon: Home, label: 'Мои объявления', roles: ['agent', 'manager'] },
   { to: '/admin/telegram-notify', icon: BellRing, label: 'Telegram уведомления команды', roles: ['admin'] },
   { to: '/admin/audit', icon: History, label: 'Журнал действий', roles: ['admin'] },
@@ -49,6 +63,7 @@ export default function AdminLayout() {
   useCrmRuntimeMetrics();
 
   const availableNavItems = navItems.filter((item) => {
+    if (!isAdminNavVisible(item.to)) return false;
     if (!item.roles?.length) return true;
     const role = user?.role;
     if (!role) return false;
@@ -68,6 +83,12 @@ export default function AdminLayout() {
   return (
     <CrmRefreshProvider>
     <div className="flex h-[100dvh] bg-muted/30 overflow-hidden">
+        <a
+          href="#admin-main"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[300] focus:px-3 focus:py-2 focus:rounded-md focus:bg-primary focus:text-primary-foreground text-sm"
+        >
+          К основному содержимому
+        </a>
       {mobileNavOpen ? (
         <button
           type="button"
@@ -184,11 +205,21 @@ export default function AdminLayout() {
           <div className="flex-1 md:hidden" />
           <CrmNotificationBell />
         </header>
-        <main className="flex-1 overflow-auto overscroll-contain">
-          <Outlet />
+        <NetworkStatusBanner />
+        <main id="admin-main" className="flex-1 overflow-auto overscroll-contain">
+          <RouteErrorBoundary
+            scope="admin-outlet"
+            fallbackTitle="Ошибка в разделе админки"
+            fallbackMessage="Этот раздел админки не загрузился. Меню и другие страницы доступны."
+          >
+            <Outlet />
+          </RouteErrorBoundary>
         </main>
       </div>
       <CrmDebugOverlay />
+      <CrmCommunicationMetricsProbe />
+      <CrmAutomationMetricsProbe />
+      <ReliabilityMetricsProbe />
       <ListingDebugOverlay />
     </div>
     </CrmRefreshProvider>

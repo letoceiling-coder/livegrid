@@ -192,12 +192,40 @@ function emit(): void {
 
 export function isMapDebugEnabled(): boolean {
   return (
-    import.meta.env.DEV &&
     typeof window !== 'undefined' &&
     (new URLSearchParams(window.location.search).get('map_debug') === '1' ||
-      new URLSearchParams(window.location.search).get('viewport_debug') === '1' ||
-      new URLSearchParams(window.location.search).get('viewport_listings') === '1')
+      (import.meta.env.DEV &&
+        (new URLSearchParams(window.location.search).get('viewport_debug') === '1' ||
+          new URLSearchParams(window.location.search).get('viewport_listings') === '1')))
   );
+}
+
+/** Lightweight production viewport fetch counter (no full HUD). */
+export function recordProductionViewportFetch(args: {
+  kind: 'blocks' | 'listings';
+  fetchMs: number;
+  returned: number;
+  detailLevel: string;
+  queryMs?: number;
+}): void {
+  snapshot = {
+    ...snapshot,
+    viewportEnabled: true,
+    viewportMarkerCount: args.returned,
+    viewportFetchMs: args.fetchMs,
+    viewportSource: `production-${args.kind}`,
+    viewportRequests: snapshot.viewportRequests + 1,
+    lastBboxSignature: snapshot.lastBboxSignature,
+  };
+  if (isMapDebugEnabled()) {
+    const heap = readJsHeapMb();
+    snapshot = {
+      ...snapshot,
+      jsHeapUsedMb: heap.used,
+      jsHeapLimitMb: heap.limit,
+    };
+  }
+  emit();
 }
 
 export function subscribeMapRenderStats(listener: (s: MapRenderSnapshot) => void): () => void {

@@ -66,6 +66,18 @@ export class ListingsGovernanceService {
     }
     this.assertAgentCanManage(row, actor.userId, actor.role);
 
+    if ((action === 'publish' || action === 'republish') && actor.role === 'agent') {
+      const mod = await this.prisma.siteSetting.findUnique({
+        where: { key: 'listing_moderation_enabled' },
+        select: { value: true },
+      });
+      if (mod?.value === 'true' || mod?.value === '1') {
+        throw new ForbiddenException(
+          'Прямая публикация отключена. Отправьте объявление на модерацию.',
+        );
+      }
+    }
+
     const pub = applyLifecycleAction(action);
     return this.prisma.listing.update({
       where: { id },

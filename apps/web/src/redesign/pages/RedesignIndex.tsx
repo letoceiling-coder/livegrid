@@ -15,6 +15,9 @@ import LatestNews from '@/components/LatestNews';
 import ContactsSection from '@/components/ContactsSection';
 import FooterSection from '@/components/FooterSection';
 import ConsultationFlow from '@/redesign/components/ConsultationFlow';
+import ContinueBrowsingSection from '@/redesign/components/ContinueBrowsingSection';
+import SessionResumeBanner from '@/redesign/components/SessionResumeBanner';
+import PublicTrustStrip from '@/redesign/components/PublicTrustStrip';
 import { CONVERSION_CTA, type ConsultationContext } from '@/redesign/lib/conversion-cta';
 import { apiGet } from '@/lib/api';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
@@ -51,6 +54,13 @@ const RedesignIndex = () => {
       <RedesignHeader />
       <ApiConnectionStrip />
       <HeroSearch />
+
+      <PublicTrustStrip regionId={regionId ?? undefined} />
+
+      <div className="max-w-[1400px] mx-auto px-4 pt-4 space-y-4">
+        <SessionResumeBanner />
+        <ContinueBrowsingSection />
+      </div>
 
       {featured.length > 0 && (
       <section className="max-w-[1400px] mx-auto px-4 pt-6 pb-6 sm:pb-10">

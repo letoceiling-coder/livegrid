@@ -20,6 +20,17 @@ export const CRM_API_CONTRACT: CrmApiEndpoint[] = [
   { id: 'ops_summary', method: 'GET', path: '/admin/ops/summary', roles: ['admin', 'editor', 'manager'], responseShape: 'OpsSummary' },
   { id: 'ops_analytics', method: 'GET', path: '/admin/ops/analytics', roles: ['admin', 'editor', 'manager'], responseShape: 'CrmAnalyticsResponse' },
   { id: 'ops_snapshots_status', method: 'GET', path: '/admin/ops/snapshots/status', roles: ['admin', 'editor'], responseShape: 'SnapshotStatus' },
+  { id: 'tasks_summary', method: 'GET', path: '/admin/tasks/summary', roles: ['admin', 'editor', 'manager'], responseShape: 'TaskSummary' },
+  { id: 'tasks_list', method: 'GET', path: '/admin/tasks', roles: ['admin', 'editor', 'manager'], responseShape: 'PaginatedTasks' },
+  { id: 'tasks_complete', method: 'POST', path: '/admin/tasks/:id/complete', roles: ['admin', 'editor', 'manager'], responseShape: 'TaskRow' },
+  { id: 'automation_metrics', method: 'GET', path: '/admin/automation/metrics', roles: ['admin', 'editor', 'manager'], responseShape: 'AutomationMetrics' },
+  { id: 'trust_metrics', method: 'GET', path: '/admin/trust/metrics', roles: ['admin', 'editor', 'manager'], responseShape: 'TrustMetrics' },
+  { id: 'trust_summary', method: 'GET', path: '/admin/trust/summary', roles: ['admin', 'editor', 'manager'], responseShape: 'TrustSummary' },
+  { id: 'billing_metrics', method: 'GET', path: '/admin/billing/metrics', roles: ['admin', 'editor', 'manager'], responseShape: 'BillingMetrics' },
+  { id: 'moderation_listings', method: 'GET', path: '/admin/moderation/listings', roles: ['admin', 'editor', 'manager'], responseShape: 'ModerationQueue' },
+  { id: 'ecosystem_profiles', method: 'GET', path: '/admin/ecosystem/profiles', roles: ['admin', 'editor', 'manager'], responseShape: 'EcosystemProfiles' },
+  { id: 'request_automation', method: 'GET', path: '/admin/requests/:id/automation', roles: ['admin', 'editor', 'manager'], responseShape: 'RequestAutomation' },
+  { id: 'tasks_dismiss', method: 'POST', path: '/admin/tasks/:id/dismiss', roles: ['admin', 'editor', 'manager'], responseShape: 'TaskRow' },
 ];
 
 export const CRM_POLLING_QUERY_KEYS = [

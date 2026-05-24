@@ -2,7 +2,15 @@ import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { formatDisplayPrice, isPriceFallbackText, priceAriaLabel } from '@/redesign/lib/display-price';
 import StableMediaFrame from '@/redesign/components/StableMediaFrame';
-import { cardBadgeClass, cardVisual, metaDotLine } from '@/redesign/lib/card-visual';
+import PromotionBadge from '@/redesign/components/PromotionBadge';
+import TrustBadgeRow, { type TrustBadgeView } from '@/redesign/components/TrustBadgeRow';
+import { listingFreshnessBadge } from '@lg/shared';
+
+export type ListingPromotionView = {
+  tier: string;
+  isActive: boolean;
+  promotedUntil?: string | null;
+};
 
 export type ApiListingCardRow = {
   id: number;
@@ -13,6 +21,10 @@ export type ApiListingCardRow = {
   address?: string | null;
   price: string | number | null;
   status: string;
+  dataSource?: string | null;
+  lastActivityAt?: string | null;
+  updatedAt?: string | null;
+  promotion?: ListingPromotionView | null;
   block?: { name: string; slug: string } | null;
   region?: { code?: string; name?: string } | null;
   apartment?: {
@@ -54,6 +66,7 @@ export type ApiListingCardRow = {
 interface Props {
   listing: ApiListingCardRow;
   variant?: 'grid' | 'list';
+  trustBadges?: TrustBadgeView[];
 }
 
 function num(v: unknown): number {
@@ -134,7 +147,7 @@ const STATUS_BADGE: Record<string, { label: string; variant: 'primary' | 'second
   INACTIVE: { label: 'Снято', variant: 'outline', accent: 'red' },
 };
 
-const ListingCard = ({ listing, variant = 'grid' }: Props) => {
+const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
   const formatted = formatDisplayPrice(listing.price);
   const img = pickImage(listing);
   const title = buildTitle(listing);
@@ -146,6 +159,11 @@ const ListingCard = ({ listing, variant = 'grid' }: Props) => {
   const linkTo = listing.kind === 'APARTMENT' ? `/apartment/${listing.id}` : `/listing/${listing.id}`;
 
   const isList = variant === 'list';
+  const freshness = listingFreshnessBadge({
+    dataSource: listing.dataSource,
+    lastActivityAt: listing.lastActivityAt,
+    updatedAt: listing.updatedAt,
+  });
 
   return (
     <Link
@@ -175,6 +193,24 @@ const ListingCard = ({ listing, variant = 'grid' }: Props) => {
         >
           {status.label}
         </span>
+        {freshness ? (
+          <span
+            className={cn(
+              'absolute top-1.5 right-1.5 rounded-md bg-background/90 backdrop-blur-sm border px-1.5 py-0.5 text-[9px] font-medium',
+              freshness.tone === 'recent'
+                ? 'text-emerald-700 border-emerald-200'
+                : 'text-muted-foreground',
+            )}
+          >
+            {freshness.label}
+          </span>
+        ) : null}
+        <PromotionBadge promotion={listing.promotion ?? null} />
+        {trustBadges?.length ? (
+          <div className="absolute bottom-1.5 left-1.5 right-1.5">
+            <TrustBadgeRow badges={trustBadges} compact />
+          </div>
+        ) : null}
       </div>
       <div className={cardVisual.cardBody}>
         <p

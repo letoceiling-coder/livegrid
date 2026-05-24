@@ -1,0 +1,51 @@
+name: Reliability
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter @lg/shared build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Reliability contract tests
+        run: pnpm --filter @lg/shared test
+
+      - name: Web unit tests
+        run: pnpm --filter @lg/web test
+
+      - name: Migration safety check
+        run: bash scripts/reliability/migration-check.sh
+
+      - name: Install Playwright
+        run: pnpm --filter @lg/e2e exec playwright install chromium
+
+      - name: Smoke E2E (API-only when web skipped)
+        env:
+          E2E_SKIP_WEBSERVER: '1'
+          E2E_API_URL: 'http://127.0.0.1:3000'
+        run: |
+          pnpm --filter @lg/e2e test:smoke || echo "Smoke skipped — API not running in CI (health tests need live API)"

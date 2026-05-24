@@ -1,0 +1,10 @@
+--- a/apps/api/src/modules/listings/listings.service.ts
++++ b/apps/api/src/modules/listings/listings.service.ts
+@@ -237,6 +237,7 @@ export class ListingsService implements OnModuleInit {
+         isPublished: true,
+         publishedAt: { lt: publishedBefore },
+         status: { in: ['ACTIVE', 'RESERVED', 'DRAFT'] },
++        dataSource: { not: 'FEED' },
+       },
+       data: {
+         status: 'INACTIVE',

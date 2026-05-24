@@ -9,6 +9,7 @@ import {
 import * as Sentry from "@sentry/react";
 import App from "./App.tsx";
 import "./index.css";
+import "./shared/lib/boot-diagnostics";
 
 const sentryDsn = (import.meta.env.VITE_SENTRY_DSN_WEB as string | undefined)?.trim();
 

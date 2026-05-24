@@ -1,13 +1,14 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect, useDeferredValue } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Phone, Menu, X, Search, Home, LayoutGrid, Heart, LogIn, ChevronDown, User, Star, LogOut } from 'lucide-react';
+import { Phone, Menu, X, Search, Home, LayoutGrid, Heart, LogIn, ChevronDown, User, Star, LogOut, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { apiGet } from '@/lib/api';
 import { TelegramLoginButton } from '@/components/TelegramLoginButton';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useFavorites } from '@/shared/hooks/useFavorites';
+import UserNotificationBell from '@/account/components/UserNotificationBell';
 import { useSiteSettings, settingOptional } from '@/redesign/hooks/useSiteSettings';
 import { telHref } from '@/lib/contact-links';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
@@ -56,7 +57,7 @@ const RedesignHeader = () => {
   const catalogRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const handleHeartClick = () => {
-    navigate('/favorites');
+    navigate('/account/favorites');
   };
 
   const handleLogout = async () => {
@@ -142,6 +143,7 @@ const RedesignHeader = () => {
 
           {/* Desktop right */}
           <div className="hidden lg:flex items-center gap-2 shrink-0">
+            <UserNotificationBell />
             <button
               type="button"
               onClick={handleHeartClick}
@@ -313,23 +315,27 @@ const RedesignHeader = () => {
 
       {/* Mobile bottom nav */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t border-border safe-area-bottom">
-        <div className="flex items-center justify-around h-14">
-          <Link to="/" className={cn('flex flex-col items-center gap-0.5 text-[10px] py-1', location.pathname === '/' ? 'text-primary' : 'text-muted-foreground')}>
+        <div className="grid grid-cols-4 h-14">
+          <Link to="/" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px]', location.pathname === '/' ? 'text-primary' : 'text-muted-foreground')}>
             <Home className="w-5 h-5" />
             <span>Главная</span>
           </Link>
-          <Link to="/catalog" className={cn('flex flex-col items-center gap-0.5 text-[10px] py-1', location.pathname === '/catalog' ? 'text-primary' : 'text-muted-foreground')}>
+          <Link to="/catalog" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px]', location.pathname.startsWith('/catalog') ? 'text-primary' : 'text-muted-foreground')}>
             <LayoutGrid className="w-5 h-5" />
             <span>Каталог</span>
+          </Link>
+          <Link to="/map" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px]', location.pathname === '/map' ? 'text-primary' : 'text-muted-foreground')}>
+            <MapPin className="w-5 h-5" />
+            <span>Карта</span>
           </Link>
           <button
             type="button"
             onClick={handleHeartClick}
-            className={cn('relative flex flex-col items-center gap-0.5 text-[10px] py-1', 'text-muted-foreground')}
+            className={cn('relative flex flex-col items-center justify-center gap-0.5 text-[10px]', 'text-muted-foreground')}
           >
             <Heart className="w-5 h-5" />
             {favoritesCount > 0 ? (
-              <span className="absolute top-0 right-1/4 min-w-[14px] h-3.5 px-0.5 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground flex items-center justify-center leading-none">
+              <span className="absolute top-1 right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground flex items-center justify-center leading-none">
                 {favoritesCount > 9 ? '9+' : favoritesCount}
               </span>
             ) : null}

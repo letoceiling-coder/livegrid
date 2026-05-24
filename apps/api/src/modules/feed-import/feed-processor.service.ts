@@ -9,6 +9,16 @@ interface ProcessApartmentsProgress {
 
 interface ProcessApartmentsOptions {
   onBatchProgress?: (progress: ProcessApartmentsProgress) => Promise<void> | void;
+  /** Предыдущий полный импорт — для защиты от массового markSold при усечённом фиде */
+  previousFeedApartmentCount?: number | null;
+  markSoldMinRatio?: number;
+}
+
+interface ProcessApartmentsResult {
+  upserted: number;
+  markedSold: number;
+  markSoldSkipped: boolean;
+  markSoldSkipReason?: string;
 }
 
 @Injectable()
@@ -430,7 +440,7 @@ export class FeedProcessorService {
     data: any[],
     regionId: number,
     options: ProcessApartmentsOptions = {},
-  ): Promise<number> {
+  ): Promise<ProcessApartmentsResult> {
     let count = 0;
     const blockMap = await this.buildExternalIdMap('block', regionId);
     const buildingMap = await this.buildExternalIdMap('building', regionId);
@@ -465,6 +475,9 @@ export class FeedProcessorService {
             builderId,
             districtId,
             status: 'ACTIVE',
+            isPublished: true,
+            visibility: 'PUBLIC',
+            publishedAt: new Date(),
           },
           create: {
             regionId,
@@ -478,6 +491,8 @@ export class FeedProcessorService {
             districtId,
             dataSource: 'FEED',
             status: 'ACTIVE',
+            isPublished: true,
+            visibility: 'PUBLIC',
           },
         });
 
@@ -610,11 +625,34 @@ export class FeedProcessorService {
       await options.onBatchProgress?.({ processed, total: data.length });
     }
 
-    // Mark sold: listings from feed that are no longer present
-    const soldCount = await this.markSoldListings(regionId, existingExtIds);
+    const feedCount = data.length;
+    const minRatio = options.markSoldMinRatio ?? 0.85;
+    const prevCount = options.previousFeedApartmentCount;
+    let markSoldSkipped = false;
+    let markSoldSkipReason: string | undefined;
+    let soldCount = 0;
 
-    this.logger.log(`Apartments upserted: ${count}, marked sold: ${soldCount}`);
-    return count;
+    if (
+      prevCount != null &&
+      prevCount > 0 &&
+      feedCount < Math.floor(prevCount * minRatio)
+    ) {
+      markSoldSkipped = true;
+      markSoldSkipReason = `Пропуск markSold: в фиде ${feedCount} квартир, ожидалось ≥ ${Math.floor(prevCount * minRatio)} (пред. импорт ${prevCount}, ratio ${minRatio})`;
+      this.logger.error(markSoldSkipReason);
+    } else {
+      soldCount = await this.markSoldListings(regionId, existingExtIds);
+    }
+
+    this.logger.log(
+      `Apartments upserted: ${count}, marked sold: ${soldCount}${markSoldSkipped ? ' (markSold SKIPPED)' : ''}`,
+    );
+    return {
+      upserted: count,
+      markedSold: soldCount,
+      markSoldSkipped,
+      markSoldSkipReason,
+    };
   }
 
   private async markSoldListings(

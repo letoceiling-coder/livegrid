@@ -16,6 +16,7 @@ import { CONVERSION_CTA, type ConsultationContext } from '@/redesign/lib/convers
 import LayoutGrid from '@/redesign/components/LayoutGrid';
 import MissingPhotoPlaceholder from '@/redesign/components/MissingPhotoPlaceholder';
 import LeadForm from '@/shared/components/LeadForm';
+import RelatedListingsCarousel from '@/discovery/components/RelatedListingsCarousel';
 import { apiGet, apiGetOrNull } from '@/lib/api';
 import {
   formatPriceFrom,
@@ -31,6 +32,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import { parseApiBlockId, useFavorites } from '@/shared/hooks/useFavorites';
 import { useCompare } from '@/shared/hooks/useCompare';
 import { shareCurrentPage } from '@/lib/share-page';
+import { useEntitySeoMeta } from '@/shared/hooks/useEntitySeoMeta';
 import { toast } from '@/components/ui/sonner';
 import { useYandexMapsReady } from '@/shared/hooks/useYandexMapsReady';
 import { prefersReducedMotion } from '@/redesign/lib/map-sidebar-scroll-utils';
@@ -42,6 +44,9 @@ import {
   type ApiBlockListRow,
   type ApiListingRow,
 } from '@/redesign/lib/blocks-from-api';
+import { buildCatalogFilterUrl } from '@/redesign/lib/catalog-filter-links';
+import { recordBrowseHistory } from '@/account/pages/AccountHistory';
+import { blockHref } from '@/shared/lib/browse-history-local';
 
 declare global {
   interface Window { ymaps: any; }
@@ -138,22 +143,81 @@ const RedesignComplex = () => {
 
   const complex = apiComplex ?? mockComplex ?? null;
   const fromApi = Boolean(apiComplex);
+  const regionId = apiBlockQuery.data?.region?.id ?? null;
+
+  const districtCatalogUrl =
+    regionId && complex?.district && complex.district !== '—'
+      ? buildCatalogFilterUrl(regionId, { district: complex.district })
+      : null;
+  const subwayCatalogUrl =
+    regionId && complex?.subway && complex.subway !== '—'
+      ? buildCatalogFilterUrl(regionId, { subway: complex.subway })
+      : null;
+
+  const entitySeo = useMemo(() => {
+    if (!complex) return null;
+    const priceHint =
+      complex.priceFrom > 0 ? ` от ${formatPriceFrom(complex.priceFrom)}` : '';
+    const desc = `${complex.name}${priceHint} — ${complex.district || complex.address}. Квартиры, планировки и шахматка на LiveGrid.`.slice(
+      0,
+      160,
+    );
+    return {
+      title: complex.name,
+      description: desc,
+      pathname: location.pathname,
+      imageUrl: complex.images[0] ?? null,
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'Residence',
+        name: complex.name,
+        url: `${window.location.origin}${location.pathname}`,
+        ...(complex.images[0] ? { image: complex.images[0] } : {}),
+        address: complex.address || complex.district,
+      },
+    };
+  }, [complex, location.pathname]);
+  useEntitySeoMeta(entitySeo);
+
+  useEffect(() => {
+    const b = apiBlockQuery.data;
+    if (!b?.id || !complex) return;
+    void recordBrowseHistory('BLOCK', b.id, complex.name, blockHref(b.id, b.slug));
+  }, [apiBlockQuery.data, complex?.name, complex?.id]);
+
   const blockNum = complex ? parseApiBlockId(complex.id) : null;
   const blockLiked = blockNum != null && isBlockFavorite(blockNum);
 
   const similarQuery = useQuery({
-    queryKey: ['blocks', 'similar', apiBlockQuery.data?.region?.id, apiBlockQuery.data?.id],
+    queryKey: ['blocks', 'similar', apiBlockQuery.data?.id],
     queryFn: async () => {
       const b = apiBlockQuery.data!;
       const rid = b.region?.id;
       if (rid == null) return [] as ResidentialComplex[];
-      const res = await apiGet<{ data: ApiBlockListRow[] }>(`/blocks?region_id=${rid}&per_page=8`);
+
+      const nearby = await apiGet<{ data: Array<{ id: number; slug: string; name: string }> }>(
+        `/discovery/blocks/${b.id}/nearby?limit=6`,
+      );
+      const nearbyIds = new Set(nearby.data?.map((x) => x.id) ?? []);
+      if (nearbyIds.size > 0) {
+        const params = new URLSearchParams({ region_id: String(rid), per_page: '24' });
+        const res = await apiGet<{ data: ApiBlockListRow[] }>(`/blocks?${params.toString()}`);
+        return res.data
+          .filter((row) => nearbyIds.has(row.id))
+          .slice(0, 6)
+          .map(mapApiBlockListRowToResidentialComplex);
+      }
+
+      const params = new URLSearchParams({ region_id: String(rid), per_page: '12' });
+      const districtName = b.district?.name?.trim();
+      if (districtName) params.set('district_names', districtName);
+      const res = await apiGet<{ data: ApiBlockListRow[] }>(`/blocks?${params.toString()}`);
       return res.data
         .filter((row) => row.id !== b.id)
         .slice(0, 4)
         .map(mapApiBlockListRowToResidentialComplex);
     },
-    enabled: Boolean(fromApi && apiBlockQuery.data?.region?.id != null && apiBlockQuery.data?.id),
+    enabled: Boolean(fromApi && apiBlockQuery.data?.id != null),
   });
 
   const [sort, setSort] = useState<{ field: SortField; dir: SortDir }>({ field: 'price', dir: 'asc' });
@@ -382,7 +446,26 @@ const RedesignComplex = () => {
           <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground min-w-0">
             <Link to="/" className="hover:text-foreground transition-colors shrink-0">Главная</Link>
             <span>/</span>
-            <Link to="/catalog" className="hover:text-foreground transition-colors shrink-0">Каталог</Link>
+            {regionId ? (
+              <>
+                <Link
+                  to={buildCatalogFilterUrl(regionId)}
+                  className="hover:text-foreground transition-colors shrink-0"
+                >
+                  Каталог
+                </Link>
+                {districtCatalogUrl ? (
+                  <>
+                    <span>/</span>
+                    <Link to={districtCatalogUrl} className="hover:text-foreground transition-colors truncate max-w-[100px] sm:max-w-none">
+                      {complex.district}
+                    </Link>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <Link to="/catalog" className="hover:text-foreground transition-colors shrink-0">Каталог</Link>
+            )}
             <span>/</span>
             <span className="text-foreground font-medium truncate">{complex.name}</span>
           </div>
@@ -492,12 +575,24 @@ const RedesignComplex = () => {
                       {metroItems.map((m) => (
                         <div key={`${m.name}-${m.distanceTime ?? 'na'}`} className="text-sm text-muted-foreground flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-                          <span>
-                            {m.name}
-                            {m.distanceTime != null
-                              ? `, ${m.distanceTime} минут ${m.distanceType === 1 ? 'пешком' : 'транспортом'}`
-                              : ''}
-                          </span>
+                          {regionId ? (
+                            <Link
+                              to={buildCatalogFilterUrl(regionId, { subway: m.name })}
+                              className="hover:text-primary hover:underline"
+                            >
+                              {m.name}
+                              {m.distanceTime != null
+                                ? `, ${m.distanceTime} минут ${m.distanceType === 1 ? 'пешком' : 'транспортом'}`
+                                : ''}
+                            </Link>
+                          ) : (
+                            <span>
+                              {m.name}
+                              {m.distanceTime != null
+                                ? `, ${m.distanceTime} минут ${m.distanceType === 1 ? 'пешком' : 'транспортом'}`
+                                : ''}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -514,7 +609,17 @@ const RedesignComplex = () => {
                   ].map(([label, value]) => (
                     <div key={label} className="space-y-1">
                       <p className="text-xs text-muted-foreground">{label}</p>
-                      <p className="text-sm font-medium">{value}</p>
+                      {label === 'Район' && districtCatalogUrl ? (
+                        <Link to={districtCatalogUrl} className="text-sm font-medium hover:text-primary hover:underline">
+                          {value}
+                        </Link>
+                      ) : label === 'Метро' && subwayCatalogUrl ? (
+                        <Link to={subwayCatalogUrl} className="text-sm font-medium hover:text-primary hover:underline">
+                          {value}
+                        </Link>
+                      ) : (
+                        <p className="text-sm font-medium">{value}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -561,7 +666,20 @@ const RedesignComplex = () => {
                 <div>
                   <p className="font-semibold text-base">{complex.builder}</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {complex.district && complex.district !== '—' ? `Район: ${complex.district}` : 'Застройщик проекта'}
+                    {complex.district && complex.district !== '—' ? (
+                      districtCatalogUrl ? (
+                        <>
+                          Район:{' '}
+                          <Link to={districtCatalogUrl} className="hover:text-primary hover:underline">
+                            {complex.district}
+                          </Link>
+                        </>
+                      ) : (
+                        `Район: ${complex.district}`
+                      )
+                    ) : (
+                      'Застройщик проекта'
+                    )}
                   </p>
                   {!isPriceHidden(complex.priceFrom) ? (
                     <p className="text-sm mt-2" aria-label={priceAriaLabel(formatPriceFrom(complex.priceFrom))}>
@@ -606,6 +724,15 @@ const RedesignComplex = () => {
               </div>
             </div>
           </section>
+
+          {fromApi && apiBlockQuery.data?.id ? (
+            <RelatedListingsCarousel
+              title="Объекты в этом ЖК и рядом"
+              fetchUrl={`/discovery/blocks/${apiBlockQuery.data.id}/related?limit=12`}
+              queryKey={['discovery', 'related', 'block', apiBlockQuery.data.id]}
+              className="scroll-mt-32"
+            />
+          ) : null}
 
           {similarComplexes.length > 0 ? (
             <section id="similar" className="scroll-mt-32">

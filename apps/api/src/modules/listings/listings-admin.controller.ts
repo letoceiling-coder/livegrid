@@ -4,6 +4,7 @@ import { CurrentUser, Roles } from '../../auth/decorators';
 import { AuditService } from '../audit/audit.service';
 import { ListingsService } from './listings.service';
 import { ListingsGovernanceService } from './listings-governance.service';
+import { InventoryHealthService } from './inventory-health.service';
 import {
   CreateManualApartmentDto,
   UpdateManualApartmentDto,
@@ -28,8 +29,38 @@ export class ListingsAdminController {
   constructor(
     private readonly service: ListingsService,
     private readonly governance: ListingsGovernanceService,
+    private readonly inventory: InventoryHealthService,
     private readonly audit: AuditService,
   ) {}
+
+  @Get('marketplace-health')
+  @Roles('admin', 'editor')
+  @ApiOperation({ summary: 'Marketplace inventory freshness and liquidity diagnostics' })
+  marketplaceHealth(@Query('region_id') regionId?: string) {
+    const rid = regionId != null && regionId !== '' ? Number.parseInt(regionId, 10) : undefined;
+    return this.inventory.getMarketplaceHealth(Number.isFinite(rid) ? rid : undefined);
+  }
+
+  @Get('agent-health')
+  @Roles('agent')
+  @ApiOperation({ summary: 'Agent inventory health and maintenance nudges' })
+  agentHealth(
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.inventory.getAgentHealth({ userId, role });
+  }
+
+  @Post('bulk-refresh')
+  @Roles('agent')
+  @ApiOperation({ summary: 'Refresh lastActivityAt for stale owned listings (max 50)' })
+  bulkRefresh(
+    @Body() body: { listingIds?: number[] },
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.inventory.bulkRefreshActivity({ userId, role }, body?.listingIds);
+  }
 
   @Get('observability')
   @Roles('agent')

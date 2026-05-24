@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { apiGetOrNull } from '@/lib/api';
 import type { ApiBlockDetail } from '@/redesign/lib/blocks-from-api';
 import { formatPrice } from '@/redesign/data/mock-data';
+import SelectionInquiryBar from '@/redesign/components/SelectionInquiryBar';
 
 const PLACEHOLDER = '/placeholder.svg';
 
@@ -216,7 +217,7 @@ const Compare = () => {
 
   const onlyBlockSlugs = ids.length > 0 && ids.every((id) => !id.startsWith('l:'));
   return (
-    <div className="min-h-screen bg-background pb-16 lg:pb-0">
+    <div className="min-h-screen bg-background pb-24 lg:pb-0">
       <RedesignHeader />
       <div className="max-w-[1400px] mx-auto px-4 py-8 sm:py-12">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6">Сравнение объектов</h1>
@@ -509,6 +510,22 @@ const Compare = () => {
                   })}
                 </div>
               </div>
+            ) : null}
+            {ids.length >= 1 ? (
+              <>
+                <div className="hidden lg:block mt-8 rounded-xl border border-border bg-card p-4">
+                  <SelectionInquiryBar
+                    source="compare:selection"
+                    contextFooter={`Сравнение · ${ids.length} объектов`}
+                  />
+                </div>
+                <SelectionInquiryBar
+                  sticky
+                  source="compare:selection-sticky"
+                  contextFooter={`Сравнение · ${ids.length} объектов`}
+                  className="lg:hidden"
+                />
+              </>
             ) : null}
           </div>
         )}

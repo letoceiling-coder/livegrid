@@ -1,13 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
+import { catalogFiltersFromSearchParams } from '@/redesign/lib/catalog-url-sync';
+import { buildCatalogSeoMeta } from '@/redesign/lib/catalog-seo-meta';
+import { useSiteSettings, setting, settingOptional } from '@/redesign/hooks/useSiteSettings';
+import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 
 const SITE_NAME = 'LiveGrid';
 const SITE_URL = (import.meta.env.VITE_PUBLIC_SITE_URL as string | undefined)?.replace(/\/+$/, '') || 'https://livegrid.ru';
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-default.jpg`;
 
 type SeoMeta = {
   title: string;
   description: string;
   noindex?: boolean;
+  ogImage?: string;
 };
 
 function ensureMetaByName(name: string): HTMLMetaElement {
@@ -40,17 +46,62 @@ function ensureCanonical(): HTMLLinkElement {
   return link;
 }
 
-function buildMeta(pathname: string): SeoMeta {
+function stripSiteSuffix(title: string): string {
+  return title.replace(/\s*\|\s*LiveGrid\s*$/i, '').trim();
+}
+
+function resolveRegionName(
+  search: string,
+  regionId: number | undefined,
+  rows: { id: number; name?: string }[] | undefined,
+): string | null {
+  const sp = new URLSearchParams(search);
+  const fromUrl = sp.get('region_id');
+  const id = fromUrl ? Number(fromUrl) : regionId;
+  if (!id || !Number.isFinite(id) || !rows?.length) return null;
+  return rows.find((r) => r.id === id)?.name?.trim() ?? null;
+}
+
+function buildMeta(
+  pathname: string,
+  search: string,
+  cms: Map<string, string> | undefined,
+  regionName: string | null,
+): SeoMeta {
   if (pathname === '/') {
+    const cmsTitle = settingOptional(cms, 'site_title');
+    const cmsDesc = settingOptional(cms, 'meta_description');
+    const ogImage = settingOptional(cms, 'og_image');
+    const defaultTitle = regionName
+      ? `Недвижимость в ${regionName}`
+      : 'Недвижимость в России';
+    const defaultDesc = regionName
+      ? `Каталог жилых комплексов и квартир в ${regionName}: фильтры, карта, избранное и подборки.`
+      : 'Каталог жилых комплексов и квартир: фильтры, карты, избранное и подборки.';
     return {
-      title: 'Недвижимость в России',
-      description: 'Каталог жилых комплексов и квартир: фильтры, карты, избранное и подборки.',
+      title: cmsTitle ? stripSiteSuffix(cmsTitle) : defaultTitle,
+      description: cmsDesc || defaultDesc,
+      ogImage: ogImage ? (ogImage.startsWith('http') ? ogImage : `${SITE_URL}${ogImage.startsWith('/') ? '' : '/'}${ogImage}`) : undefined,
+    };
+  }
+  if (pathname === '/belgorod') {
+    return {
+      title: 'Недвижимость в Белгороде',
+      description:
+        'Квартиры, дома и участки в Белгороде от партнёра ЦН «Авангард». Каталог, фильтры и карта на LiveGrid.',
     };
   }
   if (pathname.startsWith('/catalog')) {
+    const sp = new URLSearchParams(search);
+    const filters = catalogFiltersFromSearchParams(sp);
+    const page = Math.max(1, Number(sp.get('page') || 1) || 1);
+    const sort = sp.get('sort');
+    return buildCatalogSeoMeta(filters.search, filters, { page, sort, regionName });
+  }
+  if (pathname.startsWith('/listing/')) {
     return {
-      title: 'Каталог недвижимости',
-      description: 'Подбор ЖК и квартир по цене, району, метро и другим параметрам.',
+      title: 'Объект недвижимости',
+      description: 'Карточка объекта: параметры, фото, цена и контакты на LiveGrid.',
     };
   }
   if (pathname.startsWith('/complex/')) {
@@ -65,10 +116,29 @@ function buildMeta(pathname: string): SeoMeta {
       description: 'Параметры квартиры, планировка, цена и связанные объекты.',
     };
   }
-  if (pathname === '/map') {
+  if (pathname.startsWith('/map')) {
+    const mapTitle = regionName ? `Поиск на карте — ${regionName}` : 'Поиск на карте';
+    const mapDesc = regionName
+      ? `Поиск жилых комплексов и объектов в ${regionName} на интерактивной карте.`
+      : 'Поиск жилых комплексов и объектов на интерактивной карте.';
+    return { title: mapTitle, description: mapDesc };
+  }
+  if (pathname.startsWith('/agency/')) {
     return {
-      title: 'Поиск на карте',
-      description: 'Поиск жилых комплексов и объектов на интерактивной карте.',
+      title: 'Агентство недвижимости',
+      description: 'Профиль агентства: команда, объекты и контакты на LiveGrid.',
+    };
+  }
+  if (pathname.startsWith('/agent/')) {
+    return {
+      title: 'Агент по недвижимости',
+      description: 'Профиль агента: специализация, объекты и способы связи.',
+    };
+  }
+  if (pathname.startsWith('/selections/')) {
+    return {
+      title: 'Подборка объектов',
+      description: 'Персональная подборка квартир и ЖК, подготовленная экспертом.',
     };
   }
   if (pathname.startsWith('/news')) {
@@ -80,7 +150,7 @@ function buildMeta(pathname: string): SeoMeta {
   if (pathname === '/contacts') {
     return {
       title: 'Контакты',
-      description: 'Контакты команды LiveGrid и форма обратной связи.',
+      description: setting(cms, 'contacts_meta_description', 'Контакты команды LiveGrid и форма обратной связи.'),
     };
   }
   if (pathname === '/privacy') {
@@ -123,12 +193,33 @@ function buildMeta(pathname: string): SeoMeta {
 }
 
 export default function SeoRouteMeta() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const { data: siteSettings } = useSiteSettings();
+  const { data: defaultRegionId, rows: regionRows } = useDefaultRegionId();
+
+  const regionName = useMemo(
+    () => resolveRegionName(search, defaultRegionId, regionRows),
+    [search, defaultRegionId, regionRows],
+  );
+
+  const meta = useMemo(
+    () => buildMeta(pathname, search, siteSettings, regionName),
+    [pathname, search, siteSettings, regionName],
+  );
+
+  const ogImage = meta.ogImage ?? DEFAULT_OG_IMAGE;
 
   useEffect(() => {
-    const meta = buildMeta(pathname);
     const fullTitle = `${meta.title} | ${SITE_NAME}`;
-    const canonicalUrl = `${SITE_URL}${pathname}`;
+    const sp = new URLSearchParams(search);
+    if (pathname.startsWith('/catalog')) {
+      sp.delete('page');
+      sp.delete('sort');
+    }
+    const cleanSearch = sp.toString();
+    const canonicalUrl = meta.noindex
+      ? `${SITE_URL}${pathname}`
+      : `${SITE_URL}${pathname}${cleanSearch ? `?${cleanSearch}` : ''}`;
 
     document.title = fullTitle;
 
@@ -141,12 +232,18 @@ export default function SeoRouteMeta() {
     ensureMetaByProperty('og:title').setAttribute('content', fullTitle);
     ensureMetaByProperty('og:description').setAttribute('content', meta.description);
     ensureMetaByProperty('og:url').setAttribute('content', canonicalUrl);
+    ensureMetaByProperty('og:type').setAttribute('content', 'website');
+    ensureMetaByProperty('og:site_name').setAttribute('content', SITE_NAME);
+    ensureMetaByProperty('og:image').setAttribute('content', ogImage);
+    ensureMetaByProperty('og:locale').setAttribute('content', 'ru_RU');
 
+    ensureMetaByName('twitter:card').setAttribute('content', 'summary_large_image');
     ensureMetaByName('twitter:title').setAttribute('content', fullTitle);
     ensureMetaByName('twitter:description').setAttribute('content', meta.description);
+    ensureMetaByName('twitter:image').setAttribute('content', ogImage);
 
     ensureCanonical().setAttribute('href', canonicalUrl);
-  }, [pathname]);
+  }, [meta, pathname, search, ogImage]);
 
   return null;
 }

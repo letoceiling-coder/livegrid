@@ -96,3 +96,37 @@ export {
   type OperationalRiskHint,
   type RequestRiskContext,
 } from './operational-forecast.js';
+export {
+  CrmAutomationRuleType,
+  CrmFollowupTaskType,
+  CrmFollowupTaskStatus,
+  CRM_AUTOMATION_RULE_LABEL,
+  CRM_FOLLOWUP_TASK_LABEL,
+  taskTypeForRule,
+  evaluateAutomationRules,
+  detectReopenRecently,
+  type AutomationEvalInput,
+  type AutomationMatch,
+  type AutomationMetrics,
+} from './crm-automation.js';
+export {
+  CrmThreadType,
+  CrmMessageType,
+  CrmMessageVisibility,
+  CrmParticipantRole,
+  CRM_THREAD_TYPE_LABEL,
+  CRM_MESSAGE_TYPE_LABEL,
+  isStaleConversation,
+  computeAvgReplyLatencyMs,
+  extractMentionedUserIds,
+  type CrmCallbackMeta,
+  type CrmCommunicationMetrics,
+  type ThreadActivityInput,
+} from './crm-communication.js';
+export {
+  computeResponseSlaScore,
+  publicResponsivenessHint,
+  agentResponseTier,
+  type ResponseVelocityInput,
+  type PublicResponsivenessHint,
+} from './response-responsiveness.js';

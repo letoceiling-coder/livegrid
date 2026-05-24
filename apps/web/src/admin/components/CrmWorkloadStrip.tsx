@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSmartPollInterval, useCrmPollMeta } from '@/admin/hooks/useSmartPollInterval';
-import { AlertTriangle, Clock, Users } from 'lucide-react';
+import { AlertTriangle, Clock, Users, Zap } from 'lucide-react';
 import { crmApiGet } from '@/admin/lib/crm-api';
 import { crmQueryOptions, crmErrorMessage } from '@/admin/lib/crm-query-options';
 import { CRM_QUERY_KEYS } from '@/admin/lib/crm-query-keys';
@@ -24,6 +24,11 @@ type WorkloadResponse = {
   }>;
 };
 
+type VelocityMetrics = {
+  latency: { avgFirstContactMinutes: number | null };
+  communication: { callbackOverdueCount: number; unreadConversations: number };
+};
+
 type Props = {
   slaFilter: string;
   onSlaFilter: (v: string) => void;
@@ -43,6 +48,16 @@ function CrmWorkloadStrip({ slaFilter, onSlaFilter }: Props) {
     }),
   });
 
+  const velocityQuery = useQuery({
+    queryKey: ['admin', 'requests', 'responsiveness-metrics'],
+    queryFn: () => crmApiGet<VelocityMetrics>('/admin/requests/responsiveness-metrics', 'responsiveness_metrics'),
+    ...crmQueryOptions({
+      staleTime: 60_000,
+      refetchInterval: pollInterval === false ? false : pollInterval,
+      enabled: online,
+    }),
+  });
+
   if (isError) {
     return (
       <CrmInlineError
@@ -54,8 +69,31 @@ function CrmWorkloadStrip({ slaFilter, onSlaFilter }: Props) {
 
   if (!data) return null;
 
+  const velocity = velocityQuery.data;
+
   return (
     <div className="mb-4 space-y-3">
+      {velocity ? (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground rounded-lg border bg-muted/20 px-3 py-2">
+          <span className="inline-flex items-center gap-1">
+            <Zap className="w-3.5 h-3.5 text-primary" />
+            Первый контакт:{' '}
+            <span className="font-medium text-foreground tabular-nums">
+              {velocity.latency.avgFirstContactMinutes != null
+                ? `${velocity.latency.avgFirstContactMinutes} мин`
+                : '—'}
+            </span>
+          </span>
+          {velocity.communication.callbackOverdueCount > 0 ? (
+            <span className="text-red-600 font-medium">
+              Callback просрочен: {velocity.communication.callbackOverdueCount}
+            </span>
+          ) : null}
+          {velocity.communication.unreadConversations > 0 ? (
+            <span>Непрочитано: {velocity.communication.unreadConversations}</span>
+          ) : null}
+        </div>
+      ) : null}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <button
           type="button"

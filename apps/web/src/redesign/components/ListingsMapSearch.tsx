@@ -16,9 +16,11 @@ import type { ConsultationContext } from '@/redesign/lib/conversion-cta';
 import { useMapBbox } from '@/redesign/hooks/useMapBbox';
 import { useMapFpsTracker } from '@/redesign/hooks/useMapFpsTracker';
 import { useShadowViewportRender } from '@/redesign/hooks/useShadowViewportRender';
+import { useProductionViewportMap } from '@/redesign/hooks/useProductionViewportMap';
 import { useViewportListingsExperimental } from '@/redesign/hooks/useViewportListingsExperimental';
 import { filterByBbox } from '@/redesign/lib/bbox-serialization';
 import {
+  isMapViewportProductionEnabled,
   isViewportListingsSourceEnabled,
   isViewportListingsTrackingEnabled,
   isViewportShadowRenderEnabled,
@@ -75,8 +77,9 @@ const ListingsMapSearch = ({
   const mapRef = useRef<HTMLDivElement>(null);
   const { ready } = useYandexMapsReady();
 
-  const viewportListingsSource = isViewportListingsSourceEnabled();
-  const viewportTracking = isViewportListingsTrackingEnabled();
+  const viewportProduction = isMapViewportProductionEnabled();
+  const viewportListingsSource = isViewportListingsSourceEnabled() || viewportProduction;
+  const viewportTracking = isViewportListingsTrackingEnabled() && !viewportProduction;
   const shadowRender = isViewportShadowRenderEnabled();
 
   const [effectiveMapListings, setEffectiveMapListings] = useState(listings);
@@ -133,6 +136,28 @@ const ListingsMapSearch = ({
 
   const mapBbox = useMapBbox(mapInstance, ready);
   useMapFpsTracker(mapInstance, ready, selectionBurst);
+
+  const productionViewport = useProductionViewportMap({
+    kind: 'listings',
+    enabled: viewportProduction,
+    regionId: regionId ?? undefined,
+    bbox: mapBbox,
+    filterSearchParams,
+  });
+
+  useEffect(() => {
+    if (!viewportProduction) return;
+    if (productionViewport.status === 'ready' && productionViewport.markers.length > 0) {
+      setEffectiveMapListings(
+        viewportMarkersToListingMapItems(
+          productionViewport.markers as import('@/redesign/lib/viewport-map-types').ViewportListingMarker[],
+        ),
+      );
+    } else if (productionViewport.status === 'fallback') {
+      setEffectiveMapListings(listings);
+    }
+  }, [viewportProduction, productionViewport.status, productionViewport.markers, listings]);
+
   const { result: viewportResult } = useViewportListingsExperimental({
     enabled: viewportTracking,
     regionId: regionId ?? undefined,

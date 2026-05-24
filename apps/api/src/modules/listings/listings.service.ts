@@ -27,7 +27,8 @@ import type {
 } from './dto/manual-parking.dto';
 import type { ManualSellerDto } from './dto/manual-seller.dto';
 import { ListingsGovernanceService } from './listings-governance.service';
-import { isListingStale } from '@lg/shared';
+import { ListingsPromotionService } from './listings-promotion.service';
+import { effectivePromotion, isListingStale } from '@lg/shared';
 
 const MEDIA_LIB_PREFIX = '/uploads/media/';
 type ActorContext = { userId: string; role: string };
@@ -103,6 +104,7 @@ export class ListingsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly geo: GeoSpatialService,
     private readonly governance: ListingsGovernanceService,
+    private readonly promotions: ListingsPromotionService,
   ) {}
 
   onModuleInit() {
@@ -124,6 +126,7 @@ export class ListingsService implements OnModuleInit {
 
   async findAll(query: QueryListingsDto, actor?: ActorContext) {
     await this.expireOldPublishedListings();
+    await this.promotions.expireStalePromotions(50);
     const page = query.page ?? 1;
     const per_page = query.per_page ?? 20;
     const where = await this.buildWhere(query, { admin: Boolean(actor) || query.admin_view });
@@ -138,9 +141,17 @@ export class ListingsService implements OnModuleInit {
       where.lastActivityAt = { lt: staleCutoff };
       where.visibility = { in: ['PUBLIC', 'HIDDEN'] };
     }
-    const orderBy = this.parseSort(query.sort);
+    const isPublicCatalog =
+      !actor &&
+      !query.admin_view &&
+      query.visibility !== 'REVIEW' &&
+      query.visibility !== 'REJECTED' &&
+      query.visibility !== 'ARCHIVED';
+    const orderBy = this.parseSort(query.sort, {
+      promotionRank: this.promotions.usesPromotionRanking(query.sort, { publicCatalog: isPublicCatalog }),
+    });
 
-    const include = {
+    const baseInclude = {
       apartment: {
         include: {
           roomType: true,
@@ -160,6 +171,11 @@ export class ListingsService implements OnModuleInit {
       ownerUser: { select: { id: true, fullName: true, email: true, phone: true, avatarUrl: true, role: true } },
     } satisfies Prisma.ListingInclude;
 
+    const include: Prisma.ListingInclude =
+      actor && query.admin_view
+        ? { ...baseInclude, wizardSnapshot: { select: { isPendingRevision: true } } }
+        : baseInclude;
+
     const [data, total] = await Promise.all([
       this.prisma.listing.findMany({
         where,
@@ -171,11 +187,59 @@ export class ListingsService implements OnModuleInit {
       this.prisma.listing.count({ where }),
     ]);
 
+    const moderationActions = [
+      'moderation_approve',
+      'moderation_reject',
+      'moderation_request_changes',
+      'moderation_archive',
+      'moderation_restore',
+    ] as const;
+
+    const lastModerationByListing = new Map<
+      number,
+      {
+        action: string;
+        note: string | null;
+        createdAt: Date;
+        user: { fullName: string | null; email: string | null } | null;
+      }
+    >();
+
+    if (actor && query.admin_view && data.length > 0) {
+      const history = await this.prisma.listingEditHistory.findMany({
+        where: {
+          listingId: { in: data.map((r) => r.id) },
+          action: { in: [...moderationActions] },
+        },
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { fullName: true, email: true } } },
+      });
+      for (const h of history) {
+        if (!lastModerationByListing.has(h.listingId)) {
+          lastModerationByListing.set(h.listingId, h);
+        }
+      }
+    }
+
     return {
-      data: data.map((row) => ({
-        ...row,
-        isStale: isListingStale(row.lastActivityAt),
-      })),
+      data: data.map((row) => {
+        const snap = 'wizardSnapshot' in row ? row.wizardSnapshot : null;
+        const { wizardSnapshot: _snap, ...rest } = row as typeof row & {
+          wizardSnapshot?: { isPendingRevision: boolean } | null;
+        };
+        return {
+          ...rest,
+          isStale: isListingStale(row.lastActivityAt),
+          isPendingRevision: snap?.isPendingRevision ?? false,
+          lastModeratorAction: lastModerationByListing.get(row.id) ?? null,
+          promotion: effectivePromotion(
+            row.promotionTier,
+            row.promotedUntil,
+            row.vipPriority,
+            row.boostScore,
+          ),
+        };
+      }),
       meta: { page, per_page, total, total_pages: Math.ceil(total / per_page) },
     };
   }
@@ -238,6 +302,7 @@ export class ListingsService implements OnModuleInit {
         isPublished: true,
         publishedAt: { lt: publishedBefore },
         status: { in: ['ACTIVE', 'RESERVED', 'DRAFT'] },
+        dataSource: { not: 'FEED' },
       },
       data: {
         status: 'INACTIVE',
@@ -769,7 +834,19 @@ export class ListingsService implements OnModuleInit {
       .filter(Boolean);
   }
 
-  private parseSort(sort?: string): Prisma.ListingOrderByWithRelationInput {
+  private parseSort(
+    sort?: string,
+    opts?: { promotionRank?: boolean },
+  ): Prisma.ListingOrderByWithRelationInput | Prisma.ListingOrderByWithRelationInput[] {
+    if (opts?.promotionRank) {
+      return [
+        { vipPriority: 'desc' },
+        { boostScore: 'desc' },
+        { lastActivityAt: 'desc' },
+        { createdAt: 'desc' },
+        { id: 'asc' },
+      ];
+    }
     switch (sort) {
       case 'price_asc':
         return { price: 'asc' };

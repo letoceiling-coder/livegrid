@@ -98,6 +98,132 @@ export const DEFAULT_HOMEPAGE_SITE_SETTINGS: Array<{
     fieldType: SiteSettingFieldType.TEXT,
     sortOrder: 21,
   },
+  {
+    key: 'trust_sync_title',
+    value: 'Еженедельно',
+    groupName: 'homepage',
+    label: 'Trust strip: заголовок «синхронизация»',
+    fieldType: SiteSettingFieldType.TEXT,
+    sortOrder: 30,
+  },
+  {
+    key: 'trust_sync_subtitle',
+    value: 'синхронизация фида',
+    groupName: 'homepage',
+    label: 'Trust strip: подпись синхронизации',
+    fieldType: SiteSettingFieldType.TEXT,
+    sortOrder: 31,
+  },
+  {
+    key: 'trust_verified_title',
+    value: 'Проверенные данные',
+    groupName: 'homepage',
+    label: 'Trust strip: заголовок «проверенные данные»',
+    fieldType: SiteSettingFieldType.TEXT,
+    sortOrder: 32,
+  },
+  {
+    key: 'trust_verified_subtitle',
+    value: 'из официального фида',
+    groupName: 'homepage',
+    label: 'Trust strip: подпись проверенных данных',
+    fieldType: SiteSettingFieldType.TEXT,
+    sortOrder: 33,
+  },
+];
+
+/** SEO keys — synced with packages/database/prisma/seed.ts group `seo`. */
+export const DEFAULT_SEO_SITE_SETTINGS: Array<{
+  key: string;
+  value: string;
+  groupName: string;
+  label: string;
+  fieldType: SiteSettingFieldType;
+  sortOrder: number;
+}> = [
+  {
+    key: 'site_title',
+    value: 'LiveGrid — агрегатор новостроек',
+    groupName: 'seo',
+    label: 'Title сайта',
+    fieldType: SiteSettingFieldType.TEXT,
+    sortOrder: 0,
+  },
+  {
+    key: 'meta_description',
+    value: '',
+    groupName: 'seo',
+    label: 'Meta Description',
+    fieldType: SiteSettingFieldType.TEXTAREA,
+    sortOrder: 1,
+  },
+  {
+    key: 'og_image',
+    value: '',
+    groupName: 'seo',
+    label: 'OG Image URL',
+    fieldType: SiteSettingFieldType.TEXT,
+    sortOrder: 2,
+  },
+];
+
+/** CMS-managed SEO landing copy — group `seo_landings`, no AI generation. */
+export const DEFAULT_SEO_LANDING_SETTINGS: Array<{
+  key: string;
+  value: string;
+  groupName: string;
+  label: string;
+  fieldType: SiteSettingFieldType;
+  sortOrder: number;
+}> = [
+  {
+    key: 'seo_landing_district_intro',
+    value:
+      'Квартиры и новостройки в районе {district}{regionSuffix}. Актуальные объекты из официального фида застройщиков на LiveGrid.',
+    groupName: 'seo_landings',
+    label: 'Шаблон intro: район (плейсхолдеры {district}, {region}, {regionSuffix})',
+    fieldType: SiteSettingFieldType.TEXTAREA,
+    sortOrder: 0,
+  },
+  {
+    key: 'seo_landing_subway_intro',
+    value:
+      'Недвижимость у метро {subway}{regionSuffix}: новостройки и квартиры с фильтрами и картой.',
+    groupName: 'seo_landings',
+    label: 'Шаблон intro: метро (плейсхолдеры {subway}, {region}, {regionSuffix})',
+    fieldType: SiteSettingFieldType.TEXTAREA,
+    sortOrder: 1,
+  },
+  {
+    key: 'seo_landing_region_intro',
+    value:
+      'Каталог недвижимости{regionSuffix}: жилые комплексы, квартиры, фильтры по району и метро.',
+    groupName: 'seo_landings',
+    label: 'Шаблон intro: регион ({region}, {regionSuffix})',
+    fieldType: SiteSettingFieldType.TEXTAREA,
+    sortOrder: 2,
+  },
+  {
+    key: 'seo_landing_faq_json',
+    value: JSON.stringify(
+      [
+        {
+          q: 'Откуда данные о квартирах?',
+          a: 'Объекты синхронизируются из официального фида застройщиков и обновляются регулярно.',
+        },
+        {
+          q: 'Как оставить заявку?',
+          a: 'Выберите объект и нажмите «Запросить консультацию» — менеджер свяжется в течение 2 часов.',
+        },
+      ],
+      null,
+      0,
+    ),
+    groupName: 'seo_landings',
+    label: 'FAQ для SEO-лендингов каталога (JSON-массив {q,a})',
+    fieldType: SiteSettingFieldType.TEXTAREA,
+    sortOrder: 3,
+  },
 ];
 
 /** Группа настроек интеграций: не отдаётся в публичном API, редактирование секретов — только admin. */
@@ -176,6 +302,14 @@ export const DEFAULT_INTEGRATION_SITE_SETTINGS: Array<{
     label: 'MTProto: string session (импорт новостей из Telegram; задаётся через QR в разделе Новости)',
     fieldType: SiteSettingFieldType.SECRET,
     sortOrder: 15,
+  },
+  {
+    key: 'listing_moderation_enabled',
+    value: 'false',
+    groupName: INTEGRATIONS_SITE_SETTINGS_GROUP,
+    label: 'Объявления: модерация перед публикацией (агенты отправляют на review)',
+    fieldType: SiteSettingFieldType.TEXT,
+    sortOrder: 16,
   },
 ];
 

@@ -2,6 +2,7 @@
 /** Iter 24 — viewport listings parity re-baseline CLI */
 import { PrismaClient } from '@prisma/client';
 import { ListingsGovernanceService } from '../listings/listings-governance.service';
+import { ListingsPromotionService } from '../listings/listings-promotion.service';
 import { ListingsService } from '../listings/listings.service';
 import { GeoSpatialService } from '../geo/geo-spatial.service';
 import { GeoPresetsService } from '../geo/geo-presets.service';
@@ -14,7 +15,8 @@ async function main() {
     const presets = new GeoPresetsService();
     const geo = new GeoSpatialService(prisma as never, presets);
     const governance = new ListingsGovernanceService(prisma as never);
-    const listings = new ListingsService(prisma as never, geo, governance);
+    const promotions = new ListingsPromotionService(prisma as never);
+    const listings = new ListingsService(prisma as never, geo, governance, promotions);
     const parity = new ViewportListingsParityService(prisma as never, listings);
     const report = await parity.runRebaseline(1);
     console.log(JSON.stringify(report, null, 2));

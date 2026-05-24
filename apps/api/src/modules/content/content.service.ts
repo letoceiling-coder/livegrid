@@ -7,6 +7,8 @@ import {
   DEFAULT_DEMO_NEWS,
   DEFAULT_HOMEPAGE_SITE_SETTINGS,
   DEFAULT_INTEGRATION_SITE_SETTINGS,
+  DEFAULT_SEO_SITE_SETTINGS,
+  DEFAULT_SEO_LANDING_SETTINGS,
   INTEGRATIONS_SITE_SETTINGS_GROUP,
 } from './content-defaults';
 
@@ -26,6 +28,8 @@ export class ContentService implements OnModuleInit {
 
   async onModuleInit() {
     await this.ensureHomepageSiteSettings();
+    await this.ensureSeoSiteSettings();
+    await this.ensureSeoLandingSettings();
     await this.ensureIntegrationSiteSettings();
     await this.ensureDemoNewsIfEmpty();
     await this.ensureDemoNewsCovers();
@@ -41,6 +45,18 @@ export class ContentService implements OnModuleInit {
       });
     }
     this.logger.log('Homepage site_settings ensured');
+  }
+
+  /** SEO title/description/OG — без seed на проде ключи могут отсутствовать. */
+  private async ensureSeoSiteSettings() {
+    for (const row of DEFAULT_SEO_SITE_SETTINGS) {
+      await this.prisma.siteSetting.upsert({
+        where: { key: row.key },
+        update: {},
+        create: row,
+      });
+    }
+    this.logger.log('SEO site_settings ensured');
   }
 
   /** Telegram и др.: строки в БД, правки только из админки (не .env). */
@@ -134,6 +150,103 @@ export class ContentService implements OnModuleInit {
     const grouped = await this.loadAllSettingsGrouped();
     if (role === 'admin') return grouped;
     return this.omitIntegrationsGroup(grouped);
+  }
+
+  private async ensureSeoLandingSettings() {
+    for (const row of DEFAULT_SEO_LANDING_SETTINGS) {
+      await this.prisma.siteSetting.upsert({
+        where: { key: row.key },
+        update: {},
+        create: row,
+      });
+    }
+    this.logger.log('SEO landing site_settings ensured');
+  }
+
+  /** CMS-managed SEO copy for catalog filter landings (district / metro / region). */
+  async resolveSeoLanding(params: {
+    regionId?: number;
+    regionName?: string;
+    district?: string;
+    subway?: string;
+  }) {
+    const keys = [
+      'seo_landing_district_intro',
+      'seo_landing_subway_intro',
+      'seo_landing_region_intro',
+      'seo_landing_faq_json',
+    ];
+    if (params.district?.trim()) {
+      keys.push(`seo_landing_district_${slugifyLandingKey(params.district)}`);
+    }
+    if (params.subway?.trim()) {
+      keys.push(`seo_landing_subway_${slugifyLandingKey(params.subway)}`);
+    }
+    if (params.regionId != null) {
+      keys.push(`seo_landing_region_${params.regionId}`);
+    }
+
+    const rows = await this.prisma.siteSetting.findMany({
+      where: { key: { in: keys } },
+      select: { key: true, value: true },
+    });
+    const map = new Map(rows.map((r) => [r.key, r.value]));
+
+    const regionSuffix = params.regionName?.trim()
+      ? ` в ${params.regionName.trim()}`
+      : '';
+    const vars: Record<string, string> = {
+      district: params.district?.trim() ?? '',
+      subway: params.subway?.trim() ?? '',
+      region: params.regionName?.trim() ?? '',
+      regionSuffix,
+    };
+
+    const applyTemplate = (raw: string | undefined, fallback: string) => {
+      const tpl = raw?.trim() || fallback;
+      return tpl.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? '');
+    };
+
+    let intro = '';
+    let kind: 'district' | 'subway' | 'region' | 'catalog' = 'catalog';
+
+    if (params.district?.trim()) {
+      kind = 'district';
+      const override = map.get(`seo_landing_district_${slugifyLandingKey(params.district)}`);
+      intro = applyTemplate(
+        override,
+        applyTemplate(map.get('seo_landing_district_intro'), DEFAULT_SEO_LANDING_SETTINGS[0].value),
+      );
+    } else if (params.subway?.trim()) {
+      kind = 'subway';
+      const override = map.get(`seo_landing_subway_${slugifyLandingKey(params.subway)}`);
+      intro = applyTemplate(
+        override,
+        applyTemplate(map.get('seo_landing_subway_intro'), DEFAULT_SEO_LANDING_SETTINGS[1].value),
+      );
+    } else if (params.regionId != null) {
+      kind = 'region';
+      const override = map.get(`seo_landing_region_${params.regionId}`);
+      intro = applyTemplate(
+        override,
+        applyTemplate(map.get('seo_landing_region_intro'), DEFAULT_SEO_LANDING_SETTINGS[2].value),
+      );
+    }
+
+    let faq: Array<{ q: string; a: string }> = [];
+    try {
+      const raw = map.get('seo_landing_faq_json') ?? DEFAULT_SEO_LANDING_SETTINGS[3].value;
+      const parsed = JSON.parse(raw) as unknown;
+      if (Array.isArray(parsed)) {
+        faq = parsed
+          .filter((x): x is { q: string; a: string } => typeof x?.q === 'string' && typeof x?.a === 'string')
+          .slice(0, 8);
+      }
+    } catch {
+      faq = [];
+    }
+
+    return { kind, intro: intro.trim(), faq };
   }
 
   /** Уведомления о заявках: значения из site_settings (не из env). */
@@ -338,4 +451,12 @@ export class ContentService implements OnModuleInit {
     }
     return new Prisma.Decimal(value);
   }
+}
+
+function slugifyLandingKey(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '');
 }

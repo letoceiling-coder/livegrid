@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BlocksService } from '../blocks/blocks.service';
 import { QueryBlocksDto } from '../blocks/dto/query-blocks.dto';
 import { CatalogMeilisearchService } from '../meilisearch/catalog-meilisearch.service';
+import { normalizeSearchQuery, searchQueryVariants } from '../../common/search-query.util';
 
 export type CatalogHintsResult = {
   complexes: Array<{
@@ -32,7 +33,7 @@ export class SearchService {
   ) {}
 
   async catalogHints(regionId: number, rawQ: string, limit = 15): Promise<CatalogHintsResult> {
-    const q = rawQ.trim();
+    const q = normalizeSearchQuery(rawQ);
     if (q.length < 2) {
       return { complexes: [], metro: [], districts: [], streets: [] };
     }
@@ -101,7 +102,9 @@ export class SearchService {
       this.prisma.subway.findMany({
         where: {
           regionId,
-          name: { contains: q, mode: 'insensitive' },
+          OR: searchQueryVariants(q).map((variant) => ({
+            name: { contains: variant, mode: 'insensitive' as const },
+          })),
         },
         select: { id: true, name: true },
         take,
@@ -110,7 +113,9 @@ export class SearchService {
       this.prisma.district.findMany({
         where: {
           regionId,
-          name: { contains: q, mode: 'insensitive' },
+          OR: searchQueryVariants(q).map((variant) => ({
+            name: { contains: variant, mode: 'insensitive' as const },
+          })),
         },
         select: { id: true, name: true },
         take,

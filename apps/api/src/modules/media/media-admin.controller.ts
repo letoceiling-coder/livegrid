@@ -27,7 +27,7 @@ export class MediaAdminController {
   constructor(private readonly media: MediaService) {}
 
   @Get('folders')
-  @Roles('editor')
+  @Roles('editor', 'agent', 'manager')
   @ApiOperation({ summary: 'Список папок (плоский; дерево строит клиент)' })
   listFolders() {
     return this.media.listFolders();
@@ -50,7 +50,7 @@ export class MediaAdminController {
   }
 
   @Get('files')
-  @Roles('editor')
+  @Roles('editor', 'agent', 'manager')
   @ApiOperation({ summary: 'Файлы в папке (folder_id не передан — корень без папки)' })
   listFiles(@Query('folder_id') folderId?: string) {
     if (folderId === undefined || folderId === '' || folderId === 'null') {
@@ -62,7 +62,7 @@ export class MediaAdminController {
   }
 
   @Post('upload')
-  @Roles('editor')
+  @Roles('editor', 'agent', 'manager')
   @ApiOperation({ summary: 'Загрузить изображение в медиатеку' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

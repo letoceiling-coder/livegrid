@@ -1,4 +1,4 @@
-export type ListingWizardKind = 'APARTMENT' | 'HOUSE' | 'LAND' | 'COMMERCIAL' | 'PARKING';
+export type ListingWizardKind = 'APARTMENT' | 'ROOM' | 'HOUSE' | 'DACHA' | 'LAND' | 'COMMERCIAL' | 'PARKING';
 
 export type SelectOption<T extends string = string> = {
   value: T;
@@ -34,7 +34,9 @@ export const marketSegmentOptions = [
 
 export const listingWizardKindLabels: Record<ListingWizardKind, { title: string; hint: string }> = {
   APARTMENT: { title: 'Квартира', hint: 'Жилая квартира в ЖК или вторичка' },
+  ROOM: { title: 'Комната', hint: 'Комната в квартире или общежитии' },
   HOUSE: { title: 'Дом', hint: 'Частный дом, таунхаус, дуплекс' },
+  DACHA: { title: 'Дача', hint: 'Дачный дом или коттедж' },
   LAND: { title: 'Участок', hint: 'Земельный участок (ИЖС, СНТ)' },
   COMMERCIAL: { title: 'Коммерция', hint: 'Офис, магазин, склад' },
   PARKING: { title: 'Паркинг', hint: 'Машиноместо' },
@@ -42,7 +44,9 @@ export const listingWizardKindLabels: Record<ListingWizardKind, { title: string;
 
 export const listingWizardRequiredAreaLabel: Record<ListingWizardKind, string> = {
   APARTMENT: 'Площадь квартиры, м²',
+  ROOM: 'Площадь комнаты, м²',
   HOUSE: 'Площадь дома, м²',
+  DACHA: 'Площадь дачи, м²',
   LAND: 'Площадь участка, сот.',
   COMMERCIAL: 'Площадь помещения, м²',
   PARKING: 'Площадь машино-места, м²',
@@ -50,7 +54,9 @@ export const listingWizardRequiredAreaLabel: Record<ListingWizardKind, string> =
 
 export const listingWizardMediaLabels: Record<ListingWizardKind, { main: string; gallery: string; plan?: string }> = {
   APARTMENT: { main: 'Главное фото / отделка', gallery: 'Галерея квартиры', plan: 'Планировка' },
+  ROOM: { main: 'Главное фото', gallery: 'Галерея комнаты', plan: 'Планировка' },
   HOUSE: { main: 'Главное фото дома', gallery: 'Галерея дома' },
+  DACHA: { main: 'Главное фото дачи', gallery: 'Галерея дачи' },
   LAND: { main: 'Главное фото участка', gallery: 'Галерея участка' },
   COMMERCIAL: { main: 'Главное фото помещения', gallery: 'Галерея помещения' },
   PARKING: { main: 'Главное фото машино-места', gallery: 'Галерея паркинга' },

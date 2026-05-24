@@ -28,14 +28,22 @@ import ConversionCTABar from '@/redesign/components/ConversionCTABar';
 import ConsultationFlow from '@/redesign/components/ConsultationFlow';
 import { CONVERSION_CTA, type ConsultationContext } from '@/redesign/lib/conversion-cta';
 import { apiGet } from '@/lib/api';
+import TrustBadgeRow from '@/redesign/components/TrustBadgeRow';
 import { formatPrice } from '@/redesign/data/mock-data';
 import { LIVEGRID_LOGO_SRC } from '@/redesign/lib/branding';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/shared/hooks/useAuth';
 import ListingLocationMap from '@/redesign/components/ListingLocationMap';
+import { recordBrowseHistory } from '@/account/pages/AccountHistory';
+import RelatedListingsCarousel from '@/discovery/components/RelatedListingsCarousel';
+import SessionDiscoverySection from '@/redesign/components/SessionDiscoverySection';
+import CompareSessionChip from '@/shared/components/CompareSessionChip';
+import { listingHref } from '@/shared/lib/browse-history-local';
 import { useFavorites } from '@/shared/hooks/useFavorites';
 import { shareCurrentPage } from '@/lib/share-page';
 import { useCompare } from '@/shared/hooks/useCompare';
+import { useEntitySeoMeta } from '@/shared/hooks/useEntitySeoMeta';
+import { toast } from '@/components/ui/sonner';
 
 type ApiListingDetailUniversal = {
   id: number;
@@ -126,6 +134,11 @@ const KIND_LABEL: Record<string, string> = {
   LAND: 'Участок',
   COMMERCIAL: 'Коммерческое помещение',
   PARKING: 'Машиноместо',
+};
+
+const DATA_SOURCE_LABEL: Record<string, string> = {
+  FEED: 'Официальный фид застройщика',
+  MANUAL: 'Размещено агентом',
 };
 
 const KIND_ICON: Record<string, typeof BuildingIcon> = {
@@ -309,15 +322,73 @@ const RedesignListingDetail = () => {
     retry: false,
   });
 
+  const trustQuery = useQuery({
+    queryKey: ['listing', 'trust', listingId],
+    queryFn: () =>
+      apiGet<{ qualityScore: number | null; badges: Array<{ kind: string; label: string }> }>(
+        `/listings/${listingId}/trust`,
+      ),
+    enabled: listingId != null,
+    staleTime: 60_000,
+    retry: false,
+  });
+
   const photos = useMemo(() => {
     if (!data) return [];
     if (data.kind === 'APARTMENT' && data.block) return [];
     return buildPhotos(data);
   }, [data]);
 
+  const entitySeo = useMemo(() => {
+    if (!data || listingId == null) return null;
+    if (data.kind === 'APARTMENT' && data.block) return null;
+    const title = data.title?.trim() || buildTitle(data);
+    const price = num(data.price);
+    const pricePart = price > 0 ? formatPrice(price) : '';
+    const kindLabel = KIND_LABEL[data.kind] ?? 'Объект';
+    const address = pickAddress(data);
+    const description = [kindLabel, pricePart, address, data.region?.name]
+      .filter(Boolean)
+      .join(' · ')
+      .slice(0, 160);
+    const path = `/listing/${listingId}`;
+    const imageUrl = photos[0] ?? null;
+    const schemaType =
+      data.kind === 'HOUSE' ? 'SingleFamilyResidence' : data.kind === 'LAND' ? 'Landform' : 'Product';
+    return {
+      title,
+      description: description || `${kindLabel} на LiveGrid`,
+      pathname: path,
+      imageUrl,
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': schemaType,
+        name: title,
+        url: `${typeof window !== 'undefined' ? window.location.origin : ''}${path}`,
+        ...(price > 0
+          ? { offers: { '@type': 'Offer', price, priceCurrency: 'RUB', availability: 'https://schema.org/InStock' } }
+          : {}),
+        ...(address ? { address: { '@type': 'PostalAddress', streetAddress: address } } : {}),
+      },
+    };
+  }, [data, listingId, photos]);
+
+  useEntitySeoMeta(entitySeo);
+
   useEffect(() => {
     setHeroFailed(false);
   }, [photoIdx, listingId, photos.length, photos[0] ?? '']);
+
+  useEffect(() => {
+    if (!data || listingId == null) return;
+    const title = data.title ?? data.address ?? undefined;
+    const href = listingHref(
+      listingId,
+      data.kind,
+      data.block?.slug ?? null,
+    );
+    void recordBrowseHistory('LISTING', listingId, title, href);
+  }, [data, listingId]);
 
   if (listingId == null) {
     return <Navigate to="/catalog" replace />;
@@ -325,9 +396,19 @@ const RedesignListingDetail = () => {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background pb-16 lg:pb-0">
         <RedesignHeader />
-        <div className="max-w-[1200px] mx-auto px-4 py-16 text-center text-muted-foreground text-sm">Загрузка…</div>
+        <div className="max-w-[1200px] mx-auto px-4 py-6 animate-pulse space-y-4">
+          <div className="h-4 w-48 bg-muted rounded" />
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            <div className="lg:col-span-3 aspect-[4/3] bg-muted rounded-2xl" />
+            <div className="lg:col-span-2 space-y-3">
+              <div className="h-8 bg-muted rounded w-2/3" />
+              <div className="h-6 bg-muted rounded w-1/2" />
+              <div className="h-24 bg-muted rounded-xl" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -387,6 +468,21 @@ const RedesignListingDetail = () => {
       return;
     }
     toggleCompare(cmpKey);
+  };
+
+  const baseConsultContext: ConsultationContext = {
+    surface: 'listing',
+    source: `listing:${data.id}`,
+    listingId: data.id,
+    blockId: data.blockId ?? data.block?.id ?? undefined,
+    sold: data.status === 'SOLD',
+    requestType: 'CONSULTATION',
+    contextFooter: `${KIND_LABEL[data.kind] ?? data.kind} #${data.id}`,
+  };
+
+  const openConsultation = (ctx: ConsultationContext) => {
+    setConsultContext(ctx);
+    setConsultOpen(true);
   };
 
   return (
@@ -597,6 +693,14 @@ const RedesignListingDetail = () => {
                 ) : null}
               </p>
               <h1 className="text-2xl font-bold mb-1">{title}</h1>
+              {trustQuery.data?.badges?.length ? (
+                <TrustBadgeRow badges={trustQuery.data.badges} className="mb-2" />
+              ) : null}
+              {data.dataSource ? (
+                <p className="text-xs text-muted-foreground mb-2">
+                  {DATA_SOURCE_LABEL[data.dataSource] ?? data.dataSource}
+                </p>
+              ) : null}
               {address || regionName ? (
                 <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-5">
                   <MapPin className="w-3.5 h-3.5" />
@@ -668,10 +772,7 @@ const RedesignListingDetail = () => {
                   sold: data.status === 'SOLD',
                   contextFooter: `${KIND_LABEL[data.kind] ?? data.kind} #${data.id}`,
                 }}
-                onConsultation={(ctx) => {
-                  setConsultContext(ctx);
-                  setConsultOpen(true);
-                }}
+                onConsultation={openConsultation}
                 consultationLabel={CONVERSION_CTA.viewing}
               />
             </div>
@@ -734,8 +835,32 @@ const RedesignListingDetail = () => {
               listingId={data.id}
               requestType="CONSULTATION"
             />
+
+            <RelatedListingsCarousel
+              title="Похожие объекты"
+              fetchUrl={`/discovery/listings/${data.id}/related?limit=12`}
+              queryKey={['discovery', 'related', 'listing', data.id]}
+              excludeId={data.id}
+              className="mt-6"
+            />
+
+            <SessionDiscoverySection
+              regionId={data.region?.id ?? null}
+              excludeListingId={data.id}
+              className="mt-8"
+            />
           </div>
         </div>
+      </div>
+
+      <CompareSessionChip />
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm p-3 lg:hidden safe-area-pb">
+        <ConversionCTABar
+          context={baseConsultContext}
+          onConsultation={openConsultation}
+          consultationLabel={data.status === 'SOLD' ? CONVERSION_CTA.consultation : CONVERSION_CTA.viewing}
+        />
       </div>
 
       <ConsultationFlow open={consultOpen} onOpenChange={setConsultOpen} context={consultContext} />

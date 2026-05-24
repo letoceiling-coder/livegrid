@@ -31,6 +31,14 @@ import { MonitoringModule } from './monitoring/monitoring.module';
 import { PresentationsModule } from './modules/presentations/presentations.module';
 import { SellersModule } from './modules/sellers/sellers.module';
 import { ViewportPrototypeModule } from './modules/viewport-prototype/viewport-prototype.module';
+import { SitemapModule } from './modules/sitemap/sitemap.module';
+import { SystemDiagnosticsGovernanceModule } from './modules/system-diagnostics/system-diagnostics-governance.module';
+import { DiscoveryModule } from './modules/discovery/discovery.module';
+import { RetentionModule } from './modules/retention/retention.module';
+import { CrmAutomationModule } from './modules/crm-automation/crm-automation.module';
+import { TrustModule } from './modules/trust/trust.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { EcosystemModule } from './modules/ecosystem/ecosystem.module';
 
 @Module({
   imports: [
@@ -65,6 +73,14 @@ import { ViewportPrototypeModule } from './modules/viewport-prototype/viewport-p
     PresentationsModule,
     SellersModule,
     ViewportPrototypeModule,
+    SitemapModule,
+    SystemDiagnosticsGovernanceModule,
+    DiscoveryModule,
+    RetentionModule,
+    CrmAutomationModule,
+    TrustModule,
+    BillingModule,
+    EcosystemModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })

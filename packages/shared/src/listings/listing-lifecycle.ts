@@ -1,7 +1,17 @@
 import { ListingStatus } from '../enums/listing-status.js';
 import type { ListingVisibility } from '../enums/listing-visibility.js';
 
-export type ListingLifecycleAction = 'publish' | 'hide' | 'archive' | 'draft' | 'republish';
+export type ListingLifecycleAction =
+  | 'publish'
+  | 'hide'
+  | 'archive'
+  | 'draft'
+  | 'republish'
+  | 'submit_review'
+  | 'approve'
+  | 'reject';
+
+export type ListingModerationAction = 'approve' | 'reject';
 
 export type ListingPublicationFields = {
   visibility: ListingVisibility;
@@ -49,6 +59,22 @@ export function visibilityToPublication(visibility: ListingVisibility): ListingP
         publishedAt: null,
         archivedAt: null,
       };
+    case 'REVIEW':
+      return {
+        visibility,
+        status: ListingStatus.DRAFT,
+        isPublished: false,
+        publishedAt: null,
+        archivedAt: null,
+      };
+    case 'REJECTED':
+      return {
+        visibility,
+        status: ListingStatus.DRAFT,
+        isPublished: false,
+        publishedAt: null,
+        archivedAt: null,
+      };
     default:
       return visibilityToPublication('DRAFT');
   }
@@ -65,6 +91,12 @@ export function applyLifecycleAction(action: ListingLifecycleAction): ListingPub
       return visibilityToPublication('ARCHIVED');
     case 'draft':
       return visibilityToPublication('DRAFT');
+    case 'submit_review':
+      return visibilityToPublication('REVIEW');
+    case 'approve':
+      return visibilityToPublication('PUBLIC');
+    case 'reject':
+      return visibilityToPublication('REJECTED');
     default:
       return visibilityToPublication('DRAFT');
   }
@@ -76,6 +108,10 @@ export function isListingStale(lastActivityAt: Date | string | null | undefined,
   const ts = typeof lastActivityAt === 'string' ? Date.parse(lastActivityAt) : lastActivityAt.getTime();
   if (!Number.isFinite(ts)) return false;
   return now - ts >= STALE_INACTIVE_DAYS * 24 * 60 * 60 * 1000;
+}
+
+export function isLiveListingVisibility(visibility: ListingVisibility): boolean {
+  return visibility === 'PUBLIC' || visibility === 'HIDDEN';
 }
 
 export function parseOwnerFromExternalId(externalId: string | null | undefined): string | null {

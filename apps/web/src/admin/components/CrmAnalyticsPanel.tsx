@@ -325,7 +325,7 @@ function CrmAnalyticsPanel({ data }: Props) {
       {data.timeline ? (
         <>
           <div className="flex items-center justify-between gap-2 pt-2">
-            <h2 className="font-semibold text-sm">Timeline intelligence</h2>
+            <h2 className="font-semibold text-sm">Хронология заявок</h2>
             {data.timeline.computeMs ? (
               <span className="text-[10px] text-muted-foreground">{data.timeline.computeMs}ms</span>
             ) : null}

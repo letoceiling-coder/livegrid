@@ -1,0 +1,17 @@
+{
+  "name": "@lg/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test --project=smoke",
+    "test:smoke": "playwright test --project=smoke",
+    "test:soak": "playwright test --project=soak",
+    "test:soak:full": "SOAK_DURATION_MS=3600000 playwright test --project=soak-full",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "typescript": "^5.8.3"
+  }
+}

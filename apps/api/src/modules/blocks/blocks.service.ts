@@ -13,6 +13,7 @@ import { catalogBlockWhereToSql } from './catalog-block-where-sql';
 import { CacheService } from '../../common/cache/cache.service';
 import { GeoSpatialService } from '../geo/geo-spatial.service';
 import { CatalogMeilisearchService } from '../meilisearch/catalog-meilisearch.service';
+import { normalizeSearchQuery } from '../../common/search-query.util';
 
 function intersectBlockIdFilter(current: Prisma.BlockWhereInput['id'], ids: number[]): number[] {
   if (!current || typeof current !== 'object' || !('in' in current)) {
@@ -165,25 +166,27 @@ export class BlocksService {
     }
 
     if (search?.trim()) {
-      const q = search.trim();
-      let meiliIds: number[] | null = null;
-      if (region_id && this.catalogSearch.isEnabled()) {
-        meiliIds = await this.catalogSearch.searchBlockIds(region_id, q, 2000);
-      }
-      if (meiliIds !== null) {
-        const merged = intersectBlockIdFilter(where.id, meiliIds);
-        if (merged.length === 0) {
-          return { where: {}, noMatch: true };
+      const q = normalizeSearchQuery(search);
+      if (q) {
+        let meiliIds: number[] | null = null;
+        if (region_id && this.catalogSearch.isEnabled()) {
+          meiliIds = await this.catalogSearch.searchBlockIds(region_id, q, 2000);
         }
-        where.id = { in: merged };
-      } else {
-        where.OR = [
-          { name: { contains: q, mode: Prisma.QueryMode.insensitive } },
-          { addresses: { some: { address: { contains: q, mode: Prisma.QueryMode.insensitive } } } },
-          { district: { name: { contains: q, mode: Prisma.QueryMode.insensitive } } },
-          { builder: { name: { contains: q, mode: Prisma.QueryMode.insensitive } } },
-          { subways: { some: { subway: { name: { contains: q, mode: Prisma.QueryMode.insensitive } } } } },
-        ];
+        if (meiliIds !== null) {
+          const merged = intersectBlockIdFilter(where.id, meiliIds);
+          if (merged.length === 0) {
+            return { where: {}, noMatch: true };
+          }
+          where.id = { in: merged };
+        } else {
+          where.OR = [
+            { name: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            { addresses: { some: { address: { contains: q, mode: Prisma.QueryMode.insensitive } } } },
+            { district: { name: { contains: q, mode: Prisma.QueryMode.insensitive } } },
+            { builder: { name: { contains: q, mode: Prisma.QueryMode.insensitive } } },
+            { subways: { some: { subway: { name: { contains: q, mode: Prisma.QueryMode.insensitive } } } } },
+          ];
+        }
       }
     }
     if (subway_id) {

@@ -1,6 +1,7 @@
-import { Controller, Delete, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../auth/decorators';
+import { UpdateFavoriteDto } from '../retention/dto/retention.dto';
 import { FavoritesService } from './favorites.service';
 
 @ApiTags('Favorites')
@@ -46,5 +47,24 @@ export class FavoritesController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.service.remove(userId, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update favorite note or collection' })
+  update(
+    @CurrentUser('sub') userId: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateFavoriteDto,
+  ) {
+    return this.service.update(userId, id, dto);
+  }
+
+  @Post(':id/view')
+  @ApiOperation({ summary: 'Mark favorite as viewed' })
+  markViewed(
+    @CurrentUser('sub') userId: string,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.service.markViewed(userId, id);
   }
 }

@@ -12,6 +12,7 @@ import { useFavorites } from '@/shared/hooks/useFavorites';
 import { useCompare } from '@/shared/hooks/useCompare';
 import { TelegramLoginButton } from '@/components/TelegramLoginButton';
 import { ApiError, apiDelete, apiGet, apiPost, apiPostForm, apiPut, apiUrl } from '@/lib/api';
+import BuyerInquiryHistory from '@/shared/components/BuyerInquiryHistory';
 
 function parseApiMessage(err: unknown): string {
   if (err instanceof ApiError) {
@@ -456,6 +457,7 @@ const Profile = () => {
                 </ul>
               )}
             </div>
+            <BuyerInquiryHistory />
             <div className="bg-card border border-border rounded-xl p-6">
               <div className="flex items-center gap-2 mb-2">
                 <FolderOpen className="w-5 h-5 text-primary shrink-0" />

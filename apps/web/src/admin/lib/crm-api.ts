@@ -4,6 +4,7 @@
 
 import { apiGet, apiPost, ApiError } from '@/lib/api';
 import { crmObsQueryFailure, crmObsQuerySuccess } from '@/admin/lib/crm-observability';
+import { trackApiFailure } from '@/lib/reliability-tracker';
 
 export async function crmApiGet<T>(path: string, endpointId: string): Promise<T> {
   const t0 = performance.now();
@@ -14,6 +15,18 @@ export async function crmApiGet<T>(path: string, endpointId: string): Promise<T>
   } catch (e) {
     const status = e instanceof ApiError ? e.status : 0;
     crmObsQueryFailure(endpointId, path, status, performance.now() - t0);
+    trackApiFailure(path, status);
+    throw e;
+  }
+}
+
+export async function crmApiGetOptional<T>(path: string, endpointId: string): Promise<T | null> {
+  try {
+    return await crmApiGet<T>(path, endpointId);
+  } catch (e) {
+    if (e instanceof ApiError && (e.status === 404 || e.status === 501)) {
+      return null;
+    }
     throw e;
   }
 }
@@ -27,6 +40,7 @@ export async function crmApiPost<T>(path: string, endpointId: string, body?: unk
   } catch (e) {
     const status = e instanceof ApiError ? e.status : 0;
     crmObsQueryFailure(endpointId, path, status, performance.now() - t0);
+    trackApiFailure(path, status);
     throw e;
   }
 }

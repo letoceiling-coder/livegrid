@@ -7,7 +7,7 @@ import { formatPriceFrom, isPriceHidden, PRICE_ON_REQUEST } from '@/redesign/lib
 import { buildComplexMarkerDescriptors } from '@/redesign/lib/map-marker-cache';
 import type { MarkerZoomMode } from '@/redesign/lib/map-marker-layout';
 import { panMapToCoords, useMapClusterLayer } from '@/redesign/hooks/useMapClusterLayer';
-import { MapPin, X } from 'lucide-react';
+import { MapPin, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import StableMediaFrame from '@/redesign/components/StableMediaFrame';
 import MapDevOverlay from '@/redesign/components/MapDevOverlay';
@@ -16,10 +16,13 @@ import ConsultationFlow from '@/redesign/components/ConsultationFlow';
 import { parseApiBlockId } from '@/shared/hooks/useFavorites';
 import type { ConsultationContext } from '@/redesign/lib/conversion-cta';
 import { useMapBbox } from '@/redesign/hooks/useMapBbox';
+import { useProductionViewportMap } from '@/redesign/hooks/useProductionViewportMap';
 import { useShadowViewportRender } from '@/redesign/hooks/useShadowViewportRender';
 import { useViewportBlocksExperimental } from '@/redesign/hooks/useViewportBlocksExperimental';
 import { filterByBbox } from '@/redesign/lib/bbox-serialization';
+import { viewportMarkersToResidentialComplexes } from '@/redesign/lib/viewport-blocks-source';
 import {
+  isMapViewportProductionEnabled,
   isViewportExperimentalEnabled,
   isViewportShadowRenderEnabled,
 } from '@/redesign/lib/viewport-feature-flag';
@@ -54,9 +57,19 @@ const MapSearch = ({ complexes, activeSlug, onSelect, height = '70vh', compact, 
   const [consultOpen, setConsultOpen] = useState(false);
   const [consultContext, setConsultContext] = useState<ConsultationContext | null>(null);
 
+  const viewportProduction = isMapViewportProductionEnabled();
+  const viewportExperimental = isViewportExperimentalEnabled();
+  const shadowRender = isViewportShadowRenderEnabled();
+
+  const [effectiveComplexes, setEffectiveComplexes] = useState(complexes);
+
+  useEffect(() => {
+    if (!viewportProduction) setEffectiveComplexes(complexes);
+  }, [viewportProduction, complexes]);
+
   const buildDescriptors = useCallback(
-    (mode: MarkerZoomMode) => buildComplexMarkerDescriptors(complexes, mode),
-    [complexes],
+    (mode: MarkerZoomMode) => buildComplexMarkerDescriptors(effectiveComplexes, mode),
+    [effectiveComplexes],
   );
 
   const clusterExtra = useMemo(() => ({ clusterOpenBalloonOnClick: false }), []);
@@ -76,11 +89,31 @@ const MapSearch = ({ complexes, activeSlug, onSelect, height = '70vh', compact, 
     clickMode: 'select',
   });
 
-  const viewportExperimental = isViewportExperimentalEnabled();
-  const shadowRender = isViewportShadowRenderEnabled();
   const mapBbox = useMapBbox(mapInstance, ready);
+
+  const productionViewport = useProductionViewportMap({
+    kind: 'blocks',
+    enabled: viewportProduction,
+    regionId: regionId ?? undefined,
+    bbox: mapBbox,
+    filterSearchParams,
+  });
+
+  useEffect(() => {
+    if (!viewportProduction) return;
+    if (productionViewport.status === 'ready' && productionViewport.markers.length > 0) {
+      setEffectiveComplexes(
+        viewportMarkersToResidentialComplexes(
+          productionViewport.markers as import('@/redesign/lib/viewport-map-types').ViewportBlockMarker[],
+        ),
+      );
+    } else if (productionViewport.status === 'fallback') {
+      setEffectiveComplexes(complexes);
+    }
+  }, [viewportProduction, productionViewport.status, productionViewport.markers, complexes]);
+
   const { result: viewportResult } = useViewportBlocksExperimental({
-    enabled: viewportExperimental,
+    enabled: viewportExperimental && !viewportProduction,
     regionId: regionId ?? undefined,
     bbox: mapBbox,
     legacyComplexes: complexes,
@@ -116,15 +149,15 @@ const MapSearch = ({ complexes, activeSlug, onSelect, height = '70vh', compact, 
   });
 
   const activeComplex = useMemo(
-    () => (activeSlug ? complexes.find((c) => c.slug === activeSlug) : undefined),
-    [activeSlug, complexes],
+    () => (activeSlug ? effectiveComplexes.find((c) => c.slug === activeSlug) ?? complexes.find((c) => c.slug === activeSlug) : undefined),
+    [activeSlug, effectiveComplexes, complexes],
   );
 
   useEffect(() => {
     if (!activeSlug || !mapInstance.current) return;
-    const c = complexes.find((x) => x.slug === activeSlug);
+    const c = effectiveComplexes.find((x) => x.slug === activeSlug) ?? complexes.find((x) => x.slug === activeSlug);
     if (c) panMapToCoords(mapInstance, c.coords, 14);
-  }, [activeSlug, complexes, mapInstance]);
+  }, [activeSlug, effectiveComplexes, complexes, mapInstance]);
 
   return (
     <div
@@ -139,6 +172,16 @@ const MapSearch = ({ complexes, activeSlug, onSelect, height = '70vh', compact, 
           fillParent ? 'min-h-0 overflow-hidden' : 'min-h-[300px] overflow-hidden',
         )}
       />
+      {!ready ? (
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-muted/80 backdrop-blur-[1px] z-[5]"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <span className="text-xs text-muted-foreground">Загрузка карты…</span>
+        </div>
+      ) : null}
 
       {activeComplex && (
         <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-[320px] z-10 animate-in slide-in-from-bottom-2 duration-200">

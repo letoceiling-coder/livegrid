@@ -1,0 +1,6 @@
+-- Iter 55: discovery recommendation notification types (additive)
+
+ALTER TYPE "UserNotificationType" ADD VALUE IF NOT EXISTS 'SIMILAR_TO_FAVORITE';
+ALTER TYPE "UserNotificationType" ADD VALUE IF NOT EXISTS 'SIMILAR_TO_SAVED_SEARCH';
+ALTER TYPE "UserNotificationType" ADD VALUE IF NOT EXISTS 'TRENDING_NEARBY';
+ALTER TYPE "UserNotificationType" ADD VALUE IF NOT EXISTS 'RECOMMENDATION_MATCH';

@@ -36,6 +36,8 @@ import {
   rowUrgencyClass,
   type SlaStateKey,
 } from '@/admin/lib/request-sla';
+import RequestCommunicationPanel from '@/admin/components/RequestCommunicationPanel';
+import RequestAutomationPanel from '@/admin/components/RequestAutomationPanel';
 import { crmObsDetailFetch, crmObsStatusUpdate, crmObsTimelineHints, crmObsTimelineRender } from '@/admin/lib/crm-observability';
 
 type AssigneeRow = { id: string; role: string; fullName: string | null; email: string | null };
@@ -113,6 +115,7 @@ export default function AdminRequestDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [note, setNote] = useState('');
+  const [detailTab, setDetailTab] = useState<'overview' | 'communication'>('overview');
 
   const assigneesQuery = useQuery({
     queryKey: CRM_QUERY_KEYS.requests.assignees,
@@ -261,6 +264,28 @@ export default function AdminRequestDetail() {
         </span>
       </div>
 
+      <div className="flex border-b text-sm">
+        {(['overview', 'communication'] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setDetailTab(tab)}
+            className={cn(
+              'px-4 py-2.5 font-medium min-h-[44px] touch-manipulation',
+              detailTab === tab ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground',
+            )}
+          >
+            {tab === 'overview' ? 'Обзор' : 'Коммуникация'}
+          </button>
+        ))}
+      </div>
+
+      {detailTab === 'communication' ? (
+        <RequestCommunicationPanel requestId={id} />
+      ) : null}
+
+      {detailTab === 'overview' ? (
+      <>
       {sla && sla.slaState !== 'ARCHIVED' && sla.slaState !== 'ACTIVE' ? (
         <div
           className={cn(
@@ -302,6 +327,8 @@ export default function AdminRequestDetail() {
           </ul>
         </section>
       ) : null}
+
+      <RequestAutomationPanel requestId={id} />
 
       {data.attribution || (data.attributionHints && data.attributionHints.length > 0) ? (
         <section className="rounded-xl border bg-card p-3 space-y-2">
@@ -603,6 +630,8 @@ export default function AdminRequestDetail() {
           )}
         </ol>
       </section>
+      </>
+      ) : null}
     </div>
   );
 }

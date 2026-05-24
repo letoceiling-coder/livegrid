@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { toast } from '@/components/ui/sonner';
 
 const STORAGE_KEY = 'lg_compare';
 const MAX_ITEMS = 3;
@@ -23,7 +24,13 @@ export function useCompare() {
   const toggle = useCallback((id: string) => {
     setIds(prev => {
       if (prev.includes(id)) return prev.filter(x => x !== id);
-      if (prev.length >= MAX_ITEMS) return prev;
+      if (prev.length >= MAX_ITEMS) {
+        toast.message('В сравнении не более 3 объектов', {
+          description: 'Уберите один объект, чтобы добавить новый',
+        });
+        return prev;
+      }
+      toast.success('Добавлено в сравнение');
       return [...prev, id];
     });
   }, []);

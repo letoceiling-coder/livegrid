@@ -13,6 +13,8 @@ import {
   blockOrderByClause,
   buildViewportMeta,
   resolveViewportBlockSort,
+  resolveViewportDetailLevel,
+  resolveViewportFetchLimit,
 } from './viewport-contract.utils';
 import type { ViewportListResponse } from './viewport-contract.types';
 import { blockBboxEnvelopeSql, listingBboxEnvelopeSql } from './viewport-bbox-sql';
@@ -52,8 +54,13 @@ export class ViewportPrototypeService {
     private readonly shadowLineage: GeoShadowLineageService,
   ) {}
 
-  async findBlocksInViewport(q: QueryViewportBlocksDto): Promise<ViewportListResponse<ViewportBlockMarkerDto>> {
-    const limit = q.limit ?? 300;
+  async findBlocksInViewport(
+    q: QueryViewportBlocksDto,
+    opts?: { production?: boolean },
+  ): Promise<ViewportListResponse<ViewportBlockMarkerDto>> {
+    const limit = resolveViewportFetchLimit(q.zoom, q.limit);
+    const detailLevel = resolveViewportDetailLevel(q.zoom);
+    const production = opts?.production ?? false;
     const bbox = bboxFromQuery(q);
     const sort = resolveViewportBlockSort(q.sort);
     const empty = (total = 0, visible = 0) =>
@@ -66,6 +73,8 @@ export class ViewportPrototypeService {
         cursor: null,
         catalogParity: 'shared-where',
         sortApplied: sort.applied,
+        production,
+        detailLevel,
       });
 
     const catalogQuery = {
@@ -101,6 +110,8 @@ export class ViewportPrototypeService {
             cursor,
             catalogParity,
             sortApplied: sort.applied,
+            production,
+            detailLevel,
           }),
         };
       }
@@ -131,6 +142,8 @@ export class ViewportPrototypeService {
           cursor,
           catalogParity: 'id-fallback',
           sortApplied: sort.applied,
+          production,
+          detailLevel,
         }),
       };
     } catch (e) {
@@ -224,8 +237,11 @@ export class ViewportPrototypeService {
 
   async findListingsInViewport(
     q: QueryViewportListingsDto,
+    opts?: { production?: boolean },
   ): Promise<ViewportListResponse<ViewportListingMarkerDto>> {
-    const limit = q.limit ?? 300;
+    const limit = resolveViewportFetchLimit(q.zoom, q.limit);
+    const detailLevel = resolveViewportDetailLevel(q.zoom);
+    const production = opts?.production ?? false;
     const bbox = bboxFromQuery(q);
     const empty = (total = 0, visible = 0) =>
       buildViewportMeta({
@@ -238,6 +254,8 @@ export class ViewportPrototypeService {
         catalogParity: 'id-fallback',
         sortApplied: 'id_asc',
         visibleExact: false,
+        production,
+        detailLevel,
       });
 
     const { where, noMatch } = await this.listings.buildCatalogListingWhere(q);
@@ -248,6 +266,41 @@ export class ViewportPrototypeService {
     const bboxSql = listingBboxEnvelopeSql(q.sw_lat, q.sw_lng, q.ne_lat, q.ne_lng);
 
     try {
+      const fastPath = this.canUseListingBboxFastPath(q, where);
+      if (fastPath) {
+        const [total, visible, rows] = await Promise.all([
+          this.countListingsFastPath(q, null),
+          this.countListingsFastPath(q, bboxSql),
+          this.fetchListingsFastPath(q, bboxSql, limit, q.cursor),
+        ]);
+        const data = rows.map((r) => ({
+          id: r.id,
+          lat: Number(r.lat),
+          lng: Number(r.lng),
+          price: String(r.price ?? ''),
+          title: detailLevel === 'cluster' ? null : r.title,
+          photoUrl: detailLevel === 'detail' ? r.photo_url : null,
+        }));
+        const cursor =
+          data.length > 0 && visible > data.length ? String(data[data.length - 1]!.id) : null;
+        return {
+          data,
+          meta: buildViewportMeta({
+            bbox,
+            zoom: q.zoom,
+            total,
+            visible,
+            returned: data.length,
+            cursor,
+            catalogParity: 'shared-where',
+            sortApplied: 'id_asc',
+            visibleExact: true,
+            production,
+            detailLevel,
+          }),
+        };
+      }
+
       const geoWhere = {
         ...where,
         lat: { not: null },
@@ -260,6 +313,7 @@ export class ViewportPrototypeService {
         where: geoWhere,
         select: { id: true },
         orderBy: { id: 'asc' },
+        take: 50_000,
       });
       if (!idRows.length) {
         return { data: [], meta: empty(total, 0) };
@@ -298,7 +352,7 @@ export class ViewportPrototypeService {
         lat: Number(r.lat),
         lng: Number(r.lng),
         price: String(r.price ?? ''),
-        title: r.title,
+        title: detailLevel === 'cluster' ? null : r.title,
         photoUrl: null,
       }));
 
@@ -316,12 +370,85 @@ export class ViewportPrototypeService {
           catalogParity: 'id-fallback',
           sortApplied: 'id_asc',
           visibleExact: true,
+          production,
+          detailLevel,
         }),
       };
     } catch (e) {
       this.logger.warn(`Viewport listings query failed: ${e instanceof Error ? e.message : String(e)}`);
       throw e;
     }
+  }
+
+  private canUseListingBboxFastPath(
+    q: QueryViewportListingsDto,
+    where: Prisma.ListingWhereInput,
+  ): boolean {
+    if (q.geo_lat != null || q.geo_lng != null || q.geo_radius_m != null) return false;
+    if (q.geo_polygon?.trim() || q.geo_preset?.trim()) return false;
+    if (q.district_names?.trim() || q.subway_id != null) return false;
+    if (q.search?.trim()) return false;
+    if (where.blockId != null) return false;
+    return q.region_id != null;
+  }
+
+  private async countListingsFastPath(
+    q: QueryViewportListingsDto,
+    bboxSql: Prisma.Sql | null,
+  ): Promise<number> {
+    const bboxClause = bboxSql != null ? Prisma.sql`AND ${bboxSql}` : Prisma.empty;
+    const kind = q.kind ?? 'APARTMENT';
+    const rows = await this.prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS count
+      FROM listings l
+      WHERE l.region_id = ${q.region_id}
+        AND l.kind = ${kind}::"ListingKind"
+        AND l.status IN ('ACTIVE'::"ListingStatus", 'RESERVED'::"ListingStatus")
+        AND l.visibility = 'PUBLIC'::"ListingVisibility"
+        AND l.is_published = true
+        AND l.lat IS NOT NULL AND l.lng IS NOT NULL
+        ${bboxClause}
+    `);
+    return rows[0]?.count ?? 0;
+  }
+
+  private async fetchListingsFastPath(
+    q: QueryViewportListingsDto,
+    bboxSql: Prisma.Sql,
+    limit: number,
+    cursor?: string,
+  ): Promise<
+    Array<{
+      id: number;
+      lat: unknown;
+      lng: unknown;
+      price: unknown;
+      title: string | null;
+      photo_url: string | null;
+    }>
+  > {
+    const kind = q.kind ?? 'APARTMENT';
+    const cursorId = cursor ? parseInt(cursor, 10) : NaN;
+    const cursorClause =
+      Number.isFinite(cursorId) && cursorId > 0
+        ? Prisma.sql`AND l.id > ${cursorId}`
+        : Prisma.empty;
+    return this.prisma.$queryRaw(Prisma.sql`
+      SELECT l.id, l.lat, l.lng, l.price, l.title,
+        la.finishing_photo_url AS photo_url
+      FROM listings l
+      LEFT JOIN listing_apartments la ON la.listing_id = l.id
+      WHERE l.region_id = ${q.region_id}
+        AND l.kind = ${kind}::"ListingKind"
+        AND l.status IN ('ACTIVE'::"ListingStatus", 'RESERVED'::"ListingStatus")
+        AND l.visibility = 'PUBLIC'::"ListingVisibility"
+        AND l.is_published = true
+        AND l.lat IS NOT NULL AND l.lng IS NOT NULL
+        AND ${bboxSql}
+        ${cursorClause}
+      ORDER BY l.id ASC
+      LIMIT ${limit}
+    `);
   }
 
   private async countListingsInBbox(ids: number[], bboxSql: Prisma.Sql): Promise<number> {

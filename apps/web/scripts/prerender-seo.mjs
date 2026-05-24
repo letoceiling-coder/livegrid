@@ -196,6 +196,7 @@ async function main() {
   }
 
   const siteUrl = trimSlash(process.env.VITE_PUBLIC_SITE_URL || process.env.PUBLIC_SITE_URL || 'https://livegrid.ru');
+  const sitemapIndexUrl = `${siteUrl}/api/v1/sitemap/sitemap-index.xml`;
   const apiBase = trimSlash(process.env.PRERENDER_API_BASE || `${siteUrl}/api/v1`);
   const maxComplex = Math.max(1, Math.min(5000, Number(process.env.PRERENDER_MAX_COMPLEX) || 500));
 
@@ -251,6 +252,7 @@ async function main() {
 Allow: /
 Disallow: /admin
 
+Sitemap: ${sitemapIndexUrl}
 Sitemap: ${siteUrl}/sitemap.xml
 `;
   fs.writeFileSync(path.join(distDir, 'robots.txt'), robots, 'utf8');

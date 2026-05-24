@@ -7,8 +7,14 @@ export type ViewportBboxMeta = {
   ne_lng: number;
 };
 
+export type ViewportDetailLevel = 'cluster' | 'summary' | 'detail';
+
 export type ViewportResponseMeta = {
-  prototype: true;
+  prototype: boolean;
+  /** Zoom-aware fetch tier */
+  detailLevel?: ViewportDetailLevel;
+  /** Server query duration ms */
+  queryMs?: number;
   /** Catalog filter match count (region + filters, no bbox) */
   total: number;
   /** Bbox ∩ catalog filter count */

@@ -17,7 +17,17 @@
     "db:studio": "pnpm --filter @lg/database studio",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @lg/web test"
+    "test": "pnpm --filter @lg/web test",
+    "test:reliability": "pnpm --filter @lg/shared test && pnpm --filter @lg/web test",
+    "test:e2e": "pnpm --filter @lg/e2e test:smoke",
+    "test:e2e:soak": "pnpm --filter @lg/e2e test:soak",
+    "check:migrations": "bash scripts/reliability/migration-check.sh",
+    "check:workspace": "node scripts/reliability/workspace-audit.mjs",
+    "check:migration-drift": "bash scripts/reliability/migration-drift.sh",
+    "check:stabilization": "pnpm check:workspace && pnpm check:migrations && pnpm --filter @lg/shared test && bash scripts/reliability/migration-drift.sh",
+    "check:symbol-drift": "node scripts/reliability/symbol-drift.mjs",
+    "check:runtime-integrity": "pnpm check:symbol-drift && pnpm --filter @lg/web test src/shared/lib/runtime-import-integrity.test.ts && pnpm --filter @lg/web typecheck:runtime",
+    "verify:admin-routes": "node scripts/verify-admin-routes.mjs"
   },
   "engines": {
     "node": ">=22.0.0",

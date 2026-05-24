@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Еженедельный emergency fallback (понедельник). Основной cron — BullMQ FEED_IMPORT_CRON.
 set -euo pipefail
 
 LOG_FILE="/var/log/lg/cron-feed-import.log"
@@ -17,9 +18,9 @@ if [ -z "$TOKEN" ]; then
   exit 1
 fi
 
-# Reset any stuck imports
+# Reset only stuck imports (>3h), not healthy RUNNING batches
 sudo -u postgres psql -d lg_production -c \
-  "UPDATE import_batches SET status='FAILED', finished_at=NOW(), error_message='Cron auto-reset' WHERE status IN ('RUNNING','PENDING');" \
+  "UPDATE import_batches SET status='FAILED', finished_at=NOW(), error_message='Cron auto-reset (stuck >3h)' WHERE status IN ('RUNNING','PENDING') AND started_at < NOW() - INTERVAL '3 hours';" \
   >> "$LOG_FILE" 2>&1 || true
 
 # Trigger import
