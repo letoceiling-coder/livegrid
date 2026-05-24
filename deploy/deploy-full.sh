@@ -55,6 +55,7 @@ pnpm --filter @lg/api build
 echo "→ Building frontend..."
 # Remove stale generated frontend artifacts so Vite does not copy old chunks from public.
 rm -rf apps/web/dist
+rm -rf apps/web/node_modules/.vite
 rm -rf apps/web/public/assets apps/web/public/catalog apps/web/public/complex apps/web/public/index.html
 # Каноникал и prerender (sitemap, /complex/*/index.html) берут VITE_PUBLIC_SITE_URL или PUBLIC_SITE_URL
 SITE_FOR_WEB="${VITE_PUBLIC_SITE_URL:-${PUBLIC_SITE_URL:-https://livegrid.ru}}"
@@ -120,6 +121,11 @@ echo ""
 if [ -f deploy/verify-on-server.sh ]; then
   echo "→ verify-on-server.sh runtime"
   VERIFY_MODE=runtime bash deploy/verify-on-server.sh runtime || exit 1
+fi
+
+if [ -f scripts/verify-public-routes.mjs ]; then
+  echo "→ verify-public-routes (SPA shell)"
+  SITE="${VITE_PUBLIC_SITE_URL:-https://livegrid.ru}" node scripts/verify-public-routes.mjs || exit 1
 fi
 
 echo "Frontend: https://livegrid.ru/"

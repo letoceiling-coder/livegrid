@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { RequestStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FeedImportService } from '../feed-import/feed-import.service';
+import { MediaService } from '../media/media.service';
 import { SitemapService } from '../sitemap/sitemap.service';
 import { DiscoveryGraphService } from '../discovery/discovery-graph.service';
 
@@ -13,6 +14,7 @@ export class SystemDiagnosticsGovernanceService {
     private readonly feedImport: FeedImportService,
     private readonly sitemap: SitemapService,
     private readonly discoveryGraph: DiscoveryGraphService,
+    private readonly media: MediaService,
   ) {}
 
   async getDiagnostics() {
@@ -36,6 +38,7 @@ export class SystemDiagnosticsGovernanceService {
       publicListings,
       reviewQueue,
       feedHealth,
+      mediaIntegrity,
     ] = await Promise.all([
       this.safeCount(() => this.prisma.request.count({ where: { status: { in: openStatuses } } })),
       this.safeCount(() => this.prisma.crmNotification.count({ where: { readAt: null } })),
@@ -44,6 +47,7 @@ export class SystemDiagnosticsGovernanceService {
       ),
       this.safeCount(() => this.prisma.listing.count({ where: { isPublished: true, status: 'DRAFT' } })),
       this.safeFeedHealth(),
+      this.media.getIntegritySnapshot(200).catch(() => null),
     ]);
 
     const queuePressure = reviewQueue;
@@ -73,6 +77,7 @@ export class SystemDiagnosticsGovernanceService {
       },
       platform: null,
       feed: feedHealth,
+      media: mediaIntegrity,
       map: null,
       sitemap: sitemapMetrics,
       seo: {

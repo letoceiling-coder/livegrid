@@ -60,9 +60,28 @@ function definedLocally(src, name) {
   );
 }
 
+/** Card-visual helpers from @/redesign/lib/card-visual — must be imported, not global. */
+const CARD_VISUAL_SYMBOLS = ['cardVisual', 'cardBadgeClass', 'metaDotLine'];
+const CARD_VISUAL_SOURCE = 'redesign/lib/card-visual';
+
+function usesCardVisualSymbol(src, name) {
+  if (name === 'cardVisual') return /\bcardVisual\b/.test(src);
+  if (name === 'cardBadgeClass') return /\bcardBadgeClass\s*\(/.test(src);
+  if (name === 'metaDotLine') return /\bmetaDotLine\s*\(/.test(src);
+  return false;
+}
+
+function importsCardVisual(src) {
+  return new RegExp(`from\\s+['"]@/${CARD_VISUAL_SOURCE}['"]`).test(src);
+}
+
 let failed = 0;
 for (const file of walk(SRC)) {
   const src = readFileSync(file, 'utf8');
+  const rel = file.replace(SRC + '/', '');
+  if (rel === CARD_VISUAL_SOURCE + '.ts') continue;
+  if (/\.test\.(tsx?)$/.test(rel)) continue;
+
   const imports = importedNames(src);
   const hooks = usedHooks(src);
   for (const h of hooks) {
@@ -70,11 +89,20 @@ for (const file of walk(SRC)) {
     if (EXTERNAL.has(h)) continue;
     if (definedLocally(src, h)) continue;
     if (!imports.has(h)) {
-      console.log(`FAIL: ${file.replace(SRC + '/', '')} uses ${h}() without import`);
+      console.log(`FAIL: ${rel} uses ${h}() without import`);
+      failed += 1;
+    }
+  }
+
+  for (const sym of CARD_VISUAL_SYMBOLS) {
+    if (!usesCardVisualSymbol(src, sym)) continue;
+    if (definedLocally(src, sym)) continue;
+    if (!imports.has(sym) && !importsCardVisual(src)) {
+      console.log(`FAIL: ${rel} uses ${sym} without import from @/${CARD_VISUAL_SOURCE}`);
       failed += 1;
     }
   }
 }
 
-if (failed === 0) console.log('OK: no hook symbol drift detected');
+if (failed === 0) console.log('OK: no hook or card-visual symbol drift detected');
 process.exit(failed ? 1 : 0);

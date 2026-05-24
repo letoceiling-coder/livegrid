@@ -8,6 +8,8 @@ export const LAZY_ROUTE_REGISTRY = [
   { id: 'RedesignMap', path: '@/redesign/pages/RedesignMap' },
   { id: 'RedesignComplex', path: '@/redesign/pages/RedesignComplex' },
   { id: 'RedesignListingDetail', path: '@/redesign/pages/RedesignListingDetail' },
+  { id: 'ListingCard', path: '@/redesign/components/ListingCard' },
+  { id: 'Favorites', path: '@/pages/Favorites' },
   { id: 'Login', path: '@/pages/Login' },
   { id: 'AdminLayout', path: '@/admin/layout/AdminLayout' },
   { id: 'AdminDashboard', path: '@/admin/pages/AdminDashboard' },

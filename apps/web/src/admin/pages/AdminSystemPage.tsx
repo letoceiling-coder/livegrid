@@ -54,6 +54,13 @@ type Diagnostics = {
     queue: { waiting: number; active: number; failed: number } | null;
     issues: { kind: string; severity: string; messageRu: string }[];
   } | null;
+  media?: {
+    totalFiles: number;
+    sampled: number;
+    missingOnDisk: number;
+    missingRatio: number;
+    sampleMissingUrls: string[];
+  } | null;
   map?: {
     requestsLastMin: number;
     avgQueryMs: number;
@@ -600,6 +607,34 @@ export default function AdminSystemPage() {
               ))}
               <Link to="/admin/feed-import" className="text-xs text-primary hover:underline inline-block">
                 Feed Import →
+              </Link>
+            </section>
+          ) : null}
+
+          {d.media ? (
+            <section className="rounded-xl border bg-card p-4 mb-4 space-y-2">
+              <h2 className="font-semibold text-sm flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                Media integrity
+                <AdminStatusBadge tone={d.media.missingOnDisk === 0 ? 'ok' : 'warn'}>
+                  {d.media.missingOnDisk === 0 ? 'ok' : `${d.media.missingOnDisk} missing`}
+                </AdminStatusBadge>
+              </h2>
+              <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div><dt className="text-muted-foreground">Total files</dt><dd className="font-medium">{d.media.totalFiles}</dd></div>
+                <div><dt className="text-muted-foreground">Sampled</dt><dd className="font-medium">{d.media.sampled}</dd></div>
+                <div><dt className="text-muted-foreground">Missing on disk</dt><dd className="font-medium">{d.media.missingOnDisk}</dd></div>
+                <div><dt className="text-muted-foreground">Missing ratio</dt><dd className="font-medium">{Math.round(d.media.missingRatio * 100)}%</dd></div>
+              </dl>
+              {d.media.sampleMissingUrls.length ? (
+                <ul className="text-[10px] text-muted-foreground list-disc pl-4">
+                  {d.media.sampleMissingUrls.map((u) => (
+                    <li key={u} className="truncate">{u}</li>
+                  ))}
+                </ul>
+              ) : null}
+              <Link to="/admin/media" className="text-xs text-primary hover:underline inline-block">
+                Media library →
               </Link>
             </section>
           ) : null}

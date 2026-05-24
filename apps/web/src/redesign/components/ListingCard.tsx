@@ -5,6 +5,7 @@ import StableMediaFrame from '@/redesign/components/StableMediaFrame';
 import PromotionBadge from '@/redesign/components/PromotionBadge';
 import TrustBadgeRow, { type TrustBadgeView } from '@/redesign/components/TrustBadgeRow';
 import { listingFreshnessBadge } from '@lg/shared';
+import { cardBadgeClass, cardVisual, metaDotLine } from '@/redesign/lib/card-visual';
 
 export type ListingPromotionView = {
   tier: string;

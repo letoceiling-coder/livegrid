@@ -248,4 +248,35 @@ export class MediaService implements OnModuleInit {
     }
     return { removed: files.length };
   }
+
+  /** Bounded disk check — DB rows pointing at missing files (Iter 84). */
+  async getIntegritySnapshot(sampleSize = 200) {
+    const totalFiles = await this.prisma.mediaFile.count();
+    const sample = await this.prisma.mediaFile.findMany({
+      take: sampleSize,
+      orderBy: { id: 'desc' },
+      select: { url: true },
+    });
+    let missingOnDisk = 0;
+    const sampleMissingUrls: string[] = [];
+    for (const row of sample) {
+      try {
+        const disk = this.diskPathFromPublicUrl(row.url);
+        if (!existsSync(disk)) {
+          missingOnDisk += 1;
+          if (sampleMissingUrls.length < 5) sampleMissingUrls.push(row.url);
+        }
+      } catch {
+        missingOnDisk += 1;
+        if (sampleMissingUrls.length < 5) sampleMissingUrls.push(row.url);
+      }
+    }
+    return {
+      totalFiles,
+      sampled: sample.length,
+      missingOnDisk,
+      sampleMissingUrls,
+      missingRatio: sample.length ? missingOnDisk / sample.length : 0,
+    };
+  }
 }

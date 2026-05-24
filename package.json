@@ -27,7 +27,8 @@
     "check:stabilization": "pnpm check:workspace && pnpm check:migrations && pnpm --filter @lg/shared test && bash scripts/reliability/migration-drift.sh",
     "check:symbol-drift": "node scripts/reliability/symbol-drift.mjs",
     "check:runtime-integrity": "pnpm check:symbol-drift && pnpm --filter @lg/web test src/shared/lib/runtime-import-integrity.test.ts && pnpm --filter @lg/web typecheck:runtime",
-    "verify:admin-routes": "node scripts/verify-admin-routes.mjs"
+    "verify:admin-routes": "node scripts/verify-admin-routes.mjs",
+    "verify:public-routes": "node scripts/verify-public-routes.mjs"
   },
   "engines": {
     "node": ">=22.0.0",
