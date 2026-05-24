@@ -43,11 +43,15 @@ cd packages/database
 pnpm exec prisma migrate deploy
 cd "$PROJECT_DIR"
 
-# ── 4. Build API ──
+# ── 4. Build shared (API resolves @lg/shared from dist/) ──
+echo "→ Building shared package..."
+pnpm --filter @lg/shared build
+
+# ── 5. Build API ──
 echo "→ Building API..."
 pnpm --filter @lg/api build
 
-# ── 5. Build frontend ──
+# ── 6. Build frontend ──
 echo "→ Building frontend..."
 # Remove stale generated frontend artifacts so Vite does not copy old chunks from public.
 rm -rf apps/web/dist
