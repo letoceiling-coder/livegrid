@@ -34,8 +34,12 @@ git checkout "$DEPLOY_BRANCH"
 
 echo "→ git pull (ff-only)"
 if ! git pull --ff-only "$DEPLOY_REMOTE" "$DEPLOY_BRANCH"; then
-  echo "WARN: fast-forward невозможен. Выполняется обычный pull (разрешите конфликты вручную при необходимости)."
-  git pull "$DEPLOY_REMOTE" "$DEPLOY_BRANCH"
+  echo "WARN: fast-forward blocked (server hotpatches). Resetting to origin/$DEPLOY_BRANCH (preserving .env)."
+  cp -a .env /tmp/lg.env.backup 2>/dev/null || true
+  git fetch "$DEPLOY_REMOTE" "$DEPLOY_BRANCH"
+  git reset --hard "$DEPLOY_REMOTE/$DEPLOY_BRANCH"
+  git clean -fd -e .env -e "apps/api/sitemaps"
+  [ -f /tmp/lg.env.backup ] && cp -a /tmp/lg.env.backup .env
 fi
 
 echo "→ запуск deploy-full.sh"
