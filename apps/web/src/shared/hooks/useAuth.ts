@@ -91,23 +91,28 @@ export function useAuthState(): AuthState {
     if (initDone.current) return;
     initDone.current = true;
     const token = getAccessToken();
-    if (!token) { setLoading(false); return; }
+    if (!token) {
+      setUser(null);
+      localStorage.removeItem('lg_user');
+      setLoading(false);
+      return;
+    }
     apiGet<MeResponse>('/auth/me')
       .then(applyMe)
       .catch(async () => {
         const rt = getRefreshToken();
-        if (rt) {
-          try {
-            const tokens = await apiPost<AuthTokens>('/auth/refresh', { refreshToken: rt });
-            setTokens(tokens.accessToken, tokens.refreshToken);
-            const me = await apiGet<MeResponse>('/auth/me');
-            applyMe(me);
-          } catch {
-            clearTokens();
-            setUser(null);
-            localStorage.removeItem('lg_user');
-          }
-        } else {
+        if (!rt) {
+          clearTokens();
+          setUser(null);
+          localStorage.removeItem('lg_user');
+          return;
+        }
+        try {
+          const tokens = await apiPost<AuthTokens>('/auth/refresh', { refreshToken: rt });
+          setTokens(tokens.accessToken, tokens.refreshToken);
+          const me = await apiGet<MeResponse>('/auth/me');
+          applyMe(me);
+        } catch {
           clearTokens();
           setUser(null);
           localStorage.removeItem('lg_user');
@@ -179,7 +184,7 @@ export function useAuthState(): AuthState {
   }, []);
 
   return {
-    isAuthenticated: !!user,
+    isAuthenticated: Boolean(user && getAccessToken()),
     user,
     loading,
     login,

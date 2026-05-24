@@ -93,6 +93,21 @@ export async function apiPostForm<T>(path: string, form: FormData, init?: Reques
   return res.json() as Promise<T>;
 }
 
+/** Как {@link apiGet}, но для 404/401/403 возвращает `null` (остальные ошибки — throw). */
+export async function apiGetOptionalAuth<T>(path: string, init?: RequestInit): Promise<T | null> {
+  const res = await fetch(apiUrl(path), {
+    credentials: 'include',
+    ...init,
+    headers: authHeaders(init?.headers),
+  });
+  if (res.status === 404 || res.status === 401 || res.status === 403) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(res.status, text || `${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export async function apiPost<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
   const res = await fetch(apiUrl(path), {
     method: 'POST',

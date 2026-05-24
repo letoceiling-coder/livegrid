@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { optionalAuthQueryOptions } from '@/shared/lib/safe-query';
 import { apiGet } from '@/lib/api';
 import {
   readLocalBrowseHistory,
@@ -71,7 +72,7 @@ export function useBrowseHistory(limit = 8) {
   const serverQuery = useQuery({
     queryKey: ['account', 'history', 'recent'],
     queryFn: () => apiGet<ServerHistoryRow[]>('/account/history'),
-    enabled: isAuthenticated,
+    ...optionalAuthQueryOptions({ isAuthenticated }),
     staleTime: 30_000,
   });
 

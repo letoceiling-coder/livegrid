@@ -185,14 +185,6 @@ const RedesignApartment = () => {
 
   const fetchedKind = listingQuery.data?.kind;
   const fetchedHasBlock = !!listingQuery.data?.block;
-  if (
-    listingId != null &&
-    listingQuery.isFetched &&
-    listingQuery.data &&
-    (fetchedKind !== 'APARTMENT' || !fetchedHasBlock)
-  ) {
-    return <Navigate to={`/listing/${listingId}`} replace />;
-  }
 
   const navSections = useMemo((): ComplexSection[] => {
     if (!apt) return [];
@@ -292,6 +284,16 @@ const RedesignApartment = () => {
     mapInstanceRef.current = null;
     mapInitializedRef.current = false;
   }, [complex?.coords[0], complex?.coords[1]]);
+
+  const shouldRedirectToListing =
+    listingId != null &&
+    listingQuery.isFetched &&
+    listingQuery.data &&
+    (fetchedKind !== 'APARTMENT' || !fetchedHasBlock);
+
+  if (shouldRedirectToListing) {
+    return <Navigate to={`/listing/${listingId}`} replace />;
+  }
 
   if (loading) {
     return (

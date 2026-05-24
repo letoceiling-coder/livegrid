@@ -3,6 +3,7 @@ import { Bell } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiGet } from '@/lib/api';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { optionalAuthQueryOptions } from '@/shared/lib/safe-query';
 import { cn } from '@/lib/utils';
 
 export default function UserNotificationBell() {
@@ -11,8 +12,8 @@ export default function UserNotificationBell() {
   const { data: count = 0 } = useQuery({
     queryKey: ['account', 'notifications', 'unread'],
     queryFn: () => apiGet<number>('/account/notifications/unread-count'),
-    enabled: isAuthenticated,
-    refetchInterval: 60_000,
+    ...optionalAuthQueryOptions({ isAuthenticated }),
+    refetchInterval: (query) => (query.state.data != null ? 60_000 : false),
   });
 
   if (!isAuthenticated) return null;

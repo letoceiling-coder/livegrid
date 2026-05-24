@@ -14,7 +14,7 @@ import ConversionDebugOverlay from '@/redesign/components/ConversionDebugOverlay
 import ConsultationFlow from '@/redesign/components/ConsultationFlow';
 import { CONVERSION_CTA, type ConsultationContext } from '@/redesign/lib/conversion-cta';
 import LayoutGrid from '@/redesign/components/LayoutGrid';
-import MissingPhotoPlaceholder from '@/redesign/components/MissingPhotoPlaceholder';
+import StableMediaFrame from '@/redesign/components/StableMediaFrame';
 import LeadForm from '@/shared/components/LeadForm';
 import RelatedListingsCarousel from '@/discovery/components/RelatedListingsCarousel';
 import { apiGet, apiGetOrNull } from '@/lib/api';
@@ -57,33 +57,28 @@ const COMPLEX_SLUG_ALIASES: Record<string, string> = {
 };
 
 const SimilarComplexCard = ({ complex }: { complex: ResidentialComplex }) => {
-  const [imgFailed, setImgFailed] = useState(false);
   const totalApts =
     complex.listingCount ??
     complex.buildings.reduce((s, b) => s + b.apartments.filter((a) => a.status === 'available').length, 0);
+  const subwayLabel = complex.subway && complex.subway !== '—' ? `м. ${complex.subway}` : null;
+  const locationLine = [complex.district !== '—' ? complex.district : null, subwayLabel].filter(Boolean).join(' · ');
   return (
     <Link
       to={`/complex/${complex.slug}`}
       className="group flex flex-col rounded-xl overflow-hidden bg-card border border-border hover:shadow-md hover:-translate-y-px transition-all"
     >
-      <div className="aspect-video overflow-hidden bg-muted">
-        {complex.images[0] && !imgFailed ? (
-          <img
-            src={complex.images[0]}
-            alt={complex.name}
-            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-            loading="lazy"
-            onError={() => setImgFailed(true)}
-          />
-        ) : (
-          <MissingPhotoPlaceholder />
-        )}
-      </div>
+      <StableMediaFrame
+        src={complex.images[0] ?? null}
+        altContext={complex.name}
+        aspect="16/9"
+        fallback="branded"
+        loading="lazy"
+      />
       <div className="p-3 space-y-1">
         <h4 className="font-semibold text-sm">{complex.name}</h4>
         <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <MapPin className="w-3 h-3" />
-          {complex.district} · м. {complex.subway}
+          <MapPin className="w-3 h-3 shrink-0" />
+          {locationLine || '—'}
         </p>
         <div className="flex items-center justify-between pt-1">
           <span className="font-bold text-sm text-primary" aria-label={priceAriaLabel(formatPriceFrom(complex.priceFrom))}>

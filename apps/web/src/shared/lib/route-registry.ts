@@ -6,6 +6,7 @@ export const LAZY_ROUTE_REGISTRY = [
   { id: 'RedesignIndex', path: '@/redesign/pages/RedesignIndex' },
   { id: 'RedesignCatalog', path: '@/redesign/pages/RedesignCatalog' },
   { id: 'RedesignMap', path: '@/redesign/pages/RedesignMap' },
+  { id: 'RedesignApartment', path: '@/redesign/pages/RedesignApartment' },
   { id: 'RedesignComplex', path: '@/redesign/pages/RedesignComplex' },
   { id: 'RedesignListingDetail', path: '@/redesign/pages/RedesignListingDetail' },
   { id: 'ListingCard', path: '@/redesign/components/ListingCard' },

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from '@/components/ui/sonner';
 import { conversionObsFavoriteToggle } from '@/redesign/lib/conversion-observability';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { optionalAuthQueryOptions } from '@/shared/lib/safe-query';
 import { useAuth } from './useAuth';
 import { apiDelete, apiGet, apiPost, ApiError } from '@/lib/api';
 
@@ -69,7 +70,7 @@ export function useFavorites() {
   const listQuery = useQuery({
     queryKey: ['favorites', user?.id],
     queryFn: () => apiGet<FavoriteRow[]>('/favorites'),
-    enabled: isAuthenticated,
+    ...optionalAuthQueryOptions({ isAuthenticated }),
   });
 
   useEffect(() => {
