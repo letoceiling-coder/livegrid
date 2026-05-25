@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import type { ResidentialComplex } from '@/redesign/data/types';
 
 /**
  * Shared typography + badge tokens for catalog cards and map sidebar rows.
@@ -33,6 +34,25 @@ export const cardVisual = {
   cardShell: 'rounded-xl border border-border bg-card overflow-hidden transition-shadow hover:shadow-sm',
   cardBody: 'p-2.5 flex flex-col gap-1 min-w-0',
   cardBodyGrid: 'p-3 flex flex-col gap-1.5 min-w-0',
+
+  /** ЖК marketplace card (Iter 87) */
+  complexShell:
+    'rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-shadow duration-200 hover:shadow-md',
+  complexMedia: 'relative shrink-0 overflow-hidden rounded-t-2xl bg-muted aspect-[16/10]',
+  complexBody: 'flex flex-col gap-1.5 p-3 min-w-0',
+  complexTitle: 'text-[15px] font-bold leading-snug text-foreground line-clamp-2',
+  complexMetaRow: 'flex items-center gap-1.5 min-w-0 text-[11px] text-muted-foreground leading-snug',
+  complexMetaIcon: 'w-3 h-3 shrink-0 text-muted-foreground/70',
+  complexCompletion: 'text-[11px] font-semibold text-foreground leading-snug truncate',
+  complexOverlayStack: 'absolute left-2 bottom-2 z-10 flex flex-col items-start gap-1 max-w-[calc(100%-3.5rem)]',
+  complexOverlayPill:
+    'rounded-md bg-background/92 px-2 py-0.5 text-[10px] font-medium leading-tight text-foreground shadow-sm backdrop-blur-sm',
+  complexFooter: 'flex items-center justify-between gap-2 pt-2 mt-0.5 border-t border-border/60',
+  complexFooterPill:
+    'inline-flex items-center rounded-full border border-border/80 bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground',
+  dottedLabel: 'text-[11px] text-muted-foreground leading-none',
+  dottedPrice: 'text-[11px] font-semibold tabular-nums text-foreground leading-none',
+  dottedBlock: 'flex flex-col gap-1 pt-1',
 } as const;
 
 type BadgeVariant = 'primary' | 'secondary' | 'outline';
@@ -81,4 +101,67 @@ export function cardBadgeClass(variant: BadgeVariant, accent?: 'emerald' | 'ambe
 /** Join metadata fragments with middle dot — skips empty parts */
 export function metaDotLine(parts: Array<string | null | undefined>): string {
   return parts.map((p) => p?.trim()).filter(Boolean).join(' · ');
+}
+
+/** Marketplace room band label for dotted price rows */
+export function complexRoomBandLabel(rooms: number): string {
+  if (rooms === 0) return 'Студии';
+  if (rooms === 1) return '1-к.кв';
+  if (rooms === 2) return '2Е-к.кв';
+  if (rooms === 3) return '3-к.кв';
+  return '4+ к.кв';
+}
+
+function capitalizeRuMonthYear(iso: string): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const raw = d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : null;
+}
+
+/** Bottom-left overlay lines on ЖК cover (sales start + corpus hint) */
+export function complexImageOverlayLines(complex: ResidentialComplex): {
+  primary: string | null;
+  secondary: string | null;
+} {
+  const hasStart = Boolean(complex.salesStartDate?.trim());
+  const primary = hasStart ? 'Старт продаж' : null;
+  let secondary: string | null = null;
+  if (complex.salesStartDate) {
+    const monthYear = capitalizeRuMonthYear(complex.salesStartDate);
+    const corp = complex.buildings[0]?.name?.trim();
+    if (monthYear && corp) secondary = `${monthYear} — ${corp}`;
+    else if (monthYear) secondary = monthYear;
+  }
+  if (!primary && complex.status === 'planned') {
+    return { primary: 'Планируется', secondary };
+  }
+  return { primary, secondary };
+}
+
+/** Emphasized completion / delivery line under metadata */
+export function complexCompletionLine(complex: ResidentialComplex): string | null {
+  const dl = complex.deadline?.trim();
+  if (!dl || dl === '—') return null;
+  if (complex.status === 'completed') {
+    if (dl === 'Сдан') return 'Сдан';
+    return dl.toLowerCase().startsWith('сдан') ? dl : `Сдан — ${dl}`;
+  }
+  if (complex.status === 'building') {
+    if (dl === 'Строится') return 'Строится';
+    return dl.toLowerCase().startsWith('строит') ? dl : `Строится — ${dl}`;
+  }
+  if (complex.status === 'planned') {
+    return dl === 'Проект' ? 'Проект' : `Проект — ${dl}`;
+  }
+  return dl;
+}
+
+export function complexMetroTimeLabel(
+  distanceTime: number | null | undefined,
+  distanceType?: 1 | 2 | null,
+): string {
+  if (distanceTime == null || distanceTime <= 0) return '';
+  const mode = distanceType === 1 ? 'пешком' : 'транспортом';
+  return `${distanceTime} мин ${mode}`;
 }

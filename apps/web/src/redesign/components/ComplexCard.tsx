@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Heart, GitCompare } from 'lucide-react';
+import { Heart, GitCompare, MapPin, TrainFront, Building2 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
@@ -8,34 +8,19 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import { parseApiBlockId, useFavorites } from '@/shared/hooks/useFavorites';
 import { useCompare } from '@/shared/hooks/useCompare';
 import StableMediaFrame from '@/redesign/components/StableMediaFrame';
-import { cardBadgeClass, cardVisual, metaDotLine } from '@/redesign/lib/card-visual';
+import CardDottedPriceRow from '@/redesign/components/CardDottedPriceRow';
+import {
+  cardVisual,
+  complexCompletionLine,
+  complexImageOverlayLines,
+  complexMetroTimeLabel,
+  complexRoomBandLabel,
+} from '@/redesign/lib/card-visual';
 
 interface Props {
   complex: ResidentialComplex;
   variant?: 'grid' | 'list';
   coverAspect?: '16/9' | '4/3';
-}
-
-const statusStyles: Record<string, { variant: 'primary' | 'secondary' | 'outline'; accent: 'blue' | 'green' | 'orange'; label: string }> = {
-  building: { variant: 'secondary', accent: 'blue', label: 'Строится' },
-  completed: { variant: 'secondary', accent: 'green', label: 'Сдан' },
-  planned: { variant: 'outline', accent: 'orange', label: 'Планируется' },
-};
-
-const StatusBadge = ({ status }: { status: string }) => {
-  const s = statusStyles[status];
-  if (!s) return null;
-  return (
-    <span className={cardBadgeClass(s.variant, s.accent)}>
-      {s.label}
-    </span>
-  );
-};
-
-function roomLabel(rooms: number): string {
-  if (rooms === 0) return 'Студии';
-  if (rooms >= 4) return '4+ комн.';
-  return `${rooms}-комн.`;
 }
 
 const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props) => {
@@ -52,12 +37,21 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
   const hasCoverImage = coverImages.length > 0;
   const coverImage = coverImages[currentImageIndex] ?? coverImages[0] ?? '';
   const hasBuilder = Boolean(complex.builder && complex.builder !== '—');
-  const hasDeadline = Boolean(complex.deadline && complex.deadline !== '—');
-  const fromBuildings = complex.buildings.reduce(
-    (s, b) => s + b.apartments.filter((a) => a.status === 'available').length,
-    0,
-  );
-  const totalApts = Math.max(complex.listingCount ?? 0, fromBuildings);
+  const hasAddress = Boolean(complex.address && complex.address !== '—');
+  const primaryMetro = complex.nearbySubways?.[0];
+  const metroName =
+    primaryMetro?.name?.trim() ||
+    (complex.subway !== '—' ? complex.subway.replace(/^м\.\s*/i, '').trim() : '');
+  const metroTime =
+    complex.subwayDistance && complex.subwayDistance !== '—'
+      ? complex.subwayDistance
+      : primaryMetro
+        ? complexMetroTimeLabel(primaryMetro.distanceTime, primaryMetro.distanceType ?? undefined)
+        : '';
+  const completion = complexCompletionLine(complex);
+  const overlay = complexImageOverlayLines(complex);
+  const showOverlay = Boolean(overlay.primary || overlay.secondary);
+
   const priceBands = [...complex.buildings.flatMap((b) => b.apartments)]
     .filter((a) => a.status !== 'sold' && a.price > 0)
     .reduce<Map<number, number>>((acc, apt) => {
@@ -66,22 +60,18 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
       if (prev == null || apt.price < prev) acc.set(key, apt.price);
       return acc;
     }, new Map<number, number>());
-  const priceFormatted = formatPriceFrom(complex.priceFrom);
-  const priceIsFallback = isPriceFallbackText(priceFormatted);
-  const locationLine = metaDotLine([
-    complex.district !== '—' ? complex.district : null,
-    complex.subway !== '—' ? `м. ${complex.subway}` : null,
-    complex.subwayDistance !== '—' ? complex.subwayDistance : null,
-  ]);
-  const detailLine = metaDotLine([
-    totalApts > 0 ? `${totalApts} кв.` : null,
-    hasDeadline ? `сдача ${complex.deadline}` : null,
-    hasBuilder ? complex.builder : null,
-  ]);
 
   const priceBandRows = Array.from(priceBands.entries())
     .sort(([a], [b]) => a - b)
-    .slice(0, 3);
+    .slice(0, 3)
+    .map(([rooms, price]) => ({
+      rooms,
+      label: complexRoomBandLabel(rooms),
+      price: formatPriceFrom(price),
+    }));
+
+  const fallbackPrice = formatPriceFrom(complex.priceFrom);
+  const priceIsFallback = isPriceFallbackText(fallbackPrice);
 
   const handleLike = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -100,58 +90,107 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
     toggleCompare(complex.slug);
   };
 
+  const actionButtons = (
+    <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
+      <button
+        type="button"
+        title={inCompare ? 'Убрать из сравнения' : 'В сравнение'}
+        className="flex h-7 w-7 items-center justify-center rounded-full bg-background/70 backdrop-blur-sm hover:bg-background/90"
+        onClick={handleCompare}
+      >
+        <GitCompare className={cn('h-3.5 w-3.5', inCompare ? 'text-primary' : 'text-muted-foreground')} />
+      </button>
+      <button
+        type="button"
+        title="Избранное"
+        className="flex h-7 w-7 items-center justify-center rounded-full bg-background/70 backdrop-blur-sm hover:bg-background/90"
+        onClick={handleLike}
+      >
+        <Heart className={cn('h-3.5 w-3.5', liked ? 'fill-destructive text-destructive' : 'text-muted-foreground')} />
+      </button>
+    </div>
+  );
+
+  const contentBlock = (
+    <>
+      <h3 className={cn(cardVisual.complexTitle, 'group-hover:text-primary transition-colors')}>
+        {complex.name}
+      </h3>
+
+      {metroName ? (
+        <div className={cardVisual.complexMetaRow}>
+          <TrainFront className={cardVisual.complexMetaIcon} aria-hidden />
+          <span className="truncate">
+            <span className="text-foreground/85">
+              {metroName.startsWith('м.') ? metroName : `м. ${metroName}`}
+            </span>
+            {metroTime ? <span className="text-muted-foreground"> · {metroTime}</span> : null}
+          </span>
+        </div>
+      ) : null}
+
+      {hasAddress ? (
+        <div className={cardVisual.complexMetaRow}>
+          <MapPin className={cardVisual.complexMetaIcon} aria-hidden />
+          <span className="truncate">{complex.address}</span>
+        </div>
+      ) : null}
+
+      {hasBuilder ? (
+        <div className={cardVisual.complexMetaRow}>
+          <Building2 className={cardVisual.complexMetaIcon} aria-hidden />
+          <span className="truncate">{complex.builder}</span>
+        </div>
+      ) : null}
+
+      {completion ? <p className={cardVisual.complexCompletion}>{completion}</p> : null}
+
+      {priceBandRows.length > 0 ? (
+        <div className={cardVisual.dottedBlock} role="list">
+          {priceBandRows.map((row) => (
+            <CardDottedPriceRow key={row.rooms} label={row.label} price={row.price} />
+          ))}
+        </div>
+      ) : !priceIsFallback ? (
+        <div className={cardVisual.dottedBlock} role="list">
+          <CardDottedPriceRow label="Цены от" price={fallbackPrice} />
+        </div>
+      ) : null}
+
+      <div className={cardVisual.complexFooter}>
+        <span className={cardVisual.complexFooterPill}>Новостройки</span>
+      </div>
+    </>
+  );
+
   if (variant === 'list') {
     return (
       <Link
         to={`/complex/${complex.slug}`}
-        className={cn(cardVisual.cardShell, 'group flex hover:shadow-md')}
+        className={cn(cardVisual.complexShell, 'group flex hover:shadow-md')}
       >
         {hasCoverImage ? (
-          <div className="relative w-[220px] shrink-0 overflow-hidden bg-muted min-h-[160px]">
+          <div className="relative w-[200px] shrink-0 overflow-hidden bg-muted min-h-[148px] sm:w-[220px]">
             <StableMediaFrame
               src={coverImages[0]}
               altContext={complex.name}
               decorative={false}
               aspect="4/3"
-              className="h-full min-h-[160px]"
+              className="h-full min-h-[148px] rounded-none"
               imgClassName="transition-transform duration-200 group-hover:scale-[1.02]"
             />
-            <div className="absolute top-1.5 left-1.5 z-10">
-              <StatusBadge status={complex.status} />
-            </div>
-            <div className="absolute top-1.5 right-1.5 flex flex-col gap-1 z-10">
-              <button
-                type="button"
-                title={inCompare ? 'Убрать из сравнения' : 'В сравнение'}
-                className="w-7 h-7 bg-background/80 backdrop-blur-sm rounded-full flex items-center justify-center"
-                onClick={handleCompare}
-              >
-                <GitCompare className={cn('w-3.5 h-3.5', inCompare ? 'text-primary' : 'text-muted-foreground')} />
-              </button>
-              <button
-                type="button"
-                title="Избранное"
-                className="w-7 h-7 bg-background/80 backdrop-blur-sm rounded-full flex items-center justify-center"
-                onClick={handleLike}
-              >
-                <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-destructive text-destructive' : 'text-muted-foreground')} />
-              </button>
-            </div>
+            {showOverlay ? (
+              <div className={cardVisual.complexOverlayStack}>
+                {overlay.primary ? <span className={cardVisual.complexOverlayPill}>{overlay.primary}</span> : null}
+                {overlay.secondary ? (
+                  <span className={cardVisual.complexOverlayPill}>{overlay.secondary}</span>
+                ) : null}
+              </div>
+            ) : null}
+            {actionButtons}
           </div>
         ) : null}
-        <div className={cn(cardVisual.cardBody, 'flex-1 justify-between gap-1.5')}>
-          <div className="min-w-0 space-y-1">
-            <p
-              className={cn(priceIsFallback ? cardVisual.priceFallback : cardVisual.price)}
-              aria-label={priceAriaLabel(priceFormatted)}
-            >
-              {priceFormatted}
-            </p>
-            <h3 className={cn(cardVisual.title, 'truncate group-hover:text-primary transition-colors')}>{complex.name}</h3>
-            {locationLine ? <p className={cardVisual.metaMuted}>{locationLine}</p> : null}
-            {detailLine ? <p className={cardVisual.metaMuted}>{detailLine}</p> : null}
-          </div>
-        </div>
+        <div className={cn(cardVisual.complexBody, 'flex-1 justify-between')}>{contentBlock}</div>
       </Link>
     );
   }
@@ -159,10 +198,15 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
   return (
     <Link
       to={`/complex/${complex.slug}`}
-      className={cn(cardVisual.cardShell, 'group flex flex-col hover:shadow-md')}
+      className={cn(cardVisual.complexShell, 'group flex flex-col')}
     >
       {hasCoverImage ? (
-        <div className={cn('relative shrink-0 overflow-hidden', coverAspect === '4/3' ? 'aspect-[4/3]' : 'aspect-video')}>
+        <div
+          className={cn(
+            cardVisual.complexMedia,
+            coverAspect === '4/3' ? 'aspect-[4/3]' : 'aspect-[16/10]',
+          )}
+        >
           <StableMediaFrame
             src={coverImage}
             altContext={complex.name}
@@ -171,65 +215,38 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
             className="absolute inset-0"
             imgClassName="transition-transform duration-200 group-hover:scale-[1.02]"
           />
-          <div className="absolute top-2 left-2">
-            <StatusBadge status={complex.status} />
-          </div>
-          <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
-            <button
-              type="button"
-              title={inCompare ? 'Убрать из сравнения' : 'В сравнение'}
-              className="w-7 h-7 rounded-full flex items-center justify-center bg-background/70 backdrop-blur-sm hover:bg-background/90"
-              onClick={handleCompare}
-            >
-              <GitCompare className={cn('w-3.5 h-3.5', inCompare ? 'text-primary' : 'text-muted-foreground')} />
-            </button>
-            <button
-              type="button"
-              title="Избранное"
-              className="w-7 h-7 rounded-full flex items-center justify-center bg-background/70 backdrop-blur-sm hover:bg-background/90"
-              onClick={handleLike}
-            >
-              <Heart className={cn('w-3.5 h-3.5', liked ? 'fill-destructive text-destructive' : 'text-muted-foreground')} />
-            </button>
-          </div>
-          {coverImages.length > 1 && (
-            <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+          {showOverlay ? (
+            <div className={cardVisual.complexOverlayStack}>
+              {overlay.primary ? <span className={cardVisual.complexOverlayPill}>{overlay.primary}</span> : null}
+              {overlay.secondary ? (
+                <span className={cardVisual.complexOverlayPill}>{overlay.secondary}</span>
+              ) : null}
+            </div>
+          ) : null}
+          {actionButtons}
+          {coverImages.length > 1 ? (
+            <div className="absolute bottom-1.5 left-1/2 z-10 flex -translate-x-1/2 gap-1">
               {coverImages.map((_, index) => (
                 <button
                   key={index}
                   type="button"
                   className={cn(
-                    'w-1.5 h-1.5 rounded-full transition-colors',
-                    index === currentImageIndex ? 'bg-background' : 'bg-background/40'
+                    'h-1.5 w-1.5 rounded-full transition-colors',
+                    index === currentImageIndex ? 'bg-background' : 'bg-background/40',
                   )}
-                  onClick={e => { e.preventDefault(); e.stopPropagation(); setCurrentImageIndex(index); }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setCurrentImageIndex(index);
+                  }}
                 />
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       ) : null}
 
-      <div className={cardVisual.cardBodyGrid}>
-        <p
-          className={cn(priceIsFallback ? cardVisual.priceGridFallback : cardVisual.priceGrid)}
-          aria-label={priceAriaLabel(priceFormatted)}
-        >
-          {priceFormatted}
-        </p>
-        <h3 className={cardVisual.titleGrid}>{complex.name}</h3>
-        {locationLine ? <p className={cardVisual.metaDot}>{locationLine}</p> : null}
-        {detailLine ? <p className={cardVisual.metaMuted}>{detailLine}</p> : null}
-        {priceBandRows.length > 0 ? (
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5 border-t border-border/50">
-            {priceBandRows.map(([rooms, price]) => (
-              <span key={rooms} className={cardVisual.metaMuted}>
-                {roomLabel(rooms)} <span className="font-medium text-foreground/80">{formatPriceFrom(price)}</span>
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      <div className={cardVisual.complexBody}>{contentBlock}</div>
     </Link>
   );
 };

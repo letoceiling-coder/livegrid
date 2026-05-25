@@ -24,6 +24,8 @@ export interface ResidentialComplex {
   buildings: Building[];
   /** Если задано (данные с API), в карточке показываем число объявлений вместо разбора mock-квартир по корпусам. */
   listingCount?: number;
+  /** ISO дата старта продаж (API `salesStartDate`) — оверлей на обложке. */
+  salesStartDate?: string | null;
 }
 
 export interface Building {

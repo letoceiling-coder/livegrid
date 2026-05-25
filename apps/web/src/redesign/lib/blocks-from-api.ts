@@ -136,6 +136,12 @@ export function mapApiBlockListRowToResidentialComplex(b: ApiBlockListRow): Resi
     infrastructure: extractInfrastructureLabels(b.infrastructure),
     buildings: [],
     listingCount: b._count?.listings,
+    salesStartDate:
+      b.salesStartDate != null
+        ? typeof b.salesStartDate === 'string'
+          ? b.salesStartDate
+          : b.salesStartDate.toISOString()
+        : null,
   };
 }
 
