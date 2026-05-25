@@ -4,6 +4,14 @@ import { join } from 'node:path';
 import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Express } from 'express';
+import {
+  countFilesUnder,
+  diskUsageBytes,
+  ensureMediaStorageDirs,
+  isMediaRootWritable,
+  MEDIA_STORAGE_SUBDIRS,
+  resolveMediaRoot,
+} from '../../common/media-storage.util';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const PUBLIC_PREFIX = '/uploads/media/';
@@ -17,11 +25,15 @@ export class MediaService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {
-    this.mediaRoot = this.config.get<string>('MEDIA_ROOT') ?? join(process.cwd(), 'uploads');
+    this.mediaRoot = resolveMediaRoot(this.config.get<string>('MEDIA_ROOT'));
+  }
+
+  get mediaRootPath(): string {
+    return this.mediaRoot;
   }
 
   async onModuleInit() {
-    mkdirSync(join(this.mediaRoot, 'media'), { recursive: true });
+    ensureMediaStorageDirs(this.mediaRoot);
     await this.ensureSystemFolders();
   }
 
@@ -249,9 +261,40 @@ export class MediaService implements OnModuleInit {
     return { removed: files.length };
   }
 
+  /** Storage path + permissions (Iter 88). */
+  async getStorageHealth() {
+    const rootExists = existsSync(this.mediaRoot);
+    const writable = rootExists && isMediaRootWritable(this.mediaRoot);
+    const dirCounts: Record<string, number> = {};
+    for (const sub of MEDIA_STORAGE_SUBDIRS) {
+      dirCounts[sub] = await countFilesUnder(join(this.mediaRoot, sub), 3, 20_000);
+    }
+    const diskBytes = await diskUsageBytes(this.mediaRoot);
+    const mediaDir = join(this.mediaRoot, 'media');
+    const onDiskMedia = await countFilesUnder(mediaDir, 2, 50_000);
+    const dbMedia = await this.prisma.mediaFile.count();
+    let orphanFiles = Math.max(0, onDiskMedia - dbMedia);
+    if (dbMedia > onDiskMedia * 2) orphanFiles = 0;
+
+    return {
+      mediaRoot: this.mediaRoot,
+      rootExists,
+      writable,
+      dirCounts,
+      diskUsageMb: diskBytes != null ? Math.round((diskBytes / 1024 / 1024) * 10) / 10 : null,
+      onDiskMediaFiles: onDiskMedia,
+      dbMediaFiles: dbMedia,
+      orphanFilesEstimate: orphanFiles,
+      healthy: rootExists && writable,
+    };
+  }
+
   /** Bounded disk check — DB rows pointing at missing files (Iter 84). */
   async getIntegritySnapshot(sampleSize = 200) {
-    const totalFiles = await this.prisma.mediaFile.count();
+    const [totalFiles, storage] = await Promise.all([
+      this.prisma.mediaFile.count(),
+      this.getStorageHealth(),
+    ]);
     const sample = await this.prisma.mediaFile.findMany({
       take: sampleSize,
       orderBy: { id: 'desc' },
@@ -277,6 +320,7 @@ export class MediaService implements OnModuleInit {
       missingOnDisk,
       sampleMissingUrls,
       missingRatio: sample.length ? missingOnDisk / sample.length : 0,
+      storage,
     };
   }
 }

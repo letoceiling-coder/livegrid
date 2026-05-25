@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, promises as fs } from 'node:fs';
 import { join } from 'node:path';
+import { resolveMediaRoot } from '../../common/media-storage.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { parseFeedXml, slugFromSourceUrl } from './news-rss.parser';
 
@@ -28,7 +29,7 @@ export class NewsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {
-    this.mediaRoot = this.config.get<string>('MEDIA_ROOT') ?? join(process.cwd(), 'uploads');
+    this.mediaRoot = resolveMediaRoot(this.config.get<string>('MEDIA_ROOT'));
   }
 
   onModuleInit() {

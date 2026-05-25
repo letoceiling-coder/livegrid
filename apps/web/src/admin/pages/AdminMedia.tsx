@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Folder,
@@ -18,6 +19,22 @@ import { Input } from '@/components/ui/input';
 import type { MediaFileRow, MediaFolderRow } from '@/admin/components/media-types';
 import { buildFolderMoveOptions } from '@/admin/lib/media-folder-options';
 import MediaFileMoveSelect from '@/admin/components/MediaFileMoveSelect';
+import AdminStatusBadge from '@/admin/components/AdminStatusBadge';
+
+type MediaHealthResponse = {
+  ok: boolean;
+  integrity: {
+    missingOnDisk: number;
+    missingRatio: number;
+    storage: {
+      mediaRoot: string;
+      writable: boolean;
+      onDiskMediaFiles: number;
+      dbMediaFiles: number;
+      healthy: boolean;
+    };
+  };
+};
 
 function buildTree(folders: MediaFolderRow[]) {
   const byParent = new Map<string, MediaFolderRow[]>();
@@ -98,6 +115,12 @@ export default function AdminMedia() {
     queryKey: ['admin', 'media', 'folders'],
     queryFn: () => apiGet<MediaFolderRow[]>('/admin/media/folders'),
     staleTime: 15_000,
+  });
+
+  const { data: mediaHealth } = useQuery({
+    queryKey: ['admin', 'media', 'health'],
+    queryFn: () => apiGet<MediaHealthResponse>('/admin/media/health'),
+    staleTime: 30_000,
   });
 
   const trashId = useMemo(() => folders.find((f) => f.isTrash)?.id ?? null, [folders]);
@@ -234,6 +257,26 @@ export default function AdminMedia() {
       </div>
 
       {err ? <p className="text-sm text-destructive mb-3">{err}</p> : null}
+
+      {mediaHealth?.integrity?.storage ? (
+        <div className="rounded-xl border bg-muted/30 px-4 py-3 mb-4 text-xs flex flex-wrap items-center gap-2">
+          <span className="font-medium">Storage</span>
+          <AdminStatusBadge tone={mediaHealth.ok ? 'ok' : 'warn'}>
+            {mediaHealth.ok ? 'healthy' : 'degraded'}
+          </AdminStatusBadge>
+          <span className="text-muted-foreground font-mono truncate max-w-full">
+            {mediaHealth.integrity.storage.mediaRoot}
+          </span>
+          <span className="text-muted-foreground">
+            on disk {mediaHealth.integrity.storage.onDiskMediaFiles} · DB{' '}
+            {mediaHealth.integrity.storage.dbMediaFiles} · missing sample{' '}
+            {mediaHealth.integrity.missingOnDisk}
+          </span>
+          <Link to="/admin/system" className="text-primary hover:underline ml-auto">
+            System diagnostics →
+          </Link>
+        </div>
+      ) : null}
 
       <div
         onDragOver={(e) => e.preventDefault()}

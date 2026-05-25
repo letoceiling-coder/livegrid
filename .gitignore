@@ -1,4 +1,6 @@
 # === Monorepo (Nest + React) ===
+uploads/
+apps/api/uploads/
 node_modules/
 dist/
 .turbo/

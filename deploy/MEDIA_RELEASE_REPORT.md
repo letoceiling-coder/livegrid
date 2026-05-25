@@ -25,7 +25,9 @@
 
 ### PM2
 
-- В **`deploy/ecosystem.config.js`** задан **`MEDIA_ROOT=${DEPLOY_ROOT}/uploads`**, чтобы файлы жили вне `apps/api` и не терялись при пересборке.
+- В **`deploy/ecosystem.config.js`** задан **`MEDIA_ROOT=/srv/livegrid/uploads`** (вне git-дерева `/var/www/lg`).
+- **`deploy/ensure-uploads-storage.sh`** — создаёт каталоги, мигрирует legacy `uploads/`, symlink `DEPLOY_ROOT/uploads` → persistent root.
+- **Nginx** отдаёт **`/uploads/`** напрямую с **`alias /srv/livegrid/uploads/`** (Iter 88).
 
 ### Тесты
 

@@ -60,6 +60,17 @@ type Diagnostics = {
     missingOnDisk: number;
     missingRatio: number;
     sampleMissingUrls: string[];
+    storage?: {
+      mediaRoot: string;
+      rootExists: boolean;
+      writable: boolean;
+      dirCounts: Record<string, number>;
+      diskUsageMb: number | null;
+      onDiskMediaFiles: number;
+      dbMediaFiles: number;
+      orphanFilesEstimate: number;
+      healthy: boolean;
+    };
   } | null;
   map?: {
     requestsLastMin: number;
@@ -615,11 +626,45 @@ export default function AdminSystemPage() {
             <section className="rounded-xl border bg-card p-4 mb-4 space-y-2">
               <h2 className="font-semibold text-sm flex items-center gap-2">
                 <Package className="w-4 h-4" />
-                Media integrity
-                <AdminStatusBadge tone={d.media.missingOnDisk === 0 ? 'ok' : 'warn'}>
-                  {d.media.missingOnDisk === 0 ? 'ok' : `${d.media.missingOnDisk} missing`}
+                Media storage
+                <AdminStatusBadge
+                  tone={
+                    d.media.storage?.healthy && d.media.missingOnDisk === 0
+                      ? 'ok'
+                      : 'warn'
+                  }
+                >
+                  {d.media.storage?.healthy ? 'storage ok' : 'storage issue'}
                 </AdminStatusBadge>
               </h2>
+              {d.media.storage ? (
+                <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="sm:col-span-2">
+                    <dt className="text-muted-foreground">MEDIA_ROOT</dt>
+                    <dd className="font-mono text-[10px] break-all">{d.media.storage.mediaRoot}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Writable</dt>
+                    <dd className="font-medium">{d.media.storage.writable ? 'yes' : 'no'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">On disk / DB</dt>
+                    <dd className="font-medium tabular-nums">
+                      {d.media.storage.onDiskMediaFiles} / {d.media.storage.dbMediaFiles}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Disk usage</dt>
+                    <dd className="font-medium">
+                      {d.media.storage.diskUsageMb != null ? `${d.media.storage.diskUsageMb} MB` : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Orphan est.</dt>
+                    <dd className="font-medium">{d.media.storage.orphanFilesEstimate}</dd>
+                  </div>
+                </dl>
+              ) : null}
               <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <div><dt className="text-muted-foreground">Total files</dt><dd className="font-medium">{d.media.totalFiles}</dd></div>
                 <div><dt className="text-muted-foreground">Sampled</dt><dd className="font-medium">{d.media.sampled}</dd></div>
@@ -633,9 +678,19 @@ export default function AdminSystemPage() {
                   ))}
                 </ul>
               ) : null}
-              <Link to="/admin/media" className="text-xs text-primary hover:underline inline-block">
-                Media library →
-              </Link>
+              <div className="flex flex-wrap gap-3 pt-1">
+                <Link to="/admin/media" className="text-xs text-primary hover:underline">
+                  Media library →
+                </Link>
+                <a
+                  href="/api/v1/admin/media/health"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-primary hover:underline"
+                >
+                  JSON health →
+                </a>
+              </div>
             </section>
           ) : null}
 

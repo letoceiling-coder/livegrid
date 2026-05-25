@@ -38,7 +38,7 @@ if ! git pull --ff-only "$DEPLOY_REMOTE" "$DEPLOY_BRANCH"; then
   cp -a .env /tmp/lg.env.backup 2>/dev/null || true
   git fetch "$DEPLOY_REMOTE" "$DEPLOY_BRANCH"
   git reset --hard "$DEPLOY_REMOTE/$DEPLOY_BRANCH"
-  git clean -fd -e .env -e "apps/api/sitemaps"
+  git clean -fd -e .env -e "apps/api/sitemaps" -e uploads
   [ -f /tmp/lg.env.backup ] && cp -a /tmp/lg.env.backup .env
 fi
 

@@ -1,6 +1,6 @@
 import './instrument';
-import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
+import { resolveMediaRoot } from './common/media-storage.util';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -18,7 +18,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
 
-  const mediaRoot = config.get<string>('MEDIA_ROOT') ?? join(process.cwd(), 'uploads');
+  const mediaRoot = resolveMediaRoot(config.get<string>('MEDIA_ROOT'));
   app.useStaticAssets(mediaRoot, { prefix: '/uploads/', index: false });
 
   const prefix = config.get<string>('API_PREFIX', '/api/v1');

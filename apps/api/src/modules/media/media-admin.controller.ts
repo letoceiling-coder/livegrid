@@ -26,6 +26,17 @@ import { MediaService } from './media.service';
 export class MediaAdminController {
   constructor(private readonly media: MediaService) {}
 
+  @Get('health')
+  @Roles('editor', 'manager')
+  @ApiOperation({ summary: 'Диагностика persistent storage (путь, права, missing files)' })
+  async health() {
+    const integrity = await this.media.getIntegritySnapshot(100);
+    return {
+      ok: integrity.storage.healthy && integrity.missingRatio < 0.05,
+      integrity,
+    };
+  }
+
   @Get('folders')
   @Roles('editor', 'agent', 'manager')
   @ApiOperation({ summary: 'Список папок (плоский; дерево строит клиент)' })

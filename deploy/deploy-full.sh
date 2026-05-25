@@ -19,6 +19,11 @@ echo ""
 
 cd "$PROJECT_DIR"
 
+# Persistent media (outside git tree) — never deleted by deploy
+if [ -f deploy/ensure-uploads-storage.sh ]; then
+  bash deploy/ensure-uploads-storage.sh
+fi
+
 # shellcheck disable=SC1090
 source "$PROJECT_DIR/deploy/load-api-env.sh"
 
