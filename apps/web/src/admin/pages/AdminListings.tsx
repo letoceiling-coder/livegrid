@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
-  Loader2, ChevronLeft, ChevronRight, ExternalLink, Plus, Pencil, Trash2, Wand2,
+  Loader2, ChevronLeft, ChevronRight, ExternalLink, Pencil, Trash2, Wand2,
   Building, TreePine, Trees, Hammer, ParkingSquare, Search, X,
 } from 'lucide-react';
 import { apiGet, apiDelete, apiPatch, ApiError } from '@/lib/api';
@@ -232,7 +232,6 @@ export default function AdminListings() {
   const meta = data?.meta;
 
   const KindIcon = (KIND_TABS.find((t) => t.key === kind) ?? KIND_TABS[0]).icon;
-  const kindManualPath = (KIND_TABS.find((t) => t.key === kind) ?? KIND_TABS[0]).manualPath;
 
   const setKindAndReset = (k: Kind) => { setKind(k); setPage(1); };
   const setSourceAndReset = (s: Source) => { setSource(s); setPage(1); };
@@ -370,12 +369,6 @@ export default function AdminListings() {
                   <Link to="/admin/listings/wizard/new">
                     <Wand2 className="w-4 h-4 mr-2" />
                     Мастер
-                  </Link>
-                </Button>
-                <Button type="button" asChild>
-                  <Link to={kindManualPath}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Добавить
                   </Link>
                 </Button>
               </>
