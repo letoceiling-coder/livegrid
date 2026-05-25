@@ -8,6 +8,7 @@ import FilterSidebar from '@/redesign/components/FilterSidebar';
 import RegionSelector from '@/redesign/components/RegionSelector';
 import { apiGet } from '@/lib/api';
 import { defaultFilters, type CatalogFilters, type ObjectType } from '@/redesign/data/types';
+import { isMoscowRegion, OBJECT_TYPE_TABS } from '@/redesign/lib/catalog-filter-config';
 import { Search, SlidersHorizontal, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,15 +57,6 @@ function formatMapSubtitle(loaded: number, total: number, refetching: boolean): 
     loaded < total ? `Показано ${loaded} из ${total} объектов` : `${total} объектов на карте`;
   return refetching ? `${base} · обновление…` : base;
 }
-
-const OBJECT_TYPE_TABS: { type: ObjectType; label: string; countKey: string }[] = [
-  { type: 'apartments', label: 'Квартиры', countKey: 'APARTMENT' },
-  { type: 'rooms', label: 'Комнаты', countKey: 'APARTMENT' },
-  { type: 'houses', label: 'Дома', countKey: 'HOUSE' },
-  { type: 'land', label: 'Участки', countKey: 'LAND' },
-  { type: 'dachas', label: 'Дачи', countKey: 'HOUSE' },
-  { type: 'commercial', label: 'Коммерция', countKey: 'COMMERCIAL' },
-];
 
 function getListingPhoto(l: any): string | null {
   const tryUrl = (raw: unknown): string | null => {
@@ -169,12 +161,10 @@ const RedesignMap = () => {
     () => OBJECT_TYPE_TABS.map((x) => ({ ...x, count: kindCounts[x.countKey] ?? 0 })),
     [kindCounts],
   );
-  const isMoscowRegion = useMemo(() => {
-    const r = regionRows?.find((row) => row.id === regionId);
-    const code = (r?.code ?? '').toLowerCase();
-    const name = (r?.name ?? '').toLowerCase();
-    return code === 'msk' || name.includes('москва');
-  }, [regionId, regionRows]);
+  const moscowMetro = useMemo(
+    () => isMoscowRegion(regionRows, regionId),
+    [regionId, regionRows],
+  );
 
   // Deadlines (apartments only)
   const deadlinesQuery = useQuery({
@@ -208,20 +198,14 @@ const RedesignMap = () => {
     select: (r) => r.map((x) => x.name),
   });
 
-  const { data: finishingRowsForMap } = useQuery({
-    queryKey: ['reference', 'finishings'],
-    queryFn: () => apiGet<Array<{ id: number; name: string }>>('/reference/finishings'),
-    staleTime: 60 * 60 * 1000,
-  });
-
   const mapUrlSig = useMemo(
     () => catalogFilterUrlSignature(new URLSearchParams(searchParams)),
     [searchParams.toString()],
   );
 
   useEffect(() => {
-    setFilters(catalogFiltersFromSearchParams(new URLSearchParams(window.location.search), finishingRowsForMap ?? undefined));
-  }, [mapUrlSig, finishingRowsForMap]);
+    setFilters(catalogFiltersFromSearchParams(new URLSearchParams(window.location.search)));
+  }, [mapUrlSig]);
 
   useEffect(() => {
     syncDebouncedSearchInUrl(setSearchParams, filters.search, debouncedSearch);
@@ -235,14 +219,16 @@ const RedesignMap = () => {
       filters.areaMin, filters.areaMax, filters.floorMin, filters.floorMax,
       filterKeyPart(filters.status), filterKeyPart(filters.district),
       filterKeyPart(filters.subway), filterKeyPart(filters.builder),
-      filterKeyPart(filters.deadline), filterKeyPart(filters.finishing),
+      filterKeyPart(filters.deadline),
+      filterKeyPart(filters.landPurpose),
+      filterKeyPart(filters.commercialTypes),
+      filterKeyPart(filters.houseMaterials),
       geoPreset, geoPolygon, geoLat, geoLng, geoRadius,
     ],
     queryFn: async () => {
       const sp = buildBlocksSearchParams({
         filters: { ...filters, search: debouncedSearch },
         regionId,
-        finishings: finishingRowsForMap,
         page: 1,
         perPage: PER_PAGE,
         sort: 'name_asc',
@@ -276,7 +262,10 @@ const RedesignMap = () => {
       filterKeyPart(filters.directions), filterKeyPart(filters.houseLocation),
       filters.floorMin, filters.floorMax,
       filterKeyPart(filters.rooms), filterKeyPart(filters.district),
-      filters.marketType, filterKeyPart(filters.finishing),
+      filters.marketType,
+      filterKeyPart(filters.landPurpose),
+      filterKeyPart(filters.commercialTypes),
+      filterKeyPart(filters.houseMaterials),
       geoPreset, geoPolygon, geoLat, geoLng, geoRadius,
     ],
     queryFn: async () => {
@@ -284,7 +273,6 @@ const RedesignMap = () => {
         filters: { ...filters, search: debouncedSearch },
         regionId,
         kind: LISTING_KIND_BY_OBJECT_TYPE[objectType],
-        finishings: finishingRowsForMap,
         page: 1,
         perPage: PER_PAGE,
         geo: { geoPreset, geoPolygon, geoLat, geoLng, geoRadius },
@@ -322,7 +310,6 @@ const RedesignMap = () => {
       buildBlocksSearchParams({
         filters: { ...filters, search: debouncedSearch },
         regionId,
-        finishings: finishingRowsForMap,
         page: 1,
         perPage: PER_PAGE,
         sort: 'name_asc',
@@ -333,7 +320,6 @@ const RedesignMap = () => {
       filters,
       debouncedSearch,
       regionId,
-      finishingRowsForMap,
       geoPreset,
       geoPolygon,
       geoLat,
@@ -348,7 +334,6 @@ const RedesignMap = () => {
         filters: { ...filters, search: debouncedSearch },
         regionId,
         kind: LISTING_KIND_BY_OBJECT_TYPE[objectType],
-        finishings: finishingRowsForMap,
         page: 1,
         perPage: PER_PAGE,
         geo: { geoPreset, geoPolygon, geoLat, geoLng, geoRadius },
@@ -358,7 +343,6 @@ const RedesignMap = () => {
       debouncedSearch,
       regionId,
       objectType,
-      finishingRowsForMap,
       geoPreset,
       geoPolygon,
       geoLat,
@@ -454,9 +438,9 @@ const RedesignMap = () => {
   const handleFiltersChange = useCallback(
     (next: CatalogFilters) => {
       setFilters(next);
-      replaceCatalogFiltersInUrl(setSearchParams, next, finishingRowsForMap ?? undefined, regionId);
+      replaceCatalogFiltersInUrl(setSearchParams, next, regionId);
     },
-    [finishingRowsForMap, regionId, setSearchParams],
+    [regionId, setSearchParams],
   );
 
   const handleSearchInputChange = useCallback((search: string) => {
@@ -510,9 +494,8 @@ const RedesignMap = () => {
             builderOptions={buildersQuery.data}
             deadlineOptions={deadlinesQuery.data}
             objectTypeOptions={objectTypeOptions.length > 0 ? objectTypeOptions : undefined}
-            showMetro={isMoscowRegion}
+            showMetro={moscowMetro}
             hasBlocks={useBlocksMap}
-            finishingsReference={finishingRowsForMap ?? []}
           />
         </aside>
 
@@ -673,9 +656,8 @@ const RedesignMap = () => {
               builderOptions={buildersQuery.data}
               deadlineOptions={deadlinesQuery.data}
               objectTypeOptions={objectTypeOptions.length > 0 ? objectTypeOptions : undefined}
-                showMetro={isMoscowRegion}
+              showMetro={moscowMetro}
               hasBlocks={useBlocksMap}
-              finishingsReference={finishingRowsForMap ?? []}
             />
           </div>
           <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">

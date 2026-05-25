@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useDeferredValue } from 'react';
+import { useState, useRef, useEffect, useMemo, useDeferredValue, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, SlidersHorizontal, ChevronDown, Building2, Home, TreePine, Store } from 'lucide-react';
@@ -6,11 +6,9 @@ import { cn } from '@/lib/utils';
 import { apiGet } from '@/lib/api';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 import CatalogSearchHintsDropdown from '@/redesign/components/CatalogSearchHintsDropdown';
+import FilterSidebar from '@/redesign/components/FilterSidebar';
 import type { CatalogHints } from '@/redesign/lib/catalog-hints-types';
-import {
-  catalogFiltersIntoSearchParams,
-  roomCategoriesFromHeroLabel,
-} from '@/redesign/lib/catalog-url-sync';
+import { catalogFiltersIntoSearchParams } from '@/redesign/lib/catalog-url-sync';
 import {
   buildBlocksSearchParams,
   buildListingsSearchParams,
@@ -20,81 +18,64 @@ import {
 import type { CatalogFilters, ObjectType } from '@/redesign/data/types';
 import { defaultFilters } from '@/redesign/data/types';
 import RegionSelector from '@/redesign/components/RegionSelector';
+import {
+  getCatalogFilterVisibility,
+  heroDeadlineFromFilters,
+  heroLabelFromRoomCategories,
+  HERO_DEADLINE_LABELS,
+  HERO_ROOM_TYPE_LABELS,
+  filtersFromHeroDeadline,
+  isMoscowRegion,
+  OBJECT_TYPE_TABS,
+  resetFiltersForObjectType,
+  roomCategoriesFromHeroLabel,
+} from '@/redesign/lib/catalog-filter-config';
+import { heroDigitsToRubles } from '@/redesign/lib/catalog-url-sync';
 
-/** В герое поле подписано «₽», поэтому ввод трактуем как рубли без скрытого масштабирования. */
-function priceRubFromHeroInput(raw: string): number | undefined {
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return undefined;
-  const n = parseInt(digits, 10);
-  if (!Number.isFinite(n) || n <= 0) return undefined;
-  return n;
+const objectTabIcons: Record<ObjectType, typeof Building2> = {
+  apartments: Building2,
+  rooms: Building2,
+  houses: Home,
+  land: TreePine,
+  dachas: Home,
+  commercial: Store,
+};
+
+function useDebouncedCatalogFilters(filters: CatalogFilters, ms: number): CatalogFilters {
+  const [debounced, setDebounced] = useState(filters);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(filters), ms);
+    return () => clearTimeout(t);
+  }, [filters, ms]);
+  return debounced;
 }
-
-/** Площадь героя: м² для квартир/домов, сотки для участков и т.д. */
-function heroParsedArea(areaMinRaw: string, areaMaxRaw: string): { min?: number; max?: number } {
-  const o: { min?: number; max?: number } = {};
-  const a1 = parseFloat(areaMinRaw.replace(',', '.'));
-  const a2 = parseFloat(areaMaxRaw.replace(',', '.'));
-  if (Number.isFinite(a1)) o.min = a1;
-  if (Number.isFinite(a2)) o.max = a2;
-  return o;
-}
-
-function heroParsedFloors(floorMinRaw: string, floorMaxRaw: string): { min?: number; max?: number } {
-  const o: { min?: number; max?: number } = {};
-  const fl1 = parseInt(floorMinRaw.replace(/\D/g, ''), 10);
-  const fl2 = parseInt(floorMaxRaw.replace(/\D/g, ''), 10);
-  if (Number.isFinite(fl1)) o.min = fl1;
-  if (Number.isFinite(fl2)) o.max = fl2;
-  return o;
-}
-
-const objectTabs = [
-  { label: 'Квартиры', icon: Building2, value: 'apartments', kind: 'APARTMENT' as const },
-  { label: 'Комнаты', icon: Building2, value: 'rooms', kind: 'APARTMENT' as const },
-  { label: 'Дома', icon: Home, value: 'houses', kind: 'HOUSE' as const },
-  { label: 'Участки', icon: TreePine, value: 'land', kind: 'LAND' as const },
-  { label: 'Дачи', icon: Home, value: 'dachas', kind: 'HOUSE' as const },
-  { label: 'Коммерция', icon: Store, value: 'commercial', kind: 'COMMERCIAL' as const },
-];
-
-const propertyTypes = ['Тип квартиры', 'Студия', '1-комнатная', '2-комнатная', '3-комнатная', '4+ комнат'];
-const deadlines = ['Срок сдачи', 'Сдан', '2026', '2027', '2028', '2029+'];
 
 const HeroSearch = () => {
-  const [activeTab, setActiveTab] = useState('apartments');
-  const [q, setQ] = useState('');
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [propertyType, setPropertyType] = useState('Тип квартиры');
-  const [ptOpen, setPtOpen] = useState(false);
-  const [deadline, setDeadline] = useState('Срок сдачи');
-  const [dlOpen, setDlOpen] = useState(false);
-  const [priceFrom, setPriceFrom] = useState('');
-  const [priceTo, setPriceTo] = useState('');
+  const [filters, setFilters] = useState<CatalogFilters>(() => ({ ...defaultFilters }));
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [areaMin, setAreaMin] = useState('');
-  const [areaMax, setAreaMax] = useState('');
-  const [floorMin, setFloorMin] = useState('');
-  const [floorMax, setFloorMax] = useState('');
-  const [aptMarket, setAptMarket] = useState<'all' | 'new' | 'secondary'>('all');
-  const [debouncedForCounts, setDebouncedForCounts] = useState({
-    q: '',
-    priceFrom: '',
-    priceTo: '',
-    propertyType: 'Тип квартиры',
-    deadline: 'Срок сдачи',
-    aptMarket: 'all' as 'all' | 'new' | 'secondary',
-    areaMin: '',
-    areaMax: '',
-    floorMin: '',
-    floorMax: '',
-  });
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [ptOpen, setPtOpen] = useState(false);
+  const [dlOpen, setDlOpen] = useState(false);
+  const [priceFromStr, setPriceFromStr] = useState('');
+  const [priceToStr, setPriceToStr] = useState('');
 
   const navigate = useNavigate();
   const { data: regionId, rows: regionRows, setStoredRegionId } = useDefaultRegionId();
-  const deferredSearch = useDeferredValue(q.trim());
+  const debouncedFilters = useDebouncedCatalogFilters(filters, 450);
+  const deferredSearch = useDeferredValue(filters.search.trim());
+
+  const visibility = getCatalogFilterVisibility(filters.objectType, {
+    marketType: filters.marketType,
+    hasBlocks: true,
+  });
+
+  const isMoscow = isMoscowRegion(regionRows, regionId);
+  const listingKind = LISTING_KIND_BY_OBJECT_TYPE[debouncedFilters.objectType];
+  const isApartmentMode = debouncedFilters.objectType === 'apartments';
+  const useSecondaryMarket = isApartmentMode && debouncedFilters.marketType === 'secondary';
+
   const hintsEnabled =
-    activeTab === 'apartments' && searchFocused && deferredSearch.length >= 2 && regionId != null;
+    isApartmentMode && searchFocused && deferredSearch.length >= 2 && regionId != null;
 
   const { data: catalogHints, isFetching: hintsLoading } = useQuery({
     queryKey: ['search', 'catalog-hints', regionId, deferredSearch],
@@ -106,81 +87,53 @@ const HeroSearch = () => {
     staleTime: 20_000,
   });
 
-  useEffect(() => {
-    const t = setTimeout(
-      () =>
-        setDebouncedForCounts({
-          q,
-          priceFrom,
-          priceTo,
-          propertyType,
-          deadline,
-          aptMarket,
-          areaMin,
-          areaMax,
-          floorMin,
-          floorMax,
-        }),
-      450,
-    );
-    return () => clearTimeout(t);
-  }, [q, priceFrom, priceTo, propertyType, deadline, aptMarket, areaMin, areaMax, floorMin, floorMax]);
+  const districtsQuery = useQuery({
+    queryKey: ['districts', regionId, listingKind],
+    queryFn: () => apiGet<{ name: string }[]>(`/districts?region_id=${regionId}&kind=${listingKind}`),
+    enabled: regionId != null,
+    select: (r) => r.map((x) => x.name),
+  });
 
-  const debouncedFilters = useMemo<CatalogFilters>(() => {
-    const objectType = activeTab as ObjectType;
-    const f: CatalogFilters = {
-      ...defaultFilters,
-      objectType,
-      marketType:
-        objectType === 'apartments' && debouncedForCounts.aptMarket === 'new'
-          ? 'new'
-          : objectType === 'apartments' && debouncedForCounts.aptMarket === 'secondary'
-            ? 'secondary'
-            : 'all',
-      search: debouncedForCounts.q.trim(),
-    };
-    const pMin = priceRubFromHeroInput(debouncedForCounts.priceFrom);
-    const pMax = priceRubFromHeroInput(debouncedForCounts.priceTo);
-    if (pMin != null) f.priceMin = pMin;
-    if (pMax != null) f.priceMax = pMax;
-    const { min: aMin, max: aMax } = heroParsedArea(debouncedForCounts.areaMin, debouncedForCounts.areaMax);
-    if (aMin !== undefined) f.areaMin = aMin;
-    if (aMax !== undefined) f.areaMax = aMax;
-    if (objectType === 'apartments') {
-      f.rooms = roomCategoriesFromHeroLabel(debouncedForCounts.propertyType);
-      const dl = debouncedForCounts.deadline;
-      if (dl !== 'Срок сдачи') f.deadline = [dl === '2029+' ? '2030' : dl];
-      const { min: fMin, max: fMax } = heroParsedFloors(debouncedForCounts.floorMin, debouncedForCounts.floorMax);
-      if (fMin !== undefined) f.floorMin = fMin;
-      if (fMax !== undefined) f.floorMax = fMax;
-    }
-    return f;
-  }, [activeTab, debouncedForCounts]);
+  const subwaysQuery = useQuery({
+    queryKey: ['subways', regionId],
+    queryFn: () => apiGet<{ name: string }[]>(`/subways?region_id=${regionId}`),
+    enabled: regionId != null && isMoscow,
+    select: (r) => r.map((x) => x.name),
+  });
+
+  const buildersQuery = useQuery({
+    queryKey: ['builders', regionId],
+    queryFn: () => apiGet<{ name: string }[]>(`/builders?region_id=${regionId}`),
+    enabled: regionId != null && isApartmentMode,
+    select: (r) => r.map((x) => x.name),
+  });
+
+  const deadlinesQuery = useQuery({
+    queryKey: ['blocks', 'deadlines', regionId],
+    queryFn: () => apiGet<string[]>(`/blocks/deadlines?region_id=${regionId ?? 1}`),
+    enabled: Boolean(regionId) && isApartmentMode,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const catalogCountParams = useMemo(() => {
-    if (regionId == null || activeTab !== 'apartments') return null;
-    if (debouncedFilters.marketType === 'secondary') return null;
-    return buildBlocksSearchParams({
-      filters: debouncedFilters,
-      regionId,
-    }).toString();
-  }, [regionId, activeTab, debouncedFilters]);
+    if (regionId == null || !isApartmentMode || useSecondaryMarket) return null;
+    return buildBlocksSearchParams({ filters: debouncedFilters, regionId }).toString();
+  }, [regionId, isApartmentMode, useSecondaryMarket, debouncedFilters]);
 
   const listingHeroCountParams = useMemo(() => {
-    if (regionId == null || activeTab !== 'apartments') return null;
-    if (debouncedFilters.marketType !== 'secondary') return null;
+    if (regionId == null) return null;
+    if (isApartmentMode && !useSecondaryMarket) return null;
     return buildListingsSearchParams({
       filters: debouncedFilters,
       regionId,
-      kind: 'APARTMENT',
+      kind: isApartmentMode ? 'APARTMENT' : LISTING_KIND_BY_OBJECT_TYPE[debouncedFilters.objectType],
       page: 1,
       perPage: 1,
     }).toString();
-  }, [regionId, activeTab, debouncedFilters]);
+  }, [regionId, isApartmentMode, useSecondaryMarket, debouncedFilters]);
 
   const apartmentFallbackCountParams = useMemo(() => {
-    if (regionId == null || activeTab !== 'apartments') return null;
-    if (debouncedFilters.marketType === 'secondary') return null;
+    if (regionId == null || !isApartmentMode || useSecondaryMarket) return null;
     return buildListingsSearchParams({
       filters: debouncedFilters,
       regionId,
@@ -188,20 +141,7 @@ const HeroSearch = () => {
       page: 1,
       perPage: 1,
     }).toString();
-  }, [regionId, activeTab, debouncedFilters]);
-
-  /** Дом / участок / коммерция — счётчик с учётом цены и площади (м² или сотки через area_total_*). */
-  const nonAptHeroCountParams = useMemo(() => {
-    if (regionId == null) return null;
-    if (activeTab === 'apartments') return null;
-    return buildListingsSearchParams({
-      filters: debouncedFilters,
-      regionId,
-      kind: LISTING_KIND_BY_OBJECT_TYPE[debouncedFilters.objectType],
-      page: 1,
-      perPage: 1,
-    }).toString();
-  }, [regionId, activeTab, debouncedFilters]);
+  }, [regionId, isApartmentMode, useSecondaryMarket, debouncedFilters]);
 
   const { data: catalogStats } = useQuery({
     queryKey: ['blocks', 'catalog-counts', catalogCountParams],
@@ -212,7 +152,7 @@ const HeroSearch = () => {
   });
 
   const { data: listingMarketCount } = useQuery({
-    queryKey: ['listings', 'hero-apt-market-count', listingHeroCountParams],
+    queryKey: ['listings', 'hero-count', listingHeroCountParams],
     queryFn: () => apiGet<{ meta: { total: number } }>(`/listings?${listingHeroCountParams}`),
     enabled: listingHeroCountParams != null,
     staleTime: 30_000,
@@ -225,13 +165,6 @@ const HeroSearch = () => {
     staleTime: 30_000,
   });
 
-  const { data: nonAptHeroCount } = useQuery({
-    queryKey: ['listings', 'hero-non-apt-count', nonAptHeroCountParams],
-    queryFn: () => apiGet<{ meta: { total: number } }>(`/listings?${nonAptHeroCountParams}`),
-    enabled: nonAptHeroCountParams != null,
-    staleTime: 30_000,
-  });
-
   const { data: kindCounts } = useQuery({
     queryKey: ['stats', 'listing-kind-counts', regionId],
     queryFn: () => apiGet<Record<string, number>>(`/stats/listing-kind-counts?region_id=${regionId}`),
@@ -239,37 +172,21 @@ const HeroSearch = () => {
     staleTime: 60_000,
   });
 
-  const visibleObjectTabs = objectTabs;
-  const showObjectTypeTabs = true;
-  const unsupportedSeparateType = activeTab === 'rooms' || activeTab === 'dachas';
-
-  /** Сброс полей при смене типа объекта — не смешиваем этаж/отделку квартиры с участком. */
-  useEffect(() => {
-    setQ('');
-    setPriceFrom('');
-    setPriceTo('');
-    setPropertyType('Тип квартиры');
-    setDeadline('Срок сдачи');
+  const switchObjectType = useCallback((nextType: ObjectType) => {
+    setFilters((prev) => resetFiltersForObjectType(prev, nextType));
+    setPriceFromStr('');
+    setPriceToStr('');
     setPtOpen(false);
     setDlOpen(false);
-    setAreaMin('');
-    setAreaMax('');
-    setFloorMin('');
-    setFloorMax('');
-    setAptMarket('all');
-    setDebouncedForCounts({
-      q: '',
-      priceFrom: '',
-      priceTo: '',
-      propertyType: 'Тип квартиры',
-      deadline: 'Срок сдачи',
-      aptMarket: 'all',
-      areaMin: '',
-      areaMax: '',
-      floorMin: '',
-      floorMax: '',
-    });
-  }, [activeTab]);
+  }, []);
+
+  const syncPriceToFilters = useCallback((from: string, to: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      priceMin: heroDigitsToRubles(from),
+      priceMax: heroDigitsToRubles(to),
+    }));
+  }, []);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const ptRef = useRef<HTMLDivElement>(null);
@@ -291,17 +208,20 @@ const HeroSearch = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const showHintsPanel =
-    activeTab === 'apartments' && searchFocused && q.trim().length >= 2 && regionId != null;
+  const roomLabel = heroLabelFromRoomCategories(filters.rooms);
+  const deadlineLabel = heroDeadlineFromFilters(filters.deadline);
+
+  const showHintsPanel = isApartmentMode && searchFocused && filters.search.trim().length >= 2 && regionId != null;
+
+  const nonAptTotal = listingMarketCount?.meta?.total;
 
   const ctaLabel = useMemo(() => {
-    if (activeTab === 'apartments') {
-      const m = debouncedForCounts.aptMarket;
-      if (m === 'secondary') {
+    if (isApartmentMode) {
+      if (useSecondaryMarket) {
         const t = listingMarketCount?.meta?.total;
         if (t != null && t > 0) return `${t.toLocaleString('ru')} квартир →`;
-        if (t === 0) return `Нет квартир →`;
-        return `Найти →`;
+        if (t === 0) return 'Нет квартир →';
+        return 'Найти →';
       }
       const blocks = catalogStats?.blocks ?? 0;
       const apartmentsInBlocks = catalogStats?.apartments ?? 0;
@@ -311,95 +231,103 @@ const HeroSearch = () => {
       if (catalogStats == null) return 'Найти →';
       const fallbackTotal = apartmentFallbackCount?.meta?.total;
       if (fallbackTotal != null && fallbackTotal > 0) return `${fallbackTotal.toLocaleString('ru')} квартир →`;
-      if (fallbackTotal == null) return 'Найти →';
-      return 'Нет квартир в этом регионе';
+      if (fallbackTotal === 0) return 'Нет квартир в этом регионе';
+      return 'Найти →';
     }
-    if (unsupportedSeparateType) return 'Нет объявлений →';
-    const tab = objectTabs.find((t) => t.value === activeTab);
-    const k = tab?.kind;
-    const filteredOther = nonAptHeroCount?.meta?.total;
-    if (filteredOther != null) {
-      if (filteredOther > 0) {
+    if (nonAptTotal != null) {
+      if (nonAptTotal > 0) {
         const word =
-          activeTab === 'houses'
+          filters.objectType === 'houses'
             ? 'домов'
-            : activeTab === 'land'
+            : filters.objectType === 'land'
               ? 'участков'
-              : activeTab === 'commercial'
+              : filters.objectType === 'commercial'
                 ? 'объектов'
-                : 'объектов';
-        return `${filteredOther.toLocaleString('ru')} ${word} →`;
+                : filters.objectType === 'rooms'
+                  ? 'комнат'
+                  : 'объектов';
+        return `${nonAptTotal.toLocaleString('ru')} ${word} →`;
       }
       return 'Нет лотов →';
     }
-    const n = !hasNarrowingFilters(debouncedFilters) && k && kindCounts ? kindCounts[k] ?? 0 : 0;
+    const k = LISTING_KIND_BY_OBJECT_TYPE[filters.objectType];
+    const n = !hasNarrowingFilters(debouncedFilters) && kindCounts ? (kindCounts[k] ?? 0) : 0;
     if (n > 0) {
       const word =
-        activeTab === 'houses'
+        filters.objectType === 'houses'
           ? 'домов'
-          : activeTab === 'land'
+          : filters.objectType === 'land'
             ? 'участков'
-            : activeTab === 'commercial'
+            : filters.objectType === 'commercial'
               ? 'объектов'
               : 'объектов';
       return `${n.toLocaleString('ru')} ${word} →`;
     }
     return 'Найти →';
-  }, [activeTab, apartmentFallbackCount, debouncedFilters, debouncedForCounts.aptMarket, listingMarketCount, catalogStats, kindCounts, nonAptHeroCount, unsupportedSeparateType]);
+  }, [
+    isApartmentMode,
+    useSecondaryMarket,
+    listingMarketCount,
+    catalogStats,
+    apartmentFallbackCount,
+    nonAptTotal,
+    debouncedFilters,
+    kindCounts,
+    filters.objectType,
+  ]);
 
   const apartmentsHeadlineCount = useMemo(() => {
-    if (activeTab === 'apartments') {
-      const m = debouncedForCounts.aptMarket;
-      if (m === 'secondary' && listingMarketCount?.meta?.total != null) {
-        return listingMarketCount.meta.total;
-      }
+    if (!isApartmentMode) return 0;
+    if (useSecondaryMarket && listingMarketCount?.meta?.total != null) {
+      return listingMarketCount.meta.total;
     }
     const fromStats = catalogStats?.apartments ?? 0;
     if (fromStats > 0) return fromStats;
     const fallbackApt = apartmentFallbackCount?.meta?.total ?? 0;
     if (fallbackApt > 0) return fallbackApt;
     if (!hasNarrowingFilters(debouncedFilters)) {
-      const fromKinds = kindCounts?.APARTMENT ?? 0;
-      if (fromKinds > 0) return fromKinds;
+      return kindCounts?.APARTMENT ?? 0;
     }
     return 0;
-  }, [activeTab, apartmentFallbackCount, debouncedFilters, debouncedForCounts.aptMarket, listingMarketCount, catalogStats, kindCounts]);
+  }, [
+    isApartmentMode,
+    useSecondaryMarket,
+    listingMarketCount,
+    catalogStats,
+    apartmentFallbackCount,
+    debouncedFilters,
+    kindCounts,
+  ]);
 
   const heroSubtitle = useMemo(() => {
-    if (activeTab === 'apartments') {
+    if (isApartmentMode) {
       return `${apartmentsHeadlineCount.toLocaleString('ru-RU')}+ квартир по России`;
     }
-    if (activeTab === 'rooms') return 'Комнаты в регионе';
-    if (activeTab === 'dachas') return 'Дачи в регионе';
-    const tab = objectTabs.find((t) => t.value === activeTab);
-    const k = tab?.kind;
-    const nf = nonAptHeroCount?.meta?.total;
-    const n = nf != null ? nf : k && kindCounts ? (kindCounts[k] ?? 0) : 0;
-    if (activeTab === 'houses') {
-      return n > 0 ? `${n.toLocaleString('ru-RU')} домов и дач в регионе` : 'Дома и дачи в регионе';
+    if (filters.objectType === 'rooms') return 'Комнаты в регионе';
+    if (filters.objectType === 'dachas') return 'Дачи в регионе';
+    const nf = nonAptTotal;
+    const k = LISTING_KIND_BY_OBJECT_TYPE[filters.objectType];
+    const n = nf != null ? nf : kindCounts ? (kindCounts[k] ?? 0) : 0;
+    if (filters.objectType === 'houses') {
+      return n > 0 ? `${n.toLocaleString('ru-RU')} домов в регионе` : 'Дома в регионе';
     }
-    if (activeTab === 'land') {
+    if (filters.objectType === 'land') {
       return n > 0 ? `${n.toLocaleString('ru-RU')} участков в регионе` : 'Земельные участки';
     }
     return n > 0 ? `${n.toLocaleString('ru-RU')} коммерческих объектов` : 'Коммерческая недвижимость';
-  }, [activeTab, apartmentsHeadlineCount, kindCounts, nonAptHeroCount]);
+  }, [isApartmentMode, apartmentsHeadlineCount, filters.objectType, kindCounts, nonAptTotal]);
 
   const searchPlaceholder = useMemo(() => {
-    if (activeTab === 'apartments') return 'Метро, район, ЖК, улица, застройщик';
-    if (activeTab === 'rooms') return 'Район, адрес, комната';
-    if (activeTab === 'land') return 'Район, адрес, кадастровый номер';
-    if (activeTab === 'dachas') return 'Район, адрес, дача';
+    if (isApartmentMode) return 'Метро, район, ЖК, улица, застройщик';
+    if (filters.objectType === 'rooms') return 'Район, адрес, комната';
+    if (filters.objectType === 'land') return 'Район, адрес, кадастровый номер';
+    if (filters.objectType === 'dachas') return 'Район, адрес, дача';
     return 'Район, адрес, название объекта';
-  }, [activeTab]);
-
-  const isAptTab = activeTab === 'apartments';
+  }, [isApartmentMode, filters.objectType]);
 
   return (
     <section className="relative bg-background">
-      {/* Mobile: compact padding, Desktop: generous */}
       <div className="max-w-[1400px] mx-auto px-4 pt-4 pb-5 sm:pt-6 sm:pb-5">
-
-        {/* Region selector — shared across home, catalog, and map. */}
         <div className="flex flex-col items-center gap-1 mb-3">
           <RegionSelector
             regions={regionRows}
@@ -407,177 +335,206 @@ const HeroSearch = () => {
             onSelect={setStoredRegionId}
             className="w-full max-w-[720px]"
           />
-
           <h1 className="text-xl sm:text-2xl md:text-4xl font-extrabold leading-tight text-center">
             <span className="text-[#2563EB]">Live Grid.</span>{' '}
             <span className="text-foreground">{heroSubtitle}</span>
           </h1>
         </div>
 
-        {/* Типы объектов — только режимы фильтрации; показ, если в регионе есть лоты более чем в одном типе */}
         <div className="flex items-center sm:justify-center gap-1.5 sm:gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-          {showObjectTypeTabs &&
-            visibleObjectTabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.value}
-                  type="button"
-                  onClick={() => setActiveTab(tab.value)}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 border shrink-0',
-                    activeTab === tab.value
-                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                      : 'bg-background border-border hover:bg-secondary hover:border-primary/30',
-                  )}
-                >
-                  <Icon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
+          {OBJECT_TYPE_TABS.map((tab) => {
+            const Icon = objectTabIcons[tab.type];
+            return (
+              <button
+                key={tab.type}
+                type="button"
+                onClick={() => switchObjectType(tab.type)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 border shrink-0',
+                  filters.objectType === tab.type
+                    ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                    : 'bg-background border-border hover:bg-secondary hover:border-primary/30',
+                )}
+              >
+                <Icon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Search block — на всю ширину контентной колонки; подсказки на ширину карточки */}
         <div
           ref={searchRef}
           className="w-full max-w-[1400px] mx-auto bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.10)] px-5 sm:px-6 py-5 relative"
         >
           <div className="relative z-20">
-            {/* Row 1: search + inline filters */}
             <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-0 lg:h-[52px]">
-              {/* Search input */}
               <div className="relative flex-1 lg:min-w-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
                   placeholder={searchPlaceholder}
                   className="w-full h-[52px] pl-9 pr-3 bg-transparent border-none outline-none text-[15px] placeholder:text-[#94a3b8]"
-                  value={q}
+                  value={filters.search}
                   onFocus={() => setSearchFocused(true)}
-                  onChange={(e) => setQ(e.target.value)}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') doSearch();
                   }}
                 />
               </div>
 
-              {/* Desktop inline filters with dividers */}
-            <div className="hidden lg:flex items-center">
-              <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
-              {isAptTab && (
-                <>
-                  <div ref={ptRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setPtOpen(!ptOpen)}
-                      className={cn(
-                        'h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50',
-                        propertyType !== 'Тип квартиры' ? 'text-primary font-medium' : 'text-foreground',
+              <div className="hidden lg:flex items-center">
+                <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
+                {visibility.rooms && (
+                  <>
+                    <div ref={ptRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setPtOpen(!ptOpen)}
+                        className={cn(
+                          'h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50',
+                          roomLabel !== 'Тип квартиры' ? 'text-primary font-medium' : 'text-foreground',
+                        )}
+                      >
+                        {roomLabel === 'Тип квартиры' ? 'Тип' : roomLabel}
+                        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', ptOpen && 'rotate-180')} />
+                      </button>
+                      {ptOpen && (
+                        <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-50 min-w-[180px]">
+                          {HERO_ROOM_TYPE_LABELS.map((t) => (
+                            <li key={t}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFilters((prev) => ({
+                                    ...prev,
+                                    rooms: roomCategoriesFromHeroLabel(t),
+                                  }));
+                                  setPtOpen(false);
+                                }}
+                                className={cn(
+                                  'w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors',
+                                  roomLabel === t && 'text-primary font-medium',
+                                )}
+                              >
+                                {t}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
                       )}
+                    </div>
+                    <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
+                  </>
+                )}
+                <div className="flex items-center h-[52px]">
+                  <input
+                    type="text"
+                    placeholder="Цена от"
+                    className="w-[100px] h-full px-3 text-sm bg-transparent outline-none border-none"
+                    value={priceFromStr}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '');
+                      setPriceFromStr(v);
+                      syncPriceToFilters(v, priceToStr);
+                    }}
+                  />
+                  <span className="text-muted-foreground text-sm">—</span>
+                  <input
+                    type="text"
+                    placeholder="до, ₽"
+                    className="w-[100px] h-full px-3 text-sm bg-transparent outline-none border-none"
+                    value={priceToStr}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '');
+                      setPriceToStr(v);
+                      syncPriceToFilters(priceFromStr, v);
+                    }}
+                  />
+                </div>
+
+                {visibility.deadline && (
+                  <>
+                    <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
+                    <div ref={dlRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setDlOpen(!dlOpen)}
+                        className={cn(
+                          'h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50',
+                          deadlineLabel !== 'Срок сдачи' ? 'text-primary font-medium' : 'text-foreground',
+                        )}
+                      >
+                        {deadlineLabel}
+                        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', dlOpen && 'rotate-180')} />
+                      </button>
+                      {dlOpen && (
+                        <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-50 min-w-[140px]">
+                          {HERO_DEADLINE_LABELS.map((d) => (
+                            <li key={d}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFilters((prev) => ({
+                                    ...prev,
+                                    deadline: filtersFromHeroDeadline(d),
+                                  }));
+                                  setDlOpen(false);
+                                }}
+                                className={cn(
+                                  'w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors',
+                                  deadlineLabel === d && 'text-primary font-medium',
+                                )}
+                              >
+                                {d}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {visibility.marketType && (
+                  <>
+                    <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
+                    <label className="sr-only" htmlFor="hero-apt-market">
+                      Тип рынка
+                    </label>
+                    <select
+                      id="hero-apt-market"
+                      className={cn(
+                        'h-9 max-w-[148px] lg:max-w-[160px] rounded-lg border border-[#e2e8f0] bg-white px-2 text-sm outline-none focus:border-primary/50',
+                        filters.marketType !== 'all' ? 'font-medium text-primary' : 'text-foreground',
+                      )}
+                      value={filters.marketType}
+                      onChange={(e) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          marketType: e.target.value as CatalogFilters['marketType'],
+                        }))
+                      }
                     >
-                      {propertyType === 'Тип квартиры' ? 'Тип' : propertyType}
-                      <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', ptOpen && 'rotate-180')} />
-                    </button>
-                    {ptOpen && (
-                      <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-50 min-w-[180px] animate-in fade-in-0 zoom-in-95 duration-150">
-                        {propertyTypes.map((t) => (
-                          <li key={t}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPropertyType(t);
-                                setPtOpen(false);
-                              }}
-                              className={cn(
-                                'w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors',
-                                propertyType === t && 'text-primary font-medium',
-                              )}
-                            >
-                              {t}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
-                </>
-              )}
-              <div className="flex items-center h-[52px]">
-                <input type="text" placeholder="Цена от" className="w-[100px] h-full px-3 text-sm bg-transparent outline-none border-none" value={priceFrom} onChange={(e) => setPriceFrom(e.target.value.replace(/\D/g, ''))} />
-                <span className="text-muted-foreground text-sm">—</span>
-                <input type="text" placeholder="до, ₽" className="w-[100px] h-full px-3 text-sm bg-transparent outline-none border-none" value={priceTo} onChange={(e) => setPriceTo(e.target.value.replace(/\D/g, ''))} />
+                      <option value="all">Все</option>
+                      <option value="new">Новостройки</option>
+                      <option value="secondary">Вторичка</option>
+                    </select>
+                  </>
+                )}
+
+                <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen(!filtersOpen)}
+                  className="h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Фильтры
+                </button>
               </div>
-
-              {isAptTab && (
-                <>
-                  <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
-                  <div ref={dlRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setDlOpen(!dlOpen)}
-                      className={cn(
-                        'h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50',
-                        deadline !== 'Срок сдачи' ? 'text-primary font-medium' : 'text-foreground',
-                      )}
-                    >
-                      {deadline}
-                      <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', dlOpen && 'rotate-180')} />
-                    </button>
-                    {dlOpen && (
-                      <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-50 min-w-[140px] animate-in fade-in-0 zoom-in-95 duration-150">
-                        {deadlines.map((d) => (
-                          <li key={d}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDeadline(d);
-                                setDlOpen(false);
-                              }}
-                              className={cn(
-                                'w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 transition-colors',
-                                deadline === d && 'text-primary font-medium',
-                              )}
-                            >
-                              {d}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
-                  <label className="sr-only" htmlFor="hero-apt-market">
-                    Тип жилья
-                  </label>
-                  <select
-                    id="hero-apt-market"
-                    className={cn(
-                      'h-9 max-w-[148px] lg:max-w-[160px] rounded-lg border border-[#e2e8f0] bg-white px-2 text-sm outline-none focus:border-primary/50',
-                      aptMarket !== 'all' ? 'font-medium text-primary' : 'text-foreground',
-                    )}
-                    value={aptMarket}
-                    onChange={(e) => setAptMarket(e.target.value as typeof aptMarket)}
-                  >
-                    <option value="all">Все</option>
-                    <option value="new">Новостройки</option>
-                    <option value="secondary">Вторичка</option>
-                  </select>
-                </>
-              )}
-
-              <div className="w-px h-6 bg-[#e2e8f0] mx-2" />
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(!filtersOpen)}
-                className="h-[52px] px-3.5 text-sm flex items-center gap-1.5 whitespace-nowrap transition-colors rounded-lg hover:bg-muted/50"
-              >
-                <SlidersHorizontal className="w-4 h-4" />
-                Фильтры
-              </button>
             </div>
-          </div>
 
             {showHintsPanel && (
               <CatalogSearchHintsDropdown
@@ -586,104 +543,53 @@ const HeroSearch = () => {
                 className="absolute left-0 right-0 top-full mt-2"
                 onPick={() => {
                   setSearchFocused(false);
-                  setQ('');
+                  setFilters((prev) => ({ ...prev, search: '' }));
                 }}
               />
             )}
           </div>
 
-          {/* Mobile filters — scrollable pills */}
           <div className="flex lg:hidden gap-1.5 mt-2 overflow-x-auto scrollbar-hide">
-            {isAptTab && (
+            {visibility.rooms && (
               <button
                 type="button"
                 onClick={() => setPtOpen(!ptOpen)}
                 className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] flex items-center gap-1 whitespace-nowrap shrink-0"
               >
-                {propertyType === 'Тип квартиры' ? 'Тип' : propertyType}
+                {roomLabel === 'Тип квартиры' ? 'Тип' : roomLabel}
                 <ChevronDown className="w-2.5 h-2.5" />
               </button>
             )}
-            <button type="button" className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] whitespace-nowrap shrink-0">
-              Цена
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] flex items-center gap-1 whitespace-nowrap shrink-0"
+            >
+              <SlidersHorizontal className="w-3 h-3" />
+              Фильтры
             </button>
-            {isAptTab && (
-              <button
-                type="button"
-                onClick={() => setDlOpen(!dlOpen)}
-                className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] flex items-center gap-1 whitespace-nowrap shrink-0"
-              >
-                {deadline}
-                <ChevronDown className="w-2.5 h-2.5" />
-              </button>
-            )}
-            {(isAptTab || activeTab === 'houses' || activeTab === 'land' || activeTab === 'commercial') && (
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(!filtersOpen)}
-                className="h-8 px-2.5 rounded-lg border border-[#e2e8f0] bg-white text-[11px] flex items-center gap-1 whitespace-nowrap shrink-0"
-              >
-                <SlidersHorizontal className="w-3 h-3" />
-                Ещё
-              </button>
-            )}
           </div>
 
-          {/* Расширенные фильтры: набор полей зависит от типа объекта (как в каталоге / FilterSidebar). */}
           {filtersOpen && (
-            <div className="mt-3 pt-3 border-t border-[#e2e8f0] animate-in slide-in-from-top-1 duration-200">
-              {isAptTab ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  <div>
-                    <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Площадь, м²</label>
-                    <div className="flex gap-1.5">
-                      <input type="text" placeholder="от" className="w-full h-9 px-2.5 text-sm rounded-lg border border-[#e2e8f0] bg-white outline-none focus:border-primary/50" value={areaMin} onChange={(e) => setAreaMin(e.target.value)} />
-                      <input type="text" placeholder="до" className="w-full h-9 px-2.5 text-sm rounded-lg border border-[#e2e8f0] bg-white outline-none focus:border-primary/50" value={areaMax} onChange={(e) => setAreaMax(e.target.value)} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Этаж</label>
-                    <div className="flex gap-1.5">
-                      <input type="text" placeholder="от" className="w-full h-9 px-2.5 text-sm rounded-lg border border-[#e2e8f0] bg-white outline-none focus:border-primary/50" value={floorMin} onChange={(e) => setFloorMin(e.target.value.replace(/\D/g, ''))} />
-                      <input type="text" placeholder="до" className="w-full h-9 px-2.5 text-sm rounded-lg border border-[#e2e8f0] bg-white outline-none focus:border-primary/50" value={floorMax} onChange={(e) => setFloorMax(e.target.value.replace(/\D/g, ''))} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Тип жилья</label>
-                    <select
-                      className="w-full h-9 px-2.5 text-sm rounded-lg border border-[#e2e8f0] bg-white outline-none focus:border-primary/50 text-foreground"
-                      value={aptMarket}
-                      onChange={(e) => setAptMarket(e.target.value as typeof aptMarket)}
-                    >
-                      <option value="all">Все</option>
-                      <option value="new">Новостройки</option>
-                      <option value="secondary">Вторичка</option>
-                    </select>
-                  </div>
-                </div>
-              ) : activeTab === 'land' ? (
-                <div className="max-w-md">
-                  <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Площадь, сот.</label>
-                  <div className="flex gap-1.5">
-                    <input type="text" placeholder="от" className="w-full h-9 px-2.5 text-sm rounded-lg border border-[#e2e8f0] bg-white outline-none focus:border-primary/50" value={areaMin} onChange={(e) => setAreaMin(e.target.value)} />
-                    <input type="text" placeholder="до" className="w-full h-9 px-2.5 text-sm rounded-lg border border-[#e2e8f0] bg-white outline-none focus:border-primary/50" value={areaMax} onChange={(e) => setAreaMax(e.target.value)} />
-                  </div>
-                </div>
-              ) : (
-                <div className="max-w-md">
-                  <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Площадь, м²</label>
-                  <div className="flex gap-1.5">
-                    <input type="text" placeholder="от" className="w-full h-9 px-2.5 text-sm rounded-lg border border-[#e2e8f0] bg-white outline-none focus:border-primary/50" value={areaMin} onChange={(e) => setAreaMin(e.target.value)} />
-                    <input type="text" placeholder="до" className="w-full h-9 px-2.5 text-sm rounded-lg border border-[#e2e8f0] bg-white outline-none focus:border-primary/50" value={areaMax} onChange={(e) => setAreaMax(e.target.value)} />
-                  </div>
-                </div>
-              )}
+            <div className="mt-3 pt-3 border-t border-[#e2e8f0] animate-in slide-in-from-top-1 duration-200 max-h-[min(70vh,520px)] overflow-y-auto">
+              <FilterSidebar
+                filters={filters}
+                onChange={setFilters}
+                totalCount={0}
+                showMetro={isMoscow}
+                showObjectTypeSwitcher={false}
+                hasBlocks={isApartmentMode}
+                districtOptions={districtsQuery.data}
+                subwayOptions={subwaysQuery.data}
+                builderOptions={buildersQuery.data}
+                deadlineOptions={deadlinesQuery.data}
+              />
             </div>
           )}
 
-          {/* Row 2: map + CTA */}
           <div className="flex items-center justify-between mt-3.5 gap-2">
             <button
+              type="button"
               onClick={() => navigate('/map')}
               className="hidden sm:flex items-center gap-2 py-2.5 px-5 rounded-[10px] border border-[#cbd5e1] bg-white text-sm font-medium hover:bg-muted/30 transition-colors"
             >
@@ -691,6 +597,7 @@ const HeroSearch = () => {
               На карте
             </button>
             <button
+              type="button"
               onClick={doSearch}
               className="py-2.5 px-6 flex-1 sm:flex-none rounded-[10px] bg-[#2563EB] text-white text-xs sm:text-sm font-semibold hover:bg-[#1d4ed8] transition-colors shadow-sm"
             >

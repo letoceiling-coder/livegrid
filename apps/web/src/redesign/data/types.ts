@@ -97,8 +97,13 @@ export interface CatalogFilters {
   district: string[];
   subway: string[];
   builder: string[];
-  finishing: string[];
   deadline: string[];
+  /** land.landCategory — ИЖС, СНТ, Коммерция */
+  landPurpose: string[];
+  /** commercial.commercialType — OFFICE, RETAIL, … */
+  commercialTypes: string[];
+  /** house.material */
+  houseMaterials: string[];
   floorMin?: number;
   floorMax?: number;
   status: string[];
@@ -114,8 +119,10 @@ export const defaultFilters: CatalogFilters = {
   district: [],
   subway: [],
   builder: [],
-  finishing: [],
   deadline: [],
+  landPurpose: [],
+  commercialTypes: [],
+  houseMaterials: [],
   status: [],
   search: '',
 };

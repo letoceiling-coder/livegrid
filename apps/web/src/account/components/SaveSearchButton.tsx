@@ -14,7 +14,6 @@ import type { CatalogFilters } from '@/redesign/data/types';
 type Props = {
   filters: CatalogFilters;
   regionId: number | null;
-  finishings?: { id: number; name: string }[];
   geo?: {
     geo_lat?: number;
     geo_lng?: number;
@@ -24,7 +23,7 @@ type Props = {
   };
 };
 
-export default function SaveSearchButton({ filters, regionId, finishings, geo }: Props) {
+export default function SaveSearchButton({ filters, regionId, geo }: Props) {
   const { isAuthenticated } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -32,7 +31,7 @@ export default function SaveSearchButton({ filters, regionId, finishings, geo }:
 
   const saveMutation = useMutation({
     mutationFn: async (overwrite: boolean) => {
-      const sp = catalogFiltersIntoSearchParams(new URLSearchParams(), filters, finishings);
+      const sp = catalogFiltersIntoSearchParams(new URLSearchParams(), filters);
       const paramsJson: SavedSearchParamsJson = {
         params: paramsFromUrlSearchParams(sp),
         regionId,

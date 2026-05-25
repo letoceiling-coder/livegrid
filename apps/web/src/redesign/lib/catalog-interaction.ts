@@ -8,10 +8,9 @@ export const CATALOG_SEARCH_DEBOUNCE_MS = 350;
 export function buildCatalogFilterParams(
   base: URLSearchParams,
   filters: CatalogFilters,
-  finishings?: { id: number; name: string }[],
   regionId?: number | null,
 ): URLSearchParams {
-  const next = catalogFiltersIntoSearchParams(base, filters, finishings);
+  const next = catalogFiltersIntoSearchParams(base, filters);
   if (regionId != null && regionId > 0) {
     next.set('region_id', String(regionId));
   }
@@ -22,12 +21,11 @@ export function buildCatalogFilterParams(
 export function replaceCatalogFiltersInUrl(
   setSearchParams: SetURLSearchParams,
   filters: CatalogFilters,
-  finishings?: { id: number; name: string }[],
   regionId?: number | null,
 ): void {
   setSearchParams(
     (prev) => {
-      const next = buildCatalogFilterParams(new URLSearchParams(prev), filters, finishings, regionId);
+      const next = buildCatalogFilterParams(new URLSearchParams(prev), filters, regionId);
       return prev.toString() === next.toString() ? prev : next;
     },
     { replace: true },

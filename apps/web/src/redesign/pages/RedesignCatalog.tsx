@@ -49,6 +49,11 @@ import {
   LISTING_KIND_BY_OBJECT_TYPE,
 } from '@/redesign/lib/catalog-api-params';
 import { defaultFilters, type CatalogFilters, type ObjectType } from '@/redesign/data/types';
+import {
+  isMoscowRegion,
+  OBJECT_TYPE_TABS,
+  resetFiltersForObjectType,
+} from '@/redesign/lib/catalog-filter-config';
 
 const OBJECT_TYPE_TITLE: Record<ObjectType, string> = {
   apartments: 'Жилые комплексы',
@@ -58,15 +63,6 @@ const OBJECT_TYPE_TITLE: Record<ObjectType, string> = {
   dachas: 'Дачи',
   commercial: 'Коммерческая недвижимость',
 };
-
-const OBJECT_TYPE_TABS: { type: ObjectType; label: string; countKey: string }[] = [
-  { type: 'apartments', label: 'Квартиры', countKey: 'APARTMENT' },
-  { type: 'rooms', label: 'Комнаты', countKey: 'APARTMENT' },
-  { type: 'houses', label: 'Дома', countKey: 'HOUSE' },
-  { type: 'land', label: 'Участки', countKey: 'LAND' },
-  { type: 'dachas', label: 'Дачи', countKey: 'HOUSE' },
-  { type: 'commercial', label: 'Коммерция', countKey: 'COMMERCIAL' },
-];
 
 type ViewMode = 'grid' | 'list' | 'map';
 
@@ -164,12 +160,6 @@ const RedesignCatalog = () => {
   const geoLng = searchParams.get('geo_lng');
   const geoRadius = searchParams.get('geo_radius_m');
 
-  const { data: finishingRows } = useQuery({
-    queryKey: ['reference', 'finishings'],
-    queryFn: () => apiGet<Array<{ id: number; name: string }>>('/reference/finishings'),
-    staleTime: 60 * 60 * 1000,
-  });
-
   const catalogUrlSig = useMemo(
     () => catalogFilterUrlSignature(new URLSearchParams(searchParams)),
     [searchParams.toString()],
@@ -177,8 +167,8 @@ const RedesignCatalog = () => {
 
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
-    setFilters(catalogFiltersFromSearchParams(sp, finishingRows ?? undefined));
-  }, [catalogUrlSig, finishingRows]);
+    setFilters(catalogFiltersFromSearchParams(sp));
+  }, [catalogUrlSig]);
 
   const urlView = searchParams.get('view');
   useEffect(() => {
@@ -264,7 +254,9 @@ const RedesignCatalog = () => {
       filterKeyPart(filters.houseLocation),
       filters.floorMin,
       filters.floorMax,
-      filterKeyPart(filters.finishing),
+      filterKeyPart(filters.landPurpose),
+      filterKeyPart(filters.commercialTypes),
+      filterKeyPart(filters.houseMaterials),
       filterKeyPart(filters.district),
       filters.marketType,
     ],
@@ -274,7 +266,6 @@ const RedesignCatalog = () => {
         filters: { ...filters, search: debouncedSearch },
         regionId,
         kind: listingKind,
-        finishings: finishingRows,
         page: pageParam,
         perPage: PER_PAGE,
       });
@@ -293,13 +284,12 @@ const RedesignCatalog = () => {
 
   // Flat (non-paginated) query for map view showing individual listings
   const listingsMapQuery = useQuery({
-    queryKey: ['listings', 'catalog', 'map', regionId, listingKind, debouncedSearch, filters.priceMin, filters.priceMax, filterKeyPart(filters.rooms), filters.areaMin, filters.areaMax, filters.landAreaMin, filters.landAreaMax, filters.distanceMin, filters.distanceMax, filterKeyPart(filters.directions), filterKeyPart(filters.houseLocation), filters.floorMin, filters.floorMax, filterKeyPart(filters.finishing), filterKeyPart(filters.district), filters.marketType],
+    queryKey: ['listings', 'catalog', 'map', regionId, listingKind, debouncedSearch, filters.priceMin, filters.priceMax, filterKeyPart(filters.rooms), filters.areaMin, filters.areaMax, filters.landAreaMin, filters.landAreaMax, filters.distanceMin, filters.distanceMax, filterKeyPart(filters.directions), filterKeyPart(filters.houseLocation), filters.floorMin, filters.floorMax, filterKeyPart(filters.landPurpose), filterKeyPart(filters.commercialTypes), filterKeyPart(filters.houseMaterials), filterKeyPart(filters.district), filters.marketType],
     queryFn: async () => {
       const sp = buildListingsSearchParams({
         filters: { ...filters, search: debouncedSearch },
         regionId,
         kind: listingKind,
-        finishings: finishingRows,
         page: 1,
         perPage: 200,
       });
@@ -331,7 +321,9 @@ const RedesignCatalog = () => {
       filterKeyPart(filters.subway),
       filterKeyPart(filters.builder),
       filterKeyPart(filters.rooms),
-      filterKeyPart(filters.finishing),
+      filterKeyPart(filters.landPurpose),
+      filterKeyPart(filters.commercialTypes),
+      filterKeyPart(filters.houseMaterials),
       geoPreset, geoPolygon, geoLat, geoLng, geoRadius,
     ],
     initialPageParam: 1,
@@ -339,7 +331,6 @@ const RedesignCatalog = () => {
       const sp = buildBlocksSearchParams({
         filters: { ...filters, search: debouncedSearch },
         regionId,
-        finishings: finishingRows,
         page: pageParam,
         perPage: PER_PAGE,
         sort: catalogSort,
@@ -380,12 +371,10 @@ const RedesignCatalog = () => {
     [kindCounts],
   );
   const showKindSwitcher = true;
-  const isMoscowRegion = useMemo(() => {
-    const r = regionRows?.find((row) => row.id === regionId);
-    const code = (r?.code ?? '').toLowerCase();
-    const name = (r?.name ?? '').toLowerCase();
-    return code === 'msk' || name.includes('москва');
-  }, [regionId, regionRows]);
+  const moscowMetro = useMemo(
+    () => isMoscowRegion(regionRows, regionId),
+    [regionId, regionRows],
+  );
 
   const subwaysQuery = useQuery({
     queryKey: ['subways', regionId],
@@ -425,9 +414,9 @@ const RedesignCatalog = () => {
     (f: CatalogFilters) => {
       const next = { ...f, search: normalizeSearchQuery(f.search) };
       setFilters(next);
-      replaceCatalogFiltersInUrl(setSearchParams, next, finishingRows ?? undefined, regionId);
+      replaceCatalogFiltersInUrl(setSearchParams, next, regionId);
     },
-    [setSearchParams, finishingRows, regionId],
+    [setSearchParams, regionId],
   );
 
   const handleSearchInputChange = useCallback((search: string) => {
@@ -495,10 +484,10 @@ const RedesignCatalog = () => {
   };
 
   const mapHref = useMemo(() => {
-    const params = catalogFiltersIntoSearchParams(new URLSearchParams(), filters, finishingRows ?? undefined);
+    const params = catalogFiltersIntoSearchParams(new URLSearchParams(), filters);
     if (regionId != null) params.set('region_id', String(regionId));
     return `/map${params.toString() ? `?${params.toString()}` : ''}`;
-  }, [filters, finishingRows, regionId]);
+  }, [filters, regionId]);
 
   return (
     <div className="min-h-screen bg-background pb-16 lg:pb-0">
@@ -558,7 +547,6 @@ const RedesignCatalog = () => {
             <SaveSearchButton
               filters={filters}
               regionId={regionId}
-              finishings={finishingRows}
               geo={{
                 geo_lat: geoLat ? Number(geoLat) : undefined,
                 geo_lng: geoLng ? Number(geoLng) : undefined,
@@ -636,30 +624,7 @@ const RedesignCatalog = () => {
                 type="button"
                 onClick={() => {
                   if (x.type === filters.objectType) return;
-                  handleFiltersChange({
-                    objectType: x.type,
-                    marketType: 'all',
-                    search: filters.search,
-                    priceMin: filters.priceMin,
-                    priceMax: filters.priceMax,
-                    rooms: [],
-                    areaMin: undefined,
-                    areaMax: undefined,
-                    landAreaMin: undefined,
-                    landAreaMax: undefined,
-                    distanceMin: undefined,
-                    distanceMax: undefined,
-                    floorMin: undefined,
-                    floorMax: undefined,
-                    directions: [],
-                    houseLocation: [],
-                    deadline: [],
-                    finishing: [],
-                    status: [],
-                    subway: [],
-                    builder: [],
-                    district: [],
-                  });
+                  handleFiltersChange(resetFiltersForObjectType(filters, x.type));
                 }}
                 className={cn(
                   'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-colors',
@@ -687,9 +652,8 @@ const RedesignCatalog = () => {
                 builderOptions={buildersQuery.data}
                 deadlineOptions={deadlinesQuery.data}
                 objectTypeOptions={OBJECT_TYPE_TABS.map(x => x.type)}
-                showMetro={isMoscowRegion}
+                showMetro={moscowMetro}
                 hasBlocks={showBlocks}
-                finishingsReference={finishingRows ?? []}
               />
             </div>
           </aside>
@@ -860,9 +824,8 @@ const RedesignCatalog = () => {
               builderOptions={buildersQuery.data}
               deadlineOptions={deadlinesQuery.data}
               objectTypeOptions={OBJECT_TYPE_TABS.map(x => x.type)}
-              showMetro={isMoscowRegion}
+              showMetro={moscowMetro}
               hasBlocks={showBlocks}
-              finishingsReference={finishingRows ?? []}
             />
           </div>
           <div className="fixed bottom-0 left-0 right-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-background border-t border-border">

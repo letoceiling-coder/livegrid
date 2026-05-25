@@ -1,9 +1,6 @@
 import type { CatalogFilters, ObjectType } from '@/redesign/data/types';
-import { finishingIdsFromSidebarLabels } from '@/redesign/lib/catalog-url-sync';
 
 export type ListingKind = 'APARTMENT' | 'HOUSE' | 'LAND' | 'COMMERCIAL';
-
-export type FinishingRow = { id: number; name: string };
 
 export type CatalogGeoParams = {
   geoPreset?: string;
@@ -47,12 +44,6 @@ function setGeo(sp: URLSearchParams, geo?: CatalogGeoParams): void {
   }
 }
 
-function setFinishing(sp: URLSearchParams, filters: CatalogFilters, finishings?: FinishingRow[]): void {
-  if (!filters.finishing.length || !finishings?.length) return;
-  const ids = finishingIdsFromSidebarLabels(filters.finishing, finishings);
-  setCsv(sp, 'finishing', ids);
-}
-
 export function hasNarrowingFilters(filters: CatalogFilters): boolean {
   return Boolean(
     filters.search.trim() ||
@@ -71,7 +62,9 @@ export function hasNarrowingFilters(filters: CatalogFilters): boolean {
       filters.floorMin != null ||
       filters.floorMax != null ||
       filters.deadline.length ||
-      filters.finishing.length ||
+      filters.landPurpose.length ||
+      filters.commercialTypes.length ||
+      filters.houseMaterials.length ||
       filters.status.length ||
       filters.district.length ||
       filters.subway.length ||
@@ -82,14 +75,13 @@ export function hasNarrowingFilters(filters: CatalogFilters): boolean {
 export function buildBlocksSearchParams(args: {
   filters: CatalogFilters;
   regionId?: number | null;
-  finishings?: FinishingRow[];
   page?: number;
   perPage?: number;
   sort?: string;
   geo?: CatalogGeoParams;
   requireActiveListings?: boolean;
 }): URLSearchParams {
-  const { filters, regionId, finishings, page, perPage, sort, geo, requireActiveListings } = args;
+  const { filters, regionId, page, perPage, sort, geo, requireActiveListings } = args;
   const sp = new URLSearchParams();
   if (regionId != null) sp.set('region_id', String(regionId));
   if (filters.search.trim()) sp.set('search', filters.search.trim());
@@ -106,7 +98,6 @@ export function buildBlocksSearchParams(args: {
   setFinite(sp, 'floor_max', filters.floorMax);
   setCsv(sp, 'rooms', filters.rooms);
   setCsv(sp, 'deadline', filters.deadline);
-  setFinishing(sp, filters, finishings);
 
   if (filters.marketType === 'new') {
     sp.set('status', 'BUILDING');
@@ -126,12 +117,11 @@ export function buildListingsSearchParams(args: {
   filters: CatalogFilters;
   regionId?: number | null;
   kind?: ListingKind;
-  finishings?: FinishingRow[];
   page?: number;
   perPage?: number;
   geo?: CatalogGeoParams;
 }): URLSearchParams {
-  const { filters, regionId, kind = LISTING_KIND_BY_OBJECT_TYPE[filters.objectType], finishings, page, perPage, geo } = args;
+  const { filters, regionId, kind = LISTING_KIND_BY_OBJECT_TYPE[filters.objectType], page, perPage, geo } = args;
   const sp = new URLSearchParams();
   if (regionId != null) sp.set('region_id', String(regionId));
   sp.set('kind', kind);
@@ -156,13 +146,21 @@ export function buildListingsSearchParams(args: {
     setFinite(sp, 'distance_max', filters.distanceMax);
     setCsv(sp, 'house_directions', filters.directions);
     setCsv(sp, 'house_location', filters.houseLocation);
+    setCsv(sp, 'house_materials', filters.houseMaterials);
+  }
+
+  if (kind === 'LAND') {
+    setCsv(sp, 'land_categories', filters.landPurpose);
+  }
+
+  if (kind === 'COMMERCIAL') {
+    setCsv(sp, 'commercial_types', filters.commercialTypes);
   }
 
   if (kind === 'APARTMENT') {
     setCsv(sp, 'rooms', filters.rooms);
     setFinite(sp, 'floor_min', filters.floorMin);
     setFinite(sp, 'floor_max', filters.floorMax);
-    setFinishing(sp, filters, finishings);
     if (filters.marketType === 'secondary') sp.set('apartment_market', 'secondary');
     else if (filters.marketType === 'new') sp.set('apartment_market', 'new_building');
   }

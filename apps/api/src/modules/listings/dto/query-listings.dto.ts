@@ -63,6 +63,9 @@ export class QueryListingsDto {
   @ApiPropertyOptional({ description: 'Comma-separated house directions: south,north,east,west' }) @IsOptional() @IsString() house_directions?: string;
   @ApiPropertyOptional({ description: 'Alias of house_directions (catalog URL directions=)' }) @IsOptional() @IsString() directions?: string;
   @ApiPropertyOptional({ description: 'Comma-separated house location flags: belgorod_district,belgorod_region' }) @IsOptional() @IsString() house_location?: string;
+  @ApiPropertyOptional({ description: 'Comma-separated house wall materials' }) @IsOptional() @IsString() house_materials?: string;
+  @ApiPropertyOptional({ description: 'Comma-separated land categories (ИЖС, СНТ, …)' }) @IsOptional() @IsString() land_categories?: string;
+  @ApiPropertyOptional({ description: 'Comma-separated commercial types (OFFICE, RETAIL, …)' }) @IsOptional() @IsString() commercial_types?: string;
 
   @ApiPropertyOptional() @IsOptional() @IsInt() @Type(() => Number) floor_min?: number;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Type(() => Number) floor_max?: number;

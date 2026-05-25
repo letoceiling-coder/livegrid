@@ -5,6 +5,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronDown, Search, X, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CatalogFilters, ObjectType, MarketType } from '@/redesign/data/types';
+import {
+  COMMERCIAL_TYPE_FILTER_OPTIONS,
+  DIRECTION_FILTER_OPTIONS,
+  getCatalogFilterVisibility,
+  HOUSE_MATERIAL_FILTER_OPTIONS,
+  LAND_PURPOSE_OPTIONS,
+  resetFiltersForObjectType,
+  ROOM_LABELS,
+} from '@/redesign/lib/catalog-filter-config';
 
 interface Props {
   filters: CatalogFilters;
@@ -19,8 +28,8 @@ interface Props {
   objectTypeOptions?: ObjectType[];
   /** When false, hide new-build-specific filters (Срок сдачи, Статус, Застройщик). */
   hasBlocks?: boolean;
-  /** Deprecated: отделку скрываем, пока в данных нет надежного покрытия. */
-  finishingsReference?: { id: number; name: string }[];
+  /** Hide «Тип объекта» section (homepage hero uses tabs above). */
+  showObjectTypeSwitcher?: boolean;
 }
 
 const objectTypes: { value: ObjectType; label: string }[] = [
@@ -39,14 +48,7 @@ const marketTypes: { value: MarketType; label: string }[] = [
 ];
 
 const roomOptions = [0, 1, 2, 3, 4];
-const roomLabels: Record<number, string> = { 0: 'Ст', 1: '1', 2: '2', 3: '3', 4: '4+' };
 const houseRoomOptions = [1, 2, 3, 4];
-const directionOptions = [
-  { value: 'south', label: 'Южное' },
-  { value: 'north', label: 'Северное' },
-  { value: 'east', label: 'Восточное' },
-  { value: 'west', label: 'Западное' },
-] as const;
 const houseLocationOptions = [
   { value: 'belgorod_district', label: 'Белгородский район' },
   { value: 'belgorod_region', label: 'Белгородская область' },
@@ -175,7 +177,7 @@ const FilterSidebar = ({
   deadlineOptions,
   objectTypeOptions,
   hasBlocks = false,
-  finishingsReference,
+  showObjectTypeSwitcher = true,
 }: Props) => {
   // All filter options come exclusively from the API — no mock fallbacks
   const districts = districtOptions ?? [];
@@ -193,19 +195,26 @@ const FilterSidebar = ({
     : objectTypes;
 
   // Derived flags for conditional filter rendering
+  const visibility = getCatalogFilterVisibility(filters.objectType, {
+    marketType: filters.marketType,
+    hasBlocks,
+  });
   const isApartments = filters.objectType === 'apartments';
+  const isRooms = filters.objectType === 'rooms';
+  const isAptLike = isApartments || isRooms;
   const isLand = filters.objectType === 'land';
   const isHouseLike = filters.objectType === 'houses' || filters.objectType === 'dachas';
   const isCommercial = filters.objectType === 'commercial';
-  // "New building" mode: apartments not in secondary market or "all" without explicit secondary
-  // isNewBuilding: show new-build filters only when region has actual blocks
-  const isNewBuilding = isApartments && hasBlocks && filters.marketType !== 'secondary';
+  const isNewBuilding = visibility.deadline;
 
   const update = useCallback(<K extends keyof CatalogFilters>(key: K, val: CatalogFilters[K]) => {
     onChange({ ...filters, [key]: val });
   }, [filters, onChange]);
 
-  const toggleArray = useCallback((key: 'rooms' | 'district' | 'subway' | 'builder' | 'finishing' | 'deadline' | 'status' | 'directions' | 'houseLocation', val: string | number) => {
+  const toggleArray = useCallback((
+    key: 'rooms' | 'district' | 'subway' | 'builder' | 'deadline' | 'status' | 'directions' | 'houseLocation' | 'landPurpose' | 'commercialTypes' | 'houseMaterials',
+    val: string | number,
+  ) => {
     const arr = filters[key] as (string | number)[];
     const next = arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val];
     onChange({ ...filters, [key]: next });
@@ -213,7 +222,8 @@ const FilterSidebar = ({
 
   const hasFilters = useMemo(() => {
     return filters.rooms.length > 0 || filters.district.length > 0 || filters.subway.length > 0 ||
-      filters.builder.length > 0 || filters.finishing.length > 0 || filters.deadline.length > 0 ||
+      filters.builder.length > 0 || filters.deadline.length > 0 ||
+      filters.landPurpose.length > 0 || filters.commercialTypes.length > 0 || filters.houseMaterials.length > 0 ||
       filters.directions.length > 0 || filters.houseLocation.length > 0 ||
       filters.status.length > 0 || filters.search !== '' ||
       filters.priceMin !== undefined || filters.priceMax !== undefined ||
@@ -225,13 +235,18 @@ const FilterSidebar = ({
 
   const activeTags = useMemo(() => {
     const tags: { label: string; clear: () => void }[] = [];
-    filters.rooms.forEach(r => tags.push({ label: roomLabels[r] || `${r}к`, clear: () => toggleArray('rooms', r) }));
+    filters.rooms.forEach(r => tags.push({ label: ROOM_LABELS[r] || `${r}к`, clear: () => toggleArray('rooms', r) }));
     filters.district.forEach(d => tags.push({ label: prettyDistrict(d), clear: () => toggleArray('district', d) }));
     filters.subway.forEach(s => tags.push({ label: `м. ${s}`, clear: () => toggleArray('subway', s) }));
     filters.builder.forEach(b => tags.push({ label: b, clear: () => toggleArray('builder', b) }));
-    filters.finishing.forEach(f => tags.push({ label: f, clear: () => toggleArray('finishing', f) }));
+    filters.landPurpose.forEach(p => tags.push({ label: p, clear: () => toggleArray('landPurpose', p) }));
+    filters.commercialTypes.forEach(t => {
+      const opt = COMMERCIAL_TYPE_FILTER_OPTIONS.find(o => o.value === t);
+      tags.push({ label: opt?.label || t, clear: () => toggleArray('commercialTypes', t) });
+    });
+    filters.houseMaterials.forEach(m => tags.push({ label: m, clear: () => toggleArray('houseMaterials', m) }));
     filters.directions.forEach(d => {
-      const opt = directionOptions.find(o => o.value === d);
+      const opt = DIRECTION_FILTER_OPTIONS.find(o => o.value === d);
       tags.push({ label: opt?.label || d, clear: () => toggleArray('directions', d) });
     });
     filters.houseLocation.forEach(l => {
@@ -259,7 +274,8 @@ const FilterSidebar = ({
     onChange({
       objectType: filters.objectType, marketType: 'all',
       rooms: [], district: [], subway: [], builder: [],
-      finishing: [], deadline: [], status: [], search: '',
+      deadline: [], status: [], search: '',
+      landPurpose: [], commercialTypes: [], houseMaterials: [],
       priceMin: undefined, priceMax: undefined,
       areaMin: undefined, areaMax: undefined,
       landAreaMin: undefined, landAreaMax: undefined,
@@ -297,6 +313,7 @@ const FilterSidebar = ({
       )}
 
       {/* 1. Тип объекта */}
+      {showObjectTypeSwitcher && (
       <FilterSection title="Тип объекта" count={0}>
         <div className="flex flex-wrap gap-1">
           {visibleObjectTypes.map(t => (
@@ -304,32 +321,7 @@ const FilterSidebar = ({
               key={t.value}
               onClick={() => {
                 if (t.value === filters.objectType) return;
-                // Reset all type-specific filters when switching object type
-                onChange({
-                  objectType: t.value,
-                  marketType: 'all',
-                  search: filters.search,
-                  priceMin: filters.priceMin,
-                  priceMax: filters.priceMax,
-                  // Reset: rooms, area (different units), floor, deadline, status, subway, builder, district
-                  rooms: [],
-                  areaMin: undefined,
-                  areaMax: undefined,
-                  landAreaMin: undefined,
-                  landAreaMax: undefined,
-                  distanceMin: undefined,
-                  distanceMax: undefined,
-                  floorMin: undefined,
-                  floorMax: undefined,
-                  directions: [],
-                  houseLocation: [],
-                  deadline: [],
-                  finishing: [],
-                  status: [],
-                  subway: [],
-                  builder: [],
-                  district: [],
-                });
+                onChange(resetFiltersForObjectType(filters, t.value));
               }}
               className={cn(
                 'px-3 py-1.5 rounded-lg text-xs border transition-colors',
@@ -343,7 +335,7 @@ const FilterSidebar = ({
           ))}
         </div>
         {/* Sub-filter: Новостройки / Вторичка */}
-        {isApartments && (
+        {visibility.marketType && (
           <div className="flex gap-1 mt-2 pt-2 border-t border-border/50">
             {marketTypes.map(t => (
               <button
@@ -362,6 +354,7 @@ const FilterSidebar = ({
           </div>
         )}
       </FilterSection>
+      )}
 
       <FilterSection title="Цена, ₽" count={filters.priceMin || filters.priceMax ? 1 : 0}>
         <div className="flex gap-2">
@@ -383,7 +376,7 @@ const FilterSidebar = ({
       </FilterSection>
 
       {/* 4. Комнатность — only for apartments */}
-      {isApartments && (
+      {visibility.rooms && (
         <FilterSection title="Комнатность" count={filters.rooms.length}>
           <div className="flex gap-1">
             {roomOptions.map(r => (
@@ -397,14 +390,14 @@ const FilterSidebar = ({
                     : 'bg-background border-border text-foreground hover:border-primary/50'
                 )}
               >
-                {roomLabels[r]}
+                {ROOM_LABELS[r]}
               </button>
             ))}
           </div>
         </FilterSection>
       )}
 
-      {isHouseLike && (
+      {visibility.houseRooms && (
         <FilterSection title="Кол-во комнат" count={filters.rooms.length}>
           <div className="flex gap-1">
             {houseRoomOptions.map(r => (
@@ -418,7 +411,7 @@ const FilterSidebar = ({
                     : 'bg-background border-border text-foreground hover:border-primary/50'
                 )}
               >
-                {roomLabels[r]}
+                {ROOM_LABELS[r]}
               </button>
             ))}
           </div>
@@ -454,16 +447,19 @@ const FilterSidebar = ({
             </div>
           </FilterSection>
 
+          {visibility.distance && (
           <FilterSection title="Расстояние до города, км" defaultOpen={false} count={filters.distanceMin || filters.distanceMax ? 1 : 0}>
             <div className="flex gap-2">
               <Input type="number" placeholder="от" className="h-8 text-xs focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-0 focus-visible:border-primary" value={filters.distanceMin ?? ''} onChange={e => update('distanceMin', e.target.value ? Number(e.target.value) : undefined)} />
               <Input type="number" placeholder="до" className="h-8 text-xs focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-0 focus-visible:border-primary" value={filters.distanceMax ?? ''} onChange={e => update('distanceMax', e.target.value ? Number(e.target.value) : undefined)} />
             </div>
           </FilterSection>
+          )}
 
+          {visibility.directions && (
           <FilterSection title="Направление" defaultOpen={false} count={filters.directions.length}>
             <div className="space-y-1.5">
-              {directionOptions.map(option => (
+              {DIRECTION_FILTER_OPTIONS.map(option => (
                 <label key={option.value} className="flex items-center gap-2 cursor-pointer text-xs hover:text-foreground transition-colors">
                   <Checkbox checked={filters.directions.includes(option.value)} onCheckedChange={() => toggleArray('directions', option.value)} className="w-3.5 h-3.5" />
                   {option.label}
@@ -471,7 +467,31 @@ const FilterSidebar = ({
               ))}
             </div>
           </FilterSection>
+          )}
 
+          {visibility.houseMaterial && (
+          <FilterSection title="Материал" defaultOpen={false} count={filters.houseMaterials.length}>
+            <div className="flex flex-wrap gap-1">
+              {HOUSE_MATERIAL_FILTER_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => toggleArray('houseMaterials', option.value)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors',
+                    filters.houseMaterials.includes(option.value)
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border bg-background hover:border-primary/50',
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </FilterSection>
+          )}
+
+          {visibility.houseLocation && (
           <FilterSection title="Расположение" defaultOpen={false} count={filters.houseLocation.length}>
             <div className="space-y-1.5">
               {houseLocationOptions.map(option => (
@@ -482,11 +502,56 @@ const FilterSidebar = ({
               ))}
             </div>
           </FilterSection>
+          )}
         </>
       )}
 
-      {/* 6. Этаж — only for apartments (API floor filter applies only to apartment.floor) */}
-      {isApartments && (
+      {visibility.landPurpose && (
+        <FilterSection title="Назначение" defaultOpen={false} count={filters.landPurpose.length}>
+          <div className="flex flex-wrap gap-1">
+            {LAND_PURPOSE_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => toggleArray('landPurpose', option.value)}
+                className={cn(
+                  'px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors',
+                  filters.landPurpose.includes(option.value)
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-border bg-background hover:border-primary/50',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </FilterSection>
+      )}
+
+      {visibility.commercialType && (
+        <FilterSection title="Тип" defaultOpen={false} count={filters.commercialTypes.length}>
+          <div className="flex flex-wrap gap-1">
+            {COMMERCIAL_TYPE_FILTER_OPTIONS.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => toggleArray('commercialTypes', option.value)}
+                className={cn(
+                  'px-2.5 py-1 rounded-md text-[11px] font-medium border transition-colors',
+                  filters.commercialTypes.includes(option.value)
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-border bg-background hover:border-primary/50',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </FilterSection>
+      )}
+
+      {/* 6. Этаж — only for apartments */}
+      {visibility.floor && (
         <FilterSection title="Этаж" defaultOpen={false} count={filters.floorMin || filters.floorMax ? 1 : 0}>
           <div className="flex gap-2">
             <Input type="number" placeholder="от" className="h-8 text-xs focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-0 focus-visible:border-primary" value={filters.floorMin ?? ''} onChange={e => update('floorMin', e.target.value ? Number(e.target.value) : undefined)} />
@@ -496,7 +561,7 @@ const FilterSidebar = ({
       )}
 
       {/* 7. Срок сдачи — only for new apartments with deadline options available */}
-      {isNewBuilding && (deadlineOptions?.length ?? 0) > 0 && (
+      {visibility.deadline && (deadlineOptions?.length ?? 0) > 0 && (
         <FilterSection title="Срок сдачи" defaultOpen={false} count={filters.deadline.length}>
           <div className="flex flex-wrap gap-1">
             {(deadlineOptions ?? []).map(d => (
@@ -545,8 +610,8 @@ const FilterSidebar = ({
         </FilterSection>
       )}
 
-      {/* 11. Метро — only apartments and only when parent confirms Moscow/metro support */}
-      {isApartments && showMetro && hasMetro && (
+      {/* 11. Метро — apartments/rooms, Moscow only */}
+      {visibility.metro && showMetro && hasMetro && (
         <FilterSection title="Метро" defaultOpen={false} count={filters.subway.length}>
           <SearchableCheckboxList
             items={subways}
@@ -558,7 +623,7 @@ const FilterSidebar = ({
       )}
 
       {/* 12. Застройщик — only for new buildings, and only if region has builders */}
-      {isNewBuilding && hasBuilders && (
+      {visibility.builder && hasBuilders && (
         <FilterSection title="Застройщик" defaultOpen={false} count={filters.builder.length}>
           <SearchableCheckboxList
             items={builders}

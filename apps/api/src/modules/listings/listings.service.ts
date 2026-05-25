@@ -479,20 +479,34 @@ export class ListingsService implements OnModuleInit {
       }
     }
 
-    // Land area filter (area_total_min/max -> land.areaSotki)
-    if (query.kind === 'LAND' && (query.area_total_min != null || query.area_total_max != null)) {
-      const landArea: Prisma.DecimalNullableFilter<'ListingLand'> = {};
-      if (query.area_total_min != null) landArea.gte = new Prisma.Decimal(query.area_total_min);
-      if (query.area_total_max != null) landArea.lte = new Prisma.Decimal(query.area_total_max);
-      where.land = { areaSotki: landArea };
+    // Land filters
+    if (query.kind === 'LAND') {
+      const landParts: Prisma.ListingLandWhereInput[] = [];
+      if (query.area_total_min != null || query.area_total_max != null) {
+        const landArea: Prisma.DecimalNullableFilter<'ListingLand'> = {};
+        if (query.area_total_min != null) landArea.gte = new Prisma.Decimal(query.area_total_min);
+        if (query.area_total_max != null) landArea.lte = new Prisma.Decimal(query.area_total_max);
+        landParts.push({ areaSotki: landArea });
+      }
+      const landCats = this.parseStringList(query.land_categories);
+      if (landCats.length) landParts.push({ landCategory: { in: landCats } });
+      if (landParts.length) where.land = { AND: landParts };
     }
 
-    // Commercial area filter (area_total_min/max -> commercial.area)
-    if (query.kind === 'COMMERCIAL' && (query.area_total_min != null || query.area_total_max != null)) {
-      const commArea: Prisma.DecimalNullableFilter<'ListingCommercial'> = {};
-      if (query.area_total_min != null) commArea.gte = new Prisma.Decimal(query.area_total_min);
-      if (query.area_total_max != null) commArea.lte = new Prisma.Decimal(query.area_total_max);
-      where.commercial = { area: commArea };
+    // Commercial filters
+    if (query.kind === 'COMMERCIAL') {
+      const commParts: Prisma.ListingCommercialWhereInput[] = [];
+      if (query.area_total_min != null || query.area_total_max != null) {
+        const commArea: Prisma.DecimalNullableFilter<'ListingCommercial'> = {};
+        if (query.area_total_min != null) commArea.gte = new Prisma.Decimal(query.area_total_min);
+        if (query.area_total_max != null) commArea.lte = new Prisma.Decimal(query.area_total_max);
+        commParts.push({ area: commArea });
+      }
+      const commTypes = this.parseStringList(query.commercial_types).filter((t): t is $Enums.CommercialType =>
+        (['OFFICE', 'RETAIL', 'WAREHOUSE', 'RESTAURANT', 'OTHER'] as string[]).includes(t),
+      );
+      if (commTypes.length) commParts.push({ commercialType: { in: commTypes } });
+      if (commParts.length) where.commercial = { AND: commParts };
     }
 
     if (query.search?.trim()) {
@@ -747,6 +761,9 @@ export class ListingsService implements OnModuleInit {
     if (locations.has('belgorod_district')) locationOr.push({ inBelgorodDistrict: true });
     if (locations.has('belgorod_region')) locationOr.push({ inBelgorodRegion: true });
     if (locationOr.length) parts.push({ OR: locationOr });
+
+    const materials = this.parseStringList(query.house_materials);
+    if (materials.length) parts.push({ material: { in: materials } });
 
     const districtNames = query.district_names
       ?.split(',')

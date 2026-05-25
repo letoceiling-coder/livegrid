@@ -58,8 +58,14 @@ function buildChips(filters: CatalogFilters): Chip[] {
   for (const d of filters.deadline) {
     chips.push({ key: `deadline-${d}`, label: `Сдача ${d}` });
   }
-  for (const f of filters.finishing) {
-    chips.push({ key: `finishing-${f}`, label: f });
+  for (const p of filters.landPurpose) {
+    chips.push({ key: `landPurpose-${p}`, label: p });
+  }
+  for (const t of filters.commercialTypes) {
+    chips.push({ key: `commercialTypes-${t}`, label: t });
+  }
+  for (const m of filters.houseMaterials) {
+    chips.push({ key: `houseMaterials-${m}`, label: m });
   }
   return chips;
 }
@@ -96,9 +102,15 @@ function removeChip(filters: CatalogFilters, key: string): CatalogFilters {
   } else if (key.startsWith('deadline-')) {
     const name = key.slice(9);
     next.deadline = next.deadline.filter((x) => x !== name);
-  } else if (key.startsWith('finishing-')) {
-    const name = key.slice(10);
-    next.finishing = next.finishing.filter((x) => x !== name);
+  } else if (key.startsWith('landPurpose-')) {
+    const name = key.slice(12);
+    next.landPurpose = next.landPurpose.filter((x) => x !== name);
+  } else if (key.startsWith('commercialTypes-')) {
+    const name = key.slice(16);
+    next.commercialTypes = next.commercialTypes.filter((x) => x !== name);
+  } else if (key.startsWith('houseMaterials-')) {
+    const name = key.slice(15);
+    next.houseMaterials = next.houseMaterials.filter((x) => x !== name);
   }
   return next;
 }

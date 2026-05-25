@@ -1,5 +1,8 @@
 import type { CatalogFilters, MarketType, ObjectType } from '@/redesign/data/types';
 import { defaultFilters } from '@/redesign/data/types';
+import { roomCategoriesFromHeroLabel } from '@/redesign/lib/catalog-filter-config';
+
+export { roomCategoriesFromHeroLabel };
 
 /** Ключи URL, влияющие на состояние фильтров каталога (sort, region_id, geo не сбрасывают фильтры). */
 export const CATALOG_FILTER_URL_KEYS = [
@@ -23,12 +26,14 @@ export const CATALOG_FILTER_URL_KEYS = [
   'distance_max',
   'directions',
   'house_location',
+  'house_materials',
+  'land_categories',
+  'commercial_types',
   'floor_min',
   'floor_max',
   'floorMin',
   'floorMax',
   'deadline',
-  'finishing_ids',
   'district_names',
   'subway_names',
   'builder_names',
@@ -75,61 +80,10 @@ function parseStringList(raw: string | null): string[] {
     .filter(Boolean);
 }
 
-/** Приводим название отделки из справочника к меткам FilterSidebar. */
-export function sidebarLabelFromFinishingName(apiName: string): string {
-  const n = apiName.trim().toLowerCase();
-  if (n.includes('предчист') || n.includes('подчист')) return apiName.trim();
-  if (n.includes('чистов')) return 'чистовая';
-  if (n.includes('чернов')) return 'черновая';
-  if (n.includes('под ключ')) return 'под ключ';
-  if (n.includes('без отделк')) return 'без отделки';
-  const exact = ['чистовая', 'черновая', 'под ключ', 'без отделки'].find((x) => x === n);
-  if (exact) return exact;
-  return apiName.trim();
-}
-
-export function finishingIdsFromSidebarLabels(labels: string[], rows: { id: number; name: string }[]): number[] {
-  const want = new Set(labels.map((l) => l.trim().toLowerCase()));
-  const ids: number[] = [];
-  for (const r of rows) {
-    const lb = sidebarLabelFromFinishingName(r.name).toLowerCase();
-    if (want.has(lb)) ids.push(r.id);
-  }
-  return [...new Set(ids)];
-}
-
-/** Категории комнатности для URL каталога (как FilterSidebar): 0=студия, 1–3, 4=4+. */
-export function roomCategoriesFromHeroLabel(label: string): number[] {
-  if (!label || label === 'Тип квартиры') return [];
-  const lower = label.toLowerCase();
-  if (lower.includes('студ')) return [0];
-  if (lower.includes('4+') || lower.includes('4 +')) return [4];
-  const m = label.match(/(\d)/);
-  if (m) {
-    const d = parseInt(m[1], 10);
-    if (d >= 1 && d <= 3) return [d];
-  }
-  return [];
-}
-
-export function sidebarLabelsFromFinishingIds(ids: number[], rows: { id: number; name: string }[]): string[] {
-  const idSet = new Set(ids);
-  const out: string[] = [];
-  for (const r of rows) {
-    if (!idSet.has(r.id)) continue;
-    const lb = sidebarLabelFromFinishingName(r.name);
-    if (!out.includes(lb)) out.push(lb);
-  }
-  return out;
-}
-
 /**
  * Полное состояние фильтров каталога из адресной строки (герой, шаринг, назад в браузере).
  */
-export function catalogFiltersFromSearchParams(
-  sp: URLSearchParams,
-  finishings?: { id: number; name: string }[],
-): CatalogFilters {
+export function catalogFiltersFromSearchParams(sp: URLSearchParams): CatalogFilters {
   const f: CatalogFilters = JSON.parse(JSON.stringify(defaultFilters)) as CatalogFilters;
 
   const type = sp.get('type');
@@ -174,10 +128,15 @@ export function catalogFiltersFromSearchParams(
   if (distanceMin !== undefined) f.distanceMin = distanceMin;
   if (distanceMax !== undefined) f.distanceMax = distanceMax;
 
-  f.directions = parseStringList(sp.get('directions')).filter((s) => ['south', 'north', 'east', 'west'].includes(s));
+  f.directions = parseStringList(sp.get('directions')).filter((s) =>
+    ['south', 'north', 'east', 'west'].includes(s),
+  );
   f.houseLocation = parseStringList(sp.get('house_location')).filter((s) =>
     ['belgorod_district', 'belgorod_region'].includes(s),
   );
+  f.houseMaterials = parseStringList(sp.get('house_materials'));
+  f.landPurpose = parseStringList(sp.get('land_categories'));
+  f.commercialTypes = parseStringList(sp.get('commercial_types'));
 
   const flMin =
     parseFiniteNumber(sp.get('floor_min')) ?? parseFiniteNumber(sp.get('floorMin'));
@@ -194,18 +153,9 @@ export function catalogFiltersFromSearchParams(
   f.district = parseStringList(sp.get('district_names'));
   f.subway = parseStringList(sp.get('subway_names'));
   f.builder = parseStringList(sp.get('builder_names'));
-  f.status = parseStringList(sp.get('status')).filter((s) => ['building', 'completed', 'planned'].includes(s));
-
-  const finIds = sp.get('finishing_ids');
-  if (finIds?.trim()) {
-    const ids = finIds
-      .split(',')
-      .map((x) => parseInt(x.trim(), 10))
-      .filter((n) => Number.isFinite(n));
-    if (ids.length && finishings?.length) {
-      f.finishing = sidebarLabelsFromFinishingIds(ids, finishings);
-    }
-  }
+  f.status = parseStringList(sp.get('status')).filter((s) =>
+    ['building', 'completed', 'planned'].includes(s),
+  );
 
   return f;
 }
@@ -213,7 +163,6 @@ export function catalogFiltersFromSearchParams(
 export function catalogFiltersIntoSearchParams(
   base: URLSearchParams,
   f: CatalogFilters,
-  finishings?: { id: number; name: string }[],
 ): URLSearchParams {
   const p = new URLSearchParams(base.toString());
 
@@ -253,6 +202,12 @@ export function catalogFiltersIntoSearchParams(
   else p.delete('directions');
   if (f.houseLocation.length) p.set('house_location', f.houseLocation.join(','));
   else p.delete('house_location');
+  if (f.houseMaterials.length) p.set('house_materials', f.houseMaterials.join(','));
+  else p.delete('house_materials');
+  if (f.landPurpose.length) p.set('land_categories', f.landPurpose.join(','));
+  else p.delete('land_categories');
+  if (f.commercialTypes.length) p.set('commercial_types', f.commercialTypes.join(','));
+  else p.delete('commercial_types');
 
   if (f.floorMin != null && Number.isFinite(f.floorMin)) p.set('floor_min', String(f.floorMin));
   else p.delete('floor_min');
@@ -274,12 +229,7 @@ export function catalogFiltersIntoSearchParams(
   if (f.status.length) p.set('status', f.status.join(','));
   else p.delete('status');
 
-  if (f.finishing.length && finishings?.length) {
-    const ids = finishingIdsFromSidebarLabels(f.finishing, finishings);
-    if (ids.length) p.set('finishing_ids', ids.join(','));
-    else p.delete('finishing_ids');
-  } else p.delete('finishing_ids');
-
+  p.delete('finishing_ids');
   p.delete('priceFrom');
   p.delete('priceTo');
   p.delete('priceMin');

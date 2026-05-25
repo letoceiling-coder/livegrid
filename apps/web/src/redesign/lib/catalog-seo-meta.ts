@@ -24,7 +24,7 @@ function countActiveFilters(f: CatalogFilters): number {
   if (f.district.length) n++;
   if (f.subway.length) n++;
   if (f.builder.length) n++;
-  if (f.finishing.length) n++;
+  if (f.landPurpose.length || f.commercialTypes.length || f.houseMaterials.length) n++;
   if (f.status.length) n++;
   return n;
 }
