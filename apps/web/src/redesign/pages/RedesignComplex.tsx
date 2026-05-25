@@ -3,6 +3,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MapPin, Heart, Share2, GitCompare, FileText, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ComplexCard from '@/redesign/components/ComplexCard';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import FooterSection from '@/components/FooterSection';
 import ComplexHero from '@/redesign/components/ComplexHero';
@@ -54,41 +55,6 @@ declare global {
 
 const COMPLEX_SLUG_ALIASES: Record<string, string> = {
   'zelenyj-kvartal': '1-j-lermontovskij',
-};
-
-const SimilarComplexCard = ({ complex }: { complex: ResidentialComplex }) => {
-  const totalApts =
-    complex.listingCount ??
-    complex.buildings.reduce((s, b) => s + b.apartments.filter((a) => a.status === 'available').length, 0);
-  const subwayLabel = complex.subway && complex.subway !== '—' ? `м. ${complex.subway}` : null;
-  const locationLine = [complex.district !== '—' ? complex.district : null, subwayLabel].filter(Boolean).join(' · ');
-  return (
-    <Link
-      to={`/complex/${complex.slug}`}
-      className="group flex flex-col rounded-xl overflow-hidden bg-card border border-border hover:shadow-md hover:-translate-y-px transition-all"
-    >
-      <StableMediaFrame
-        src={complex.images[0] ?? null}
-        altContext={complex.name}
-        aspect="16/9"
-        fallback="branded"
-        loading="lazy"
-      />
-      <div className="p-3 space-y-1">
-        <h4 className="font-semibold text-sm">{complex.name}</h4>
-        <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <MapPin className="w-3 h-3 shrink-0" />
-          {locationLine || '—'}
-        </p>
-        <div className="flex items-center justify-between pt-1">
-          <span className="font-bold text-sm text-primary" aria-label={priceAriaLabel(formatPriceFrom(complex.priceFrom))}>
-            {formatPriceFrom(complex.priceFrom)}
-          </span>
-          <span className="text-[11px] text-muted-foreground">{totalApts} кв.</span>
-        </div>
-      </div>
-    </Link>
-  );
 };
 
 function sectionHeading(title: string, subtitle?: string) {
@@ -734,7 +700,7 @@ const RedesignComplex = () => {
               {sectionHeading('Похожие жилые комплексы')}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {similarComplexes.map((c) => (
-                  <SimilarComplexCard key={c.id} complex={c} />
+                  <ComplexCard key={c.id} complex={c} />
                 ))}
               </div>
             </section>

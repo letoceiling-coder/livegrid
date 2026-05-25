@@ -1,8 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   complexCompletionLine,
+  complexFallbackPriceRow,
   complexImageOverlayLines,
+  complexPriceBandRows,
   complexRoomBandLabel,
+  complexTotalUnits,
+  complexYieldLabel,
+  formatCompletionQuarterText,
 } from '@/redesign/lib/card-visual';
 import type { ResidentialComplex } from '@/redesign/data/types';
 
@@ -18,13 +23,14 @@ const base: ResidentialComplex = {
   address: 'Addr',
   deadline: '2029 2 квартал',
   status: 'completed',
-  priceFrom: 0,
-  priceTo: 0,
+  priceFrom: 4_962_342,
+  priceTo: 4_962_342,
   images: [],
   coords: [0, 0],
   advantages: [],
   infrastructure: [],
   buildings: [],
+  listingCount: 268,
 };
 
 describe('card-visual complex helpers', () => {
@@ -33,17 +39,68 @@ describe('card-visual complex helpers', () => {
     expect(complexRoomBandLabel(2)).toBe('2Е-к.кв');
   });
 
+  it('formats completion quarter text', () => {
+    expect(formatCompletionQuarterText('2029 2 квартал')).toBe('2 кв. 2029');
+    expect(formatCompletionQuarterText('2027 3 квартал')).toBe('3 кв. 2027');
+  });
+
   it('builds sales overlay lines', () => {
     const lines = complexImageOverlayLines({
       ...base,
       salesStartDate: '2026-05-01T00:00:00.000Z',
-      buildings: [{ id: 'b1', complexId: '1', name: 'корпус 4.1', floors: 1, sections: 1, deadline: '', apartments: [] }],
+      buildings: [
+        {
+          id: 'b1',
+          complexId: '1',
+          name: 'корпус 4.1',
+          floors: 1,
+          sections: 1,
+          deadline: '',
+          apartments: [],
+        },
+      ],
     });
     expect(lines.primary).toBe('Старт продаж');
     expect(lines.secondary).toMatch(/корпус 4\.1/);
   });
 
-  it('emphasizes completion line', () => {
-    expect(complexCompletionLine(base)).toMatch(/^Сдан —/);
+  it('emphasizes completion line with quarter', () => {
+    expect(complexCompletionLine(base)).toBe('Сдан — 2 кв. 2029');
+    expect(
+      complexCompletionLine({ ...base, status: 'building', deadline: '2027 3 квартал' }),
+    ).toBe('Строится — 3 кв. 2027');
+  });
+
+  it('builds price bands from API priceRanges', () => {
+    const rows = complexPriceBandRows({
+      ...base,
+      priceRanges: [
+        { rooms: 0, priceMin: 4_962_342 },
+        { rooms: 1, priceMin: 6_516_498 },
+      ],
+    });
+    expect(rows).toHaveLength(2);
+    expect(rows[0].label).toBe('Студии');
+    expect(rows[0].price).toBe('от 5 млн ₽');
+    expect(rows[1].price).toBe('от 6.5 млн ₽');
+  });
+
+  it('falls back to single price row when no bands', () => {
+    const row = complexFallbackPriceRow(base);
+    expect(row?.label).toBe('Цены от');
+    expect(row?.price).toBe('от 5 млн ₽');
+  });
+
+  it('returns null yield when API fields missing', () => {
+    expect(complexYieldLabel(base)).toBeNull();
+  });
+
+  it('formats yield range when provided', () => {
+    expect(complexYieldLabel({ ...base, yieldMin: 1.2, yieldMax: 1.7 })).toBe('1.2–1.7%');
+    expect(complexYieldLabel({ ...base, yieldMin: 1.5, yieldMax: 1.5 })).toBe('1.5%');
+  });
+
+  it('reads total units from listingCount', () => {
+    expect(complexTotalUnits(base)).toBe(268);
   });
 });

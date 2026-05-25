@@ -1,5 +1,7 @@
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
+import { formatPriceFrom, isPriceFallbackText } from '@/redesign/lib/display-price';
+import { MIN_REASONABLE_PRICE_RUB } from '@/redesign/data/mock-data';
 
 /**
  * Shared typography + badge tokens for catalog cards and map sidebar rows.
@@ -35,24 +37,30 @@ export const cardVisual = {
   cardBody: 'p-2.5 flex flex-col gap-1 min-w-0',
   cardBodyGrid: 'p-3 flex flex-col gap-1.5 min-w-0',
 
-  /** ЖК marketplace card (Iter 87) */
+  /** ЖК marketplace card */
   complexShell:
-    'rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm transition-shadow duration-200 hover:shadow-md',
-  complexMedia: 'relative shrink-0 overflow-hidden rounded-t-2xl bg-muted aspect-[16/10]',
-  complexBody: 'flex flex-col gap-1.5 p-3 min-w-0',
-  complexTitle: 'text-[15px] font-bold leading-snug text-foreground line-clamp-2',
-  complexMetaRow: 'flex items-center gap-1.5 min-w-0 text-[11px] text-muted-foreground leading-snug',
-  complexMetaIcon: 'w-3 h-3 shrink-0 text-muted-foreground/70',
+    'rounded-[20px] border border-neutral-200/90 bg-card overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-px',
+  complexMedia: 'relative shrink-0 overflow-hidden rounded-t-[20px] bg-muted aspect-[4/3]',
+  complexBody: 'flex flex-col gap-2 p-3.5 min-w-0',
+  complexTitle: 'text-base font-bold leading-snug text-foreground line-clamp-2',
+  complexMetaRow: 'flex items-center gap-2 min-w-0 text-[11px] text-muted-foreground leading-snug',
+  complexMetaIcon: 'w-3.5 h-3.5 shrink-0 text-muted-foreground/75',
+  complexMetroDot: 'w-2 h-2 shrink-0 rounded-full bg-amber-400',
   complexCompletion: 'text-[11px] font-semibold text-foreground leading-snug truncate',
-  complexOverlayStack: 'absolute left-2 bottom-2 z-10 flex flex-col items-start gap-1 max-w-[calc(100%-3.5rem)]',
+  complexInventory: 'text-[11px] text-muted-foreground leading-snug',
+  complexOverlayStack:
+    'absolute left-2.5 bottom-2.5 z-10 flex flex-col items-start gap-1 max-w-[calc(100%-3.75rem)] pointer-events-none',
   complexOverlayPill:
-    'rounded-md bg-background/92 px-2 py-0.5 text-[10px] font-medium leading-tight text-foreground shadow-sm backdrop-blur-sm',
-  complexFooter: 'flex items-center justify-between gap-2 pt-2 mt-0.5 border-t border-border/60',
+    'rounded-lg bg-white/95 px-2.5 py-1 text-[10px] font-medium leading-tight text-foreground shadow-md backdrop-blur-sm dark:bg-background/92',
+  complexActionBtn:
+    'flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-md backdrop-blur-sm transition-colors hover:bg-white dark:bg-background/80',
+  complexFooter: 'flex items-center justify-between gap-2 pt-2.5 mt-0.5 border-t border-neutral-200/80',
   complexFooterPill:
-    'inline-flex items-center rounded-full border border-border/80 bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground',
+    'inline-flex items-center rounded-full border border-neutral-200/90 bg-neutral-50 px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-muted/40',
+  complexYield: 'inline-flex items-center gap-1 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400',
   dottedLabel: 'text-[11px] text-muted-foreground leading-none',
   dottedPrice: 'text-[11px] font-semibold tabular-nums text-foreground leading-none',
-  dottedBlock: 'flex flex-col gap-1 pt-1',
+  dottedBlock: 'flex flex-col gap-1.5 pt-0.5',
 } as const;
 
 type BadgeVariant = 'primary' | 'secondary' | 'outline';
@@ -60,7 +68,10 @@ type BadgeVariant = 'primary' | 'secondary' | 'outline';
 const BADGE_BASE = 'inline-flex items-center px-1.5 py-px rounded text-[10px] font-medium leading-tight';
 
 /** Normalized badge hierarchy — primary solid, secondary subtle, outline technical */
-export function cardBadgeClass(variant: BadgeVariant, accent?: 'emerald' | 'amber' | 'blue' | 'green' | 'orange' | 'red' | 'muted'): string {
+export function cardBadgeClass(
+  variant: BadgeVariant,
+  accent?: 'emerald' | 'amber' | 'blue' | 'green' | 'orange' | 'red' | 'muted',
+): string {
   if (variant === 'primary') {
     const map = {
       emerald: 'bg-emerald-600 text-white',
@@ -85,7 +96,6 @@ export function cardBadgeClass(variant: BadgeVariant, accent?: 'emerald' | 'ambe
     } as const;
     return cn(BADGE_BASE, map[accent ?? 'muted']);
   }
-  // outline — technical / inactive
   const map = {
     emerald: 'border border-emerald-200 text-emerald-700 bg-background',
     amber: 'border border-amber-200 text-amber-700 bg-background',
@@ -119,7 +129,21 @@ function capitalizeRuMonthYear(iso: string): string | null {
   return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : null;
 }
 
-/** Bottom-left overlay lines on ЖК cover (sales start + corpus hint) */
+/** Normalize deadline text to "N кв. YYYY" when possible */
+export function formatCompletionQuarterText(deadline: string): string | null {
+  const dl = deadline.trim();
+  if (!dl || dl === '—') return null;
+  const ru = dl.match(/(\d{4})\s+(\d)\s*кв(?:артал)?/i);
+  if (ru) return `${ru[2]} кв. ${ru[1]}`;
+  const q = dl.match(/Q([1-4])\s+(\d{4})/i);
+  if (q) return `${q[1]} кв. ${q[2]}`;
+  const q2 = dl.match(/(\d{4})\s+Q([1-4])/i);
+  if (q2) return `${q2[2]} кв. ${q2[1]}`;
+  if (dl === 'Сдан' || dl === 'Строится' || dl === 'Проект') return null;
+  return dl;
+}
+
+/** Bottom-left overlay lines on ЖК cover */
 export function complexImageOverlayLines(complex: ResidentialComplex): {
   primary: string | null;
   secondary: string | null;
@@ -139,22 +163,19 @@ export function complexImageOverlayLines(complex: ResidentialComplex): {
   return { primary, secondary };
 }
 
-/** Emphasized completion / delivery line under metadata */
+/** Emphasized completion / delivery line */
 export function complexCompletionLine(complex: ResidentialComplex): string | null {
-  const dl = complex.deadline?.trim();
-  if (!dl || dl === '—') return null;
+  const quarter = formatCompletionQuarterText(complex.deadline ?? '');
   if (complex.status === 'completed') {
-    if (dl === 'Сдан') return 'Сдан';
-    return dl.toLowerCase().startsWith('сдан') ? dl : `Сдан — ${dl}`;
+    return quarter ? `Сдан — ${quarter}` : complex.deadline === 'Сдан' ? 'Сдан' : null;
   }
   if (complex.status === 'building') {
-    if (dl === 'Строится') return 'Строится';
-    return dl.toLowerCase().startsWith('строит') ? dl : `Строится — ${dl}`;
+    return quarter ? `Строится — ${quarter}` : complex.deadline === 'Строится' ? 'Строится' : null;
   }
   if (complex.status === 'planned') {
-    return dl === 'Проект' ? 'Проект' : `Проект — ${dl}`;
+    return quarter ? `Проект — ${quarter}` : complex.deadline === 'Проект' ? 'Проект' : null;
   }
-  return dl;
+  return quarter;
 }
 
 export function complexMetroTimeLabel(
@@ -164,4 +185,70 @@ export function complexMetroTimeLabel(
   if (distanceTime == null || distanceTime <= 0) return '';
   const mode = distanceType === 1 ? 'пешком' : 'транспортом';
   return `${distanceTime} мин ${mode}`;
+}
+
+export type ComplexPriceBandRow = { rooms: number; label: string; price: string };
+
+/** Dotted price rows from API priceRanges or loaded apartments */
+export function complexPriceBandRows(complex: ResidentialComplex): ComplexPriceBandRow[] {
+  const fromApi = (complex.priceRanges ?? [])
+    .filter((r) => r.priceMin >= MIN_REASONABLE_PRICE_RUB)
+    .sort((a, b) => a.rooms - b.rooms)
+    .slice(0, 3)
+    .map((r) => ({
+      rooms: r.rooms,
+      label: complexRoomBandLabel(r.rooms),
+      price: formatPriceFrom(r.priceMin),
+    }));
+
+  if (fromApi.length > 0) return fromApi;
+
+  const priceBands = [...complex.buildings.flatMap((b) => b.apartments)]
+    .filter((a) => a.status !== 'sold' && a.price > 0)
+    .reduce<Map<number, number>>((acc, apt) => {
+      const key = apt.rooms >= 4 ? 4 : apt.rooms;
+      const prev = acc.get(key);
+      if (prev == null || apt.price < prev) acc.set(key, apt.price);
+      return acc;
+    }, new Map<number, number>());
+
+  return Array.from(priceBands.entries())
+    .sort(([a], [b]) => a - b)
+    .slice(0, 3)
+    .map(([rooms, price]) => ({
+      rooms,
+      label: complexRoomBandLabel(rooms),
+      price: formatPriceFrom(price),
+    }));
+}
+
+export function complexTotalUnits(complex: ResidentialComplex): number | null {
+  const fromListings = complex.listingCount;
+  if (fromListings != null && fromListings > 0) return fromListings;
+  const fromBuildings = complex.buildings.reduce(
+    (s, b) => s + b.apartments.filter((a) => a.status !== 'sold').length,
+    0,
+  );
+  return fromBuildings > 0 ? fromBuildings : null;
+}
+
+/** Yield label for footer — only when API provides numeric range */
+export function complexYieldLabel(complex: ResidentialComplex): string | null {
+  const min = complex.yieldMin;
+  const max = complex.yieldMax;
+  if (min != null && max != null && min > 0 && max > 0) {
+    const a = Math.min(min, max);
+    const b = Math.max(min, max);
+    if (Math.abs(a - b) < 0.05) return `${a.toFixed(1)}%`;
+    return `${a.toFixed(1)}–${b.toFixed(1)}%`;
+  }
+  if (min != null && min > 0) return `${min.toFixed(1)}%`;
+  if (max != null && max > 0) return `${max.toFixed(1)}%`;
+  return null;
+}
+
+export function complexFallbackPriceRow(complex: ResidentialComplex): ComplexPriceBandRow | null {
+  const price = formatPriceFrom(complex.priceFrom);
+  if (isPriceFallbackText(price)) return null;
+  return { rooms: -1, label: 'Цены от', price };
 }

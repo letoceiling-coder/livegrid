@@ -26,6 +26,11 @@ export interface ResidentialComplex {
   listingCount?: number;
   /** ISO дата старта продаж (API `salesStartDate`) — оверлей на обложке. */
   salesStartDate?: string | null;
+  /** Минимальные цены по комнатности (если API отдаёт `price_ranges`). */
+  priceRanges?: { rooms: number; priceMin: number }[];
+  /** Доходность / yield (если API отдаёт). */
+  yieldMin?: number | null;
+  yieldMax?: number | null;
 }
 
 export interface Building {

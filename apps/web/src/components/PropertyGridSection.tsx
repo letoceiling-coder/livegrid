@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import PropertyCard, { type PropertyData } from './PropertyCard';
-import StartSaleCard, { type StartSaleData } from './StartSaleCard';
+import ComplexCard from '@/redesign/components/ComplexCard';
+import { mapApiBlockListRowToResidentialComplex } from '@/redesign/lib/blocks-from-api';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import LeadForm from '@/shared/components/LeadForm';
@@ -12,7 +12,6 @@ import { apiGet } from '@/lib/api';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 import { useSiteSettings, setting } from '@/redesign/hooks/useSiteSettings';
 import type { ApiBlockListRow } from '@/redesign/lib/blocks-from-api';
-import { mapApiBlockToHomeHotCard, mapApiBlockToHomeStartCard } from '@/redesign/lib/home-blocks-map';
 import ListingCard, { type ApiListingCardRow } from '@/redesign/components/ListingCard';
 
 interface Props {
@@ -48,8 +47,6 @@ const PropertyGridSection = ({ title, type }: Props) => {
   const windowDays = intSetting(siteMap, 'home_start_window_days', 180);
   const hotMode = (setting(siteMap, 'home_hot_mode', 'latest') || 'latest').toLowerCase().trim();
   const hotSlugs = (setting(siteMap, 'home_hot_fixed_slugs', '') || '').trim();
-  const hotBadge = setting(siteMap, 'home_hot_badge', 'Горячее предложение');
-  const startBadge = setting(siteMap, 'home_start_badge', 'Старт продаж');
 
   const displayTitle = isHot
     ? setting(siteMap, 'home_hot_title', title)
@@ -123,22 +120,24 @@ const PropertyGridSection = ({ title, type }: Props) => {
     },
   });
 
-  const hotCards: PropertyData[] = useMemo(() => {
+  const hotComplexes = useMemo(() => {
     const rows = hotQuery.data?.data ?? [];
-    return rows.map((b) => mapApiBlockToHomeHotCard(b, hotBadge));
-  }, [hotQuery.data, hotBadge]);
+    return rows.map((b) => mapApiBlockListRowToResidentialComplex(b));
+  }, [hotQuery.data]);
 
-  const startCards: StartSaleData[] = useMemo(() => {
+  const startComplexes = useMemo(() => {
     const rows = startQuery.data?.data ?? [];
-    return rows.map((b) => mapApiBlockToHomeStartCard(b, startBadge));
-  }, [startQuery.data, startBadge]);
+    return rows.map((b) => mapApiBlockListRowToResidentialComplex(b));
+  }, [startQuery.data]);
 
   const listingFallbackCards = listingFallbackQuery.data?.data ?? [];
   const loading = isHot
     ? hotQuery.isLoading || (shouldLoadListingFallback && listingFallbackQuery.isLoading)
     : startQuery.isLoading;
-  const empty = !loading && (isHot ? hotCards.length === 0 && listingFallbackCards.length === 0 : startCards.length === 0);
-  const showListingFallback = isHot && hotCards.length === 0 && listingFallbackCards.length > 0;
+  const empty =
+    !loading &&
+    (isHot ? hotComplexes.length === 0 && listingFallbackCards.length === 0 : startComplexes.length === 0);
+  const showListingFallback = isHot && hotComplexes.length === 0 && listingFallbackCards.length > 0;
 
   const scroll = (dir: 'left' | 'right') => {
     if (!scrollRef.current) return;
@@ -229,15 +228,9 @@ const PropertyGridSection = ({ title, type }: Props) => {
                     <ListingCard listing={listing} />
                   </div>
                 ))
-              : isStart
-              ? startCards.map((p) => (
-                  <div key={p.slug ?? p.title} className="min-w-[260px] sm:min-w-[280px] lg:min-w-0 snap-start shrink-0">
-                    <StartSaleCard data={p} />
-                  </div>
-                ))
-              : hotCards.map((p) => (
-                  <div key={p.slug ?? p.title} className="min-w-[260px] sm:min-w-[280px] lg:min-w-0 snap-start shrink-0">
-                    <PropertyCard data={p} variant="hot" />
+              : (isStart ? startComplexes : hotComplexes).map((c) => (
+                  <div key={c.id} className="min-w-[260px] sm:min-w-[280px] lg:min-w-0 snap-start shrink-0">
+                    <ComplexCard complex={c} />
                   </div>
                 ))}
           </div>
