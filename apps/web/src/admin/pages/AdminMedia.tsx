@@ -20,6 +20,7 @@ import type { MediaFileRow, MediaFolderRow } from '@/admin/components/media-type
 import { buildFolderMoveOptions } from '@/admin/lib/media-folder-options';
 import MediaFileMoveSelect from '@/admin/components/MediaFileMoveSelect';
 import AdminStatusBadge from '@/admin/components/AdminStatusBadge';
+import { adminAuthQueryOptions } from '@/shared/lib/admin-auth-query';
 
 type MediaHealthResponse = {
   ok: boolean;
@@ -114,13 +115,13 @@ export default function AdminMedia() {
   const { data: folders = [], isSuccess: foldersOk } = useQuery({
     queryKey: ['admin', 'media', 'folders'],
     queryFn: () => apiGet<MediaFolderRow[]>('/admin/media/folders'),
-    staleTime: 15_000,
+    ...adminAuthQueryOptions({ staleTime: 15_000 }),
   });
 
   const { data: mediaHealth } = useQuery({
     queryKey: ['admin', 'media', 'health'],
     queryFn: () => apiGet<MediaHealthResponse>('/admin/media/health'),
-    staleTime: 30_000,
+    ...adminAuthQueryOptions({ staleTime: 30_000 }),
   });
 
   const trashId = useMemo(() => folders.find((f) => f.isTrash)?.id ?? null, [folders]);
@@ -143,8 +144,7 @@ export default function AdminMedia() {
       const q = folderId == null ? '' : `?folder_id=${folderId}`;
       return apiGet<MediaFileRow[]>(`/admin/media/files${q}`);
     },
-    enabled: foldersOk,
-    staleTime: 10_000,
+    ...adminAuthQueryOptions({ enabled: foldersOk, staleTime: 10_000 }),
   });
 
   const inTrash = trashId != null && folderId === trashId;

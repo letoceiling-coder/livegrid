@@ -34,12 +34,15 @@ type ListResponse = {
 };
 
 export default function CrmNotificationBell() {
-  const { user } = useAuth();
+  const { user, authReady, isAuthenticated } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const enabled = Boolean(user?.role && CRM_ROLES.has(user.role));
+  const enabled =
+    authReady &&
+    isAuthenticated &&
+    Boolean(user?.role && CRM_ROLES.has(user.role));
   const pollInterval = useSmartPollInterval('unreadCount');
   const { online } = useCrmPollMeta();
 

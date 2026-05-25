@@ -4,6 +4,7 @@
 
 import type { UseQueryOptions } from '@tanstack/react-query';
 import { ApiError } from '@/lib/api';
+import { adminAuthQueryOptions } from '@/shared/lib/admin-auth-query';
 import { crmObsQueryRetry } from '@/admin/lib/crm-observability';
 import { CRM_CACHE_OPERATIONAL } from '@/admin/lib/crm-cache-policy';
 
@@ -31,7 +32,7 @@ export function crmQueryOptions<T>(
 ): Partial<UseQueryOptions<T, ApiError>> {
   return {
     ...CRM_QUERY_DEFAULTS,
-    ...overrides,
+    ...adminAuthQueryOptions<T>(overrides),
   };
 }
 

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiGetOrNull } from '@/lib/api';
+import { adminAuthQueryOptions } from '@/shared/lib/admin-auth-query';
 import { isCrmDebugEnabled, crmObsAutomationMetrics } from '@/admin/lib/crm-observability';
 
 type AutomationMetrics = {
@@ -20,9 +21,11 @@ export default function CrmAutomationMetricsProbe() {
   const query = useQuery({
     queryKey: ['admin', 'automation', 'debug-metrics'],
     queryFn: () => apiGetOrNull<AutomationMetrics>('/admin/automation/metrics'),
-    enabled,
-    staleTime: 30_000,
-    refetchInterval: enabled ? 60_000 : false,
+    ...adminAuthQueryOptions({
+      enabled,
+      staleTime: 30_000,
+      refetchInterval: enabled ? 60_000 : false,
+    }),
   });
 
   useEffect(() => {

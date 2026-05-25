@@ -20,6 +20,9 @@ import CrmInlineError from '@/admin/components/CrmInlineError';
 import AdminLoadingState from '@/admin/components/AdminLoadingState';
 import AdminStatusBadge from '@/admin/components/AdminStatusBadge';
 import { collectClientPlatformDiagnostics } from '@/shared/lib/platform-diagnostics';
+import { adminAuthQueryOptions } from '@/shared/lib/admin-auth-query';
+import { useAuthSessionSnapshot } from '@/shared/hooks/useAuth';
+import { hasJwtToken } from '@/shared/lib/auth-guards';
 
 type PlatformSnapshot = {
   ok: boolean;
@@ -174,32 +177,30 @@ type ResponsivenessMetrics = {
 };
 
 export default function AdminSystemPage() {
+  const authSnap = useAuthSessionSnapshot();
+
   const query = useQuery({
     queryKey: ['admin', 'system', 'diagnostics'],
     queryFn: () => apiGet<Diagnostics>('/admin/system/diagnostics'),
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    ...adminAuthQueryOptions({ staleTime: 15_000, refetchInterval: 30_000 }),
   });
 
   const engagementQuery = useQuery({
     queryKey: ['admin', 'retention', 'engagement-metrics'],
     queryFn: () => apiGet<EngagementMetrics>('/admin/retention/engagement-metrics'),
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    ...adminAuthQueryOptions({ staleTime: 60_000, refetchInterval: 60_000 }),
   });
 
   const marketplaceQuery = useQuery({
     queryKey: ['admin', 'listings', 'marketplace-health'],
     queryFn: () => apiGet<MarketplaceHealth>('/admin/listings/marketplace-health'),
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    ...adminAuthQueryOptions({ staleTime: 60_000, refetchInterval: 60_000 }),
   });
 
   const responsivenessQuery = useQuery({
     queryKey: ['admin', 'requests', 'responsiveness-metrics'],
     queryFn: () => apiGet<ResponsivenessMetrics>('/admin/requests/responsiveness-metrics'),
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    ...adminAuthQueryOptions({ staleTime: 60_000, refetchInterval: 60_000 }),
   });
 
   const d = query.data;
@@ -227,6 +228,31 @@ export default function AdminSystemPage() {
           Обновить
         </button>
       </div>
+
+      <section className="rounded-xl border bg-card p-4 mb-4 space-y-2">
+        <h2 className="font-semibold text-sm">Auth runtime</h2>
+        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div>
+            <dt className="text-muted-foreground">Hydrated</dt>
+            <dd className="font-medium">{authSnap.authReady ? 'yes' : 'no'}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Status</dt>
+            <dd className="font-medium">{authSnap.status}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">JWT in storage</dt>
+            <dd className="font-medium">{hasJwtToken() ? 'yes' : 'no'}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Refresh failures</dt>
+            <dd className="font-medium tabular-nums">{authSnap.refreshFailures}</dd>
+          </div>
+        </dl>
+        {authSnap.lastAuthError ? (
+          <p className="text-[10px] text-destructive">Last auth error: {authSnap.lastAuthError}</p>
+        ) : null}
+      </section>
 
       {query.isError ? (
         <CrmInlineError

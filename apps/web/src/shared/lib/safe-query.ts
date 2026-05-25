@@ -1,4 +1,5 @@
 import { hasJwtToken } from '@/shared/lib/auth-guards';
+import { authSessionReady } from '@/shared/lib/auth-session-state';
 
 /** True only when access token is present — avoids stale lg_user without JWT. */
 export function authQueryEnabled(): boolean {
@@ -13,10 +14,12 @@ export type OptionalAuthQueryOptions = {
 
 /** React-query defaults for account-scoped endpoints on public pages. */
 export function optionalAuthQueryOptions(opts: OptionalAuthQueryOptions = {}) {
-  const enabled = hasJwtToken() && opts.isAuthenticated !== false;
+  const extra = opts.isAuthenticated !== false;
+  const enabled = authSessionReady() && hasJwtToken() && extra;
   return {
     enabled,
     retry: false,
     refetchOnWindowFocus: false,
+    throwOnError: false,
   } as const;
 }

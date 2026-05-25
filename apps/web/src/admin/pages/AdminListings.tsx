@@ -6,6 +6,7 @@ import {
   Building, TreePine, Trees, Hammer, ParkingSquare, Search, X,
 } from 'lucide-react';
 import { apiGet, apiDelete, apiPatch, ApiError } from '@/lib/api';
+import { adminAuthQueryOptions } from '@/shared/lib/admin-auth-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -128,8 +129,7 @@ export default function AdminListings() {
   const { data: agents } = useQuery({
     queryKey: ['admin', 'listings', 'agents'],
     queryFn: () => apiGet<AgentRow[]>('/admin/listings/agents'),
-    enabled: canManageManual,
-    staleTime: 60_000,
+    ...adminAuthQueryOptions({ enabled: canManageManual, staleTime: 60_000 }),
   });
 
   const queryKey = useMemo(
@@ -164,7 +164,7 @@ export default function AdminListings() {
   const { data, isLoading } = useQuery({
     queryKey,
     queryFn: () => apiGet<Paginated>(`/admin/listings?${queryString}`),
-    staleTime: 20_000,
+    ...adminAuthQueryOptions({ staleTime: 20_000 }),
   });
 
   const { data: kindCountsByRegion } = useQuery({

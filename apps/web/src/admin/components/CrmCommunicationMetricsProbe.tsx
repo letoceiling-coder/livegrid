@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiGet } from '@/lib/api';
+import { crmApiGetOptionalAuth } from '@/admin/lib/crm-api';
+import { adminAuthQueryOptions } from '@/shared/lib/admin-auth-query';
 import { isCrmDebugEnabled, crmObsCommunicationMetrics } from '@/admin/lib/crm-observability';
 import { CRM_QUERY_KEYS } from '@/admin/lib/crm-query-keys';
 
@@ -11,16 +12,18 @@ export default function CrmCommunicationMetricsProbe() {
   const query = useQuery({
     queryKey: CRM_QUERY_KEYS.communication.metrics,
     queryFn: () =>
-      apiGet<{
+      crmApiGetOptionalAuth<{
         activeThreads: number;
         unreadConversations: number;
         avgReplyLatencyMs: number | null;
         staleConversations: number;
         callbackOverdueCount: number;
-      }>('/admin/crm/communication/metrics'),
-    enabled,
-    staleTime: 30_000,
-    refetchInterval: enabled ? 60_000 : false,
+      }>('/admin/crm/communication/metrics', 'communication_metrics'),
+    ...adminAuthQueryOptions({
+      enabled,
+      staleTime: 30_000,
+      refetchInterval: enabled ? 60_000 : false,
+    }),
   });
 
   useEffect(() => {

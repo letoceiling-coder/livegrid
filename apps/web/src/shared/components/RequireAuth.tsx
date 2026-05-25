@@ -8,10 +8,10 @@ interface Props {
 }
 
 export function RequireAuth({ children, roles }: Props) {
-  const { isAuthenticated, user, loading } = useAuth();
+  const { isAuthenticated, user, authReady, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  if (!authReady || loading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />

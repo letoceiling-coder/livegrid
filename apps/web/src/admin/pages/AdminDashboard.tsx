@@ -10,6 +10,7 @@ import { CRM_QUERY_KEYS } from '@/admin/lib/crm-query-keys';
 import { CRM_CACHE_DASHBOARD, CRM_CACHE_OPERATIONAL } from '@/admin/lib/crm-cache-policy';
 import { useSmartPollInterval, useCrmPollMeta } from '@/admin/hooks/useSmartPollInterval';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { adminAuthQueryOptions } from '@/shared/lib/admin-auth-query';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, Bar, BarChart } from 'recharts';
 
@@ -33,8 +34,10 @@ export default function AdminDashboard() {
   const { data: counters } = useQuery({
     queryKey: CRM_QUERY_KEYS.stats.counters,
     queryFn: () => apiGet<Counters>('/stats/counters'),
-    staleTime: CRM_CACHE_DASHBOARD.staleTime,
-    gcTime: CRM_CACHE_DASHBOARD.gcTime,
+    ...adminAuthQueryOptions({
+      staleTime: CRM_CACHE_DASHBOARD.staleTime,
+      gcTime: CRM_CACHE_DASHBOARD.gcTime,
+    }),
   });
 
   const { data: recentRequests } = useQuery({

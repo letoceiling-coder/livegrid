@@ -8,6 +8,7 @@ import { lazy, Suspense } from "react";
 import { lazyWithReload } from "@/shared/lib/lazy-route";
 import RouteErrorBoundary from "@/shared/components/RouteErrorBoundary";
 import { AuthProvider, useAuth, useAuthState } from "@/shared/hooks/useAuth";
+import AuthSessionSync from "@/shared/components/AuthSessionSync";
 import { RequireAuth } from "@/shared/components/RequireAuth";
 import SeoRouteMeta from "@/shared/components/SeoRouteMeta";
 import SeoJsonLd from "@/shared/components/SeoJsonLd";
@@ -248,6 +249,7 @@ const AppWithAuth = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <AuthSessionSync />
     <TooltipProvider>
       <Toaster />
       <Sonner />
