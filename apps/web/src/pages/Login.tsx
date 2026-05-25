@@ -10,6 +10,8 @@ import type { UserRole } from '@/shared/types';
 import { TelegramLoginButton } from '@/components/TelegramLoginButton';
 import { apiPost, ApiError } from '@/lib/api';
 import { formatAuthError } from '@/lib/auth-errors';
+import PrivacyConsent from '@/shared/components/forms/PrivacyConsent';
+import { validatePrivacyConsent } from '@/shared/lib/privacy-consent';
 
 const ADMIN_ROLES: UserRole[] = ['admin', 'editor', 'manager', 'agent'];
 
@@ -40,6 +42,8 @@ const Login = () => {
   const [tgCode, setTgCode] = useState('');
   const [tgCodeMessage, setTgCodeMessage] = useState('');
   const [tgCodeLoading, setTgCodeLoading] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   const target = useMemo(
     () => pickRedirectTarget(location.search, location.state, user?.role ?? null),
@@ -92,6 +96,12 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const consentErr = validatePrivacyConsent(consentAccepted);
+    if (consentErr) {
+      setConsentError(consentErr);
+      return;
+    }
+    setConsentError(null);
     setError('');
     setSubmitting(true);
     try {
@@ -162,10 +172,22 @@ const Login = () => {
                 </button>
               </div>
             </div>
+            <PrivacyConsent
+              checked={consentAccepted}
+              onCheckedChange={(next) => {
+                setConsentAccepted(next);
+                if (next) setConsentError(null);
+              }}
+              error={consentError}
+            />
             {error && (
               <p className="text-sm text-destructive text-center">{error}</p>
             )}
-            <Button type="submit" className="w-full rounded-full" disabled={submitting}>
+            <Button
+              type="submit"
+              className="w-full rounded-full"
+              disabled={submitting || !consentAccepted}
+            >
               {submitting ? 'Вход…' : 'Войти'}
             </Button>
           </form>

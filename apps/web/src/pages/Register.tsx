@@ -9,6 +9,8 @@ import { TelegramLoginButton } from '@/components/TelegramLoginButton';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { ApiError } from '@/lib/api';
 import { formatAuthError } from '@/lib/auth-errors';
+import PrivacyConsent from '@/shared/components/forms/PrivacyConsent';
+import { validatePrivacyConsent } from '@/shared/lib/privacy-consent';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -21,9 +23,17 @@ const Register = () => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const consentErr = validatePrivacyConsent(consentAccepted);
+    if (consentErr) {
+      setConsentError(consentErr);
+      return;
+    }
+    setConsentError(null);
     setError('');
     if (password.length < 8) {
       setError('Пароль не короче 8 символов');
@@ -105,10 +115,22 @@ const Register = () => {
                 </button>
               </div>
             </div>
+            <PrivacyConsent
+              checked={consentAccepted}
+              onCheckedChange={(next) => {
+                setConsentAccepted(next);
+                if (next) setConsentError(null);
+              }}
+              error={consentError}
+            />
             {error && (
               <p className="text-sm text-destructive text-center">{error}</p>
             )}
-            <Button type="submit" className="w-full rounded-full" disabled={submitting}>
+            <Button
+              type="submit"
+              className="w-full rounded-full"
+              disabled={submitting || !consentAccepted}
+            >
               {submitting ? 'Создание…' : 'Создать аккаунт'}
             </Button>
           </form>

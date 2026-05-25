@@ -13,6 +13,8 @@ import { useCompare } from '@/shared/hooks/useCompare';
 import { TelegramLoginButton } from '@/components/TelegramLoginButton';
 import { ApiError, apiDelete, apiGet, apiPost, apiPostForm, apiPut, apiUrl } from '@/lib/api';
 import BuyerInquiryHistory from '@/shared/components/BuyerInquiryHistory';
+import PrivacyConsent from '@/shared/components/forms/PrivacyConsent';
+import { validatePrivacyConsent } from '@/shared/lib/privacy-consent';
 
 function parseApiMessage(err: unknown): string {
   if (err instanceof ApiError) {
@@ -90,6 +92,8 @@ const Profile = () => {
   const [password, setPassword] = useState('');
   const [linkEmailErr, setLinkEmailErr] = useState<string | null>(null);
   const [linkEmailOk, setLinkEmailOk] = useState<string | null>(null);
+  const [linkEmailConsent, setLinkEmailConsent] = useState(false);
+  const [linkEmailConsentError, setLinkEmailConsentError] = useState<string | null>(null);
   const [linkTgErr, setLinkTgErr] = useState<string | null>(null);
   const [linkTgOk, setLinkTgOk] = useState<string | null>(null);
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -212,6 +216,12 @@ const Profile = () => {
 
   const handleLinkEmail = async (e: FormEvent) => {
     e.preventDefault();
+    const consentErr = validatePrivacyConsent(linkEmailConsent);
+    if (consentErr) {
+      setLinkEmailConsentError(consentErr);
+      return;
+    }
+    setLinkEmailConsentError(null);
     setLinkEmailErr(null);
     setLinkEmailOk(null);
     try {
@@ -346,10 +356,19 @@ const Profile = () => {
                   {linkEmailOk ? (
                     <p className="text-sm text-green-600 dark:text-green-400">{linkEmailOk}</p>
                   ) : null}
+                  <PrivacyConsent
+                    id="profile-link-email-consent"
+                    checked={linkEmailConsent}
+                    onCheckedChange={(next) => {
+                      setLinkEmailConsent(next);
+                      if (next) setLinkEmailConsentError(null);
+                    }}
+                    error={linkEmailConsentError}
+                  />
                   {linkEmailErr ? (
                     <p className="text-sm text-destructive">{linkEmailErr}</p>
                   ) : null}
-                  <Button type="submit" size="sm">
+                  <Button type="submit" size="sm" disabled={!linkEmailConsent}>
                     Сохранить
                   </Button>
                 </form>

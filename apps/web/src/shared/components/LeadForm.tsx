@@ -1,11 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle } from 'lucide-react';
 import { apiPost, ApiError } from '@/lib/api';
+import PrivacyConsent from '@/shared/components/forms/PrivacyConsent';
+import { validatePrivacyConsent } from '@/shared/lib/privacy-consent';
 import {
   conversionObsFormError,
   conversionObsFormSubmit,
@@ -103,9 +104,17 @@ const LeadForm = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [duplicateNote, setDuplicateNote] = useState<string | null>(null);
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    const consentErr = validatePrivacyConsent(consentAccepted);
+    if (consentErr) {
+      setConsentError(consentErr);
+      return;
+    }
+    setConsentError(null);
     const normalizedPhone = normalizePhoneForApi(phone);
     const digits = normalizedPhone.replace(/\D/g, '');
     if (!name.trim() || digits.length < 11) return;
@@ -208,16 +217,18 @@ const LeadForm = ({
           onChange={e => setComment(e.target.value)}
           rows={3}
         />
+        <PrivacyConsent
+          checked={consentAccepted}
+          onCheckedChange={(next) => {
+            setConsentAccepted(next);
+            if (next) setConsentError(null);
+          }}
+          error={consentError}
+        />
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button type="submit" className="w-full h-11" disabled={loading}>
+        <Button type="submit" className="w-full h-11" disabled={loading || !consentAccepted}>
           {loading ? 'Отправка…' : 'Отправить заявку'}
         </Button>
-        <p className="text-[10px] text-muted-foreground text-center">
-          Нажимая кнопку, вы соглашаетесь с обработкой персональных данных и{' '}
-          <Link to="/privacy" className="underline hover:text-foreground" target="_blank" rel="noopener noreferrer">
-            политикой конфиденциальности
-          </Link>
-        </p>
       </form>
     </>,
   );

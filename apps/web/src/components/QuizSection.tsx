@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import PrivacyConsent from '@/shared/components/forms/PrivacyConsent';
+import { validatePrivacyConsent } from '@/shared/lib/privacy-consent';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Building2, Home, TreePine, Store, Trees, Phone, Send, CheckCircle2 } from 'lucide-react';
@@ -61,7 +62,8 @@ const QuizSection = () => {
   const [params, setParams] = useState<Record<string, string>>({});
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
-  const [agreed, setAgreed] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   const canNext =
@@ -69,12 +71,18 @@ const QuizSection = () => {
       ? !!selectedType
       : step === 1
         ? (step2Fields[selectedType] || []).every(f => !!params[f.key])
-        : name.trim().length > 0 && contact.trim().length > 0 && agreed;
+        : name.trim().length > 0 && contact.trim().length > 0 && consentAccepted;
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
+    const consentErr = validatePrivacyConsent(consentAccepted);
+    if (consentErr) {
+      setConsentError(consentErr);
+      return;
+    }
+    setConsentError(null);
     setSubmitting(true);
     setError('');
     try {
@@ -215,21 +223,14 @@ const QuizSection = () => {
                     onChange={e => setContact(e.target.value)}
                     className="w-full h-10 sm:h-11 px-4 rounded-xl border border-border bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
                   />
-                  <label className="flex items-start gap-2 cursor-pointer touch-manipulation">
-                    <input
-                      type="checkbox"
-                      checked={agreed}
-                      onChange={e => setAgreed(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-border accent-primary"
-                    />
-                    <span className="text-[11px] text-muted-foreground leading-tight">
-                      Соглашаюсь с обработкой персональных данных и с{' '}
-                      <Link to="/privacy" className="text-primary underline hover:text-primary/90" target="_blank" rel="noopener noreferrer">
-                        политикой
-                      </Link>{' '}
-                      конфиденциальности
-                    </span>
-                  </label>
+                  <PrivacyConsent
+                    checked={consentAccepted}
+                    onCheckedChange={(next) => {
+                      setConsentAccepted(next);
+                      if (next) setConsentError(null);
+                    }}
+                    error={consentError}
+                  />
                 </div>
               </>
             )}
