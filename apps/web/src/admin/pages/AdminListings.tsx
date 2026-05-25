@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
-  Loader2, ChevronLeft, ChevronRight, ExternalLink, Pencil, Trash2, Wand2,
+  Loader2, ChevronLeft, ChevronRight, ExternalLink, Pencil, Trash2, Plus,
   Building, TreePine, Trees, Hammer, ParkingSquare, Search, X,
 } from 'lucide-react';
 import { apiGet, apiDelete, apiPatch, ApiError } from '@/lib/api';
@@ -365,10 +365,10 @@ export default function AdminListings() {
           <div className="ml-auto flex items-center gap-2">
             {canManageManual ? (
               <>
-                <Button type="button" variant="outline" asChild>
+                <Button type="button" asChild>
                   <Link to="/admin/listings/wizard/new">
-                    <Wand2 className="w-4 h-4 mr-2" />
-                    Мастер
+                    <Plus className="w-4 h-4 mr-2" />
+                    Создать
                   </Link>
                 </Button>
               </>
