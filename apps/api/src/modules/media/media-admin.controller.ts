@@ -18,23 +18,52 @@ import type { Express } from 'express';
 import { Roles, CurrentUser } from '../../auth/decorators';
 import { CreateMediaFolderDto } from './dto/create-media-folder.dto';
 import { MoveMediaFileDto } from './dto/move-media-file.dto';
+import { MediaReconcileService } from './media-reconcile.service';
 import { MediaService } from './media.service';
 
 @ApiTags('Admin / Media')
 @ApiBearerAuth()
 @Controller('admin/media')
 export class MediaAdminController {
-  constructor(private readonly media: MediaService) {}
+  constructor(
+    private readonly media: MediaService,
+    private readonly reconcile: MediaReconcileService,
+  ) {}
 
   @Get('health')
   @Roles('editor', 'manager')
   @ApiOperation({ summary: 'Диагностика persistent storage (путь, права, missing files)' })
   async health() {
-    const integrity = await this.media.getIntegritySnapshot(100);
+    const [integrity, report] = await Promise.all([
+      this.media.getIntegritySnapshot(100),
+      this.reconcile.buildReport(30),
+    ]);
+    const listingBroken = report.brokenListings.length > 0;
     return {
-      ok: integrity.storage.healthy && integrity.missingRatio < 0.05,
+      ok:
+        integrity.storage.healthy &&
+        integrity.storage.onDiskMediaFiles > 0 &&
+        integrity.missingRatio < 0.05 &&
+        !listingBroken,
       integrity,
+      listingBrokenRefs: report.brokenListings,
+      listingMissingFiles: report.listingMissingFiles,
+      onDiskMediaFiles: integrity.storage.onDiskMediaFiles,
     };
+  }
+
+  @Get('reconcile/report')
+  @Roles('editor', 'manager')
+  @ApiOperation({ summary: 'Полный отчёт: storage, DB, битые ссылки в объявлениях' })
+  reconcileReport() {
+    return this.reconcile.buildReport(100);
+  }
+
+  @Post('reconcile/rehydrate-remote')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Скачать http-фото домов в persistent storage (feed-style URLs)' })
+  rehydrateRemote() {
+    return this.reconcile.rehydrateRemoteHousePhotos(25);
   }
 
   @Get('folders')

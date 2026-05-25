@@ -123,6 +123,11 @@ echo ""
 echo ""
 
 # Строгие проверки на сервере (только runtime: PM2 + curl к API)
+if [ -f deploy/verify-media-storage.sh ]; then
+  echo "→ verify-media-storage.sh"
+  bash deploy/verify-media-storage.sh || exit 1
+fi
+
 if [ -f deploy/verify-on-server.sh ]; then
   echo "→ verify-on-server.sh runtime"
   VERIFY_MODE=runtime bash deploy/verify-on-server.sh runtime || exit 1

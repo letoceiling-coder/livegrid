@@ -24,6 +24,9 @@ import { adminAuthQueryOptions } from '@/shared/lib/admin-auth-query';
 
 type MediaHealthResponse = {
   ok: boolean;
+  listingMissingFiles?: number;
+  onDiskMediaFiles?: number;
+  listingBrokenRefs?: { listingId: number; kind: string; missingUrls: string[] }[];
   integrity: {
     missingOnDisk: number;
     missingRatio: number;
@@ -271,7 +274,17 @@ export default function AdminMedia() {
             on disk {mediaHealth.integrity.storage.onDiskMediaFiles} · DB{' '}
             {mediaHealth.integrity.storage.dbMediaFiles} · missing sample{' '}
             {mediaHealth.integrity.missingOnDisk}
+            {(mediaHealth.listingMissingFiles ?? 0) > 0
+              ? ` · битые объявления ${mediaHealth.listingMissingFiles}`
+              : ''}
           </span>
+          {(mediaHealth.listingBrokenRefs?.length ?? 0) > 0 ? (
+            <span className="text-amber-700 w-full">
+              Нет файлов на диске для объявлений:{' '}
+              {mediaHealth.listingBrokenRefs!.map((b) => `#${b.listingId}`).join(', ')} — нужна повторная загрузка
+              фото.
+            </span>
+          ) : null}
           <Link to="/admin/system" className="text-primary hover:underline ml-auto">
             System diagnostics →
           </Link>
