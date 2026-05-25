@@ -190,25 +190,6 @@ const RedesignComplex = () => {
   const mapInstanceRef = useRef<any>(null);
   const mapInitializedRef = useRef(false);
 
-  const allApartments = useMemo(() => {
-    if (!complex) return [];
-    const apts = complex.buildings.flatMap((b) => b.apartments).filter((a) => a.status !== 'sold');
-    apts.sort((a, b) => {
-      const m = sort.dir === 'asc' ? 1 : -1;
-      return (a[sort.field] - b[sort.field]) * m;
-    });
-    return apts;
-  }, [complex, sort]);
-
-  const layouts = useMemo(() => {
-    if (!complex) return [];
-    if (fromApi) {
-      const apts = complex.buildings.flatMap((b) => b.apartments);
-      return buildLayoutGroupsFromApartments(complex.id, apts);
-    }
-    return getLayoutGroups(complex.id);
-  }, [complex, fromApi]);
-
   const similarComplexes = useMemo((): ResidentialComplex[] => {
     if (!complex) return [];
     if (similarQuery.data?.length) return similarQuery.data;
@@ -230,7 +211,31 @@ const RedesignComplex = () => {
     }
   }, [buildings, activeBuildingId]);
 
-  const hasApartments = allApartments.length > 0;
+  const scopedApartments = useMemo(() => {
+    if (!complex) return [];
+    const source = activeBuilding
+      ? activeBuilding.apartments
+      : complex.buildings.flatMap((b) => b.apartments);
+    const apts = source.filter((a) => a.status !== 'sold');
+    apts.sort((a, b) => {
+      const m = sort.dir === 'asc' ? 1 : -1;
+      return (a[sort.field] - b[sort.field]) * m;
+    });
+    return apts;
+  }, [complex, activeBuilding, sort]);
+
+  const layouts = useMemo(() => {
+    if (!complex) return [];
+    const apts = activeBuilding
+      ? activeBuilding.apartments
+      : complex.buildings.flatMap((b) => b.apartments);
+    if (fromApi) {
+      return buildLayoutGroupsFromApartments(complex.id, apts);
+    }
+    return getLayoutGroups(complex.id);
+  }, [complex, fromApi, activeBuilding]);
+
+  const hasApartments = scopedApartments.length > 0;
   const hasLayouts = layouts.length > 0;
   const hasChess = buildings.some((b) => b.apartments.length > 0);
   const hasDescription = Boolean(complex?.description?.trim());
@@ -248,9 +253,10 @@ const RedesignComplex = () => {
   const navSections = useMemo((): ComplexSection[] => {
     const s: ComplexSection[] = [];
     if (hasBuildings) s.push({ id: 'buildings', label: 'Корпуса' });
-    if (hasApartments) s.push({ id: 'apartments', label: 'Квартиры' });
-    if (hasChess) s.push({ id: 'chess', label: 'Шахматка' });
-    if (hasLayouts) s.push({ id: 'layouts', label: 'Планировки' });
+    if (hasChess) s.push({ id: 'chessboard', label: 'Шахматка' });
+    if (hasBuildings || hasApartments || hasLayouts) {
+      s.push({ id: 'layouts', label: 'Квартиры' });
+    }
     if (hasDescription) s.push({ id: 'description', label: 'Описание' });
     if (hasInfra) s.push({ id: 'infrastructure', label: 'Инфраструктура' });
     if (hasMap) s.push({ id: 'map', label: 'Карта' });
@@ -285,14 +291,16 @@ const RedesignComplex = () => {
 
   const scrollToSection = useCallback(
     (id: string) => {
-      setActiveSection(id);
-      const el = document.getElementById(id);
+      const sectionId =
+        id === 'chess' ? 'chessboard' : id === 'apartments' ? 'layouts' : id;
+      setActiveSection(sectionId);
+      const el = document.getElementById(sectionId);
       if (!el) return;
       el.scrollIntoView({
         behavior: prefersReducedMotion() ? 'auto' : 'smooth',
         block: 'start',
       });
-      if (id === 'map' && !mapInitializedRef.current) {
+      if (sectionId === 'map' && !mapInitializedRef.current) {
         window.setTimeout(() => initMap(), 150);
       }
     },
@@ -484,22 +492,8 @@ const RedesignComplex = () => {
             </section>
           ) : null}
 
-          {hasApartments ? (
-            <section id="apartments" className="scroll-mt-32">
-              {sectionHeading('Квартиры', `${allApartments.length} доступных предложений`)}
-              <ApartmentTypeGroups apartments={allApartments} sort={sort} onSort={handleSort} />
-            </section>
-          ) : (
-            <section id="apartments" className="scroll-mt-32">
-              {sectionHeading('Квартиры')}
-              <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-                Свободных квартир пока нет
-              </div>
-            </section>
-          )}
-
           {hasChess && activeBuilding ? (
-            <section id="chess" className="scroll-mt-32">
+            <section id="chessboard" className="scroll-mt-32">
               {sectionHeading('Шахматка', activeBuilding.name || 'Расположение квартир по этажам')}
               <Chessboard
                 apartments={activeBuilding.apartments}
@@ -510,10 +504,30 @@ const RedesignComplex = () => {
             </section>
           ) : null}
 
-          {hasLayouts ? (
+          {hasBuildings || hasApartments || hasLayouts ? (
             <section id="layouts" className="scroll-mt-32">
-              {sectionHeading('Планировки', `${layouts.length} типов`)}
-              <LayoutGrid layouts={layouts} complexSlug={complex.slug} />
+              {hasApartments ? (
+                <>
+                  {sectionHeading(
+                    'Квартиры',
+                    `${scopedApartments.length} доступных предложений${activeBuilding?.name ? ` · ${activeBuilding.name}` : ''}`,
+                  )}
+                  <ApartmentTypeGroups apartments={scopedApartments} sort={sort} onSort={handleSort} />
+                </>
+              ) : (
+                <>
+                  {sectionHeading('Квартиры')}
+                  <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+                    Свободных квартир пока нет
+                  </div>
+                </>
+              )}
+              {hasLayouts ? (
+                <div className="mt-10 sm:mt-12">
+                  {sectionHeading('Планировки', `${layouts.length} типов`)}
+                  <LayoutGrid layouts={layouts} complexSlug={complex.slug} />
+                </div>
+              ) : null}
             </section>
           ) : null}
 
