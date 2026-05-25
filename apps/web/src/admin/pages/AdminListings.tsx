@@ -5,6 +5,7 @@ import {
   Loader2, ChevronLeft, ChevronRight, ExternalLink, Pencil, Trash2, Plus,
   Building, TreePine, Trees, Hammer, ParkingSquare, Search, X,
 } from 'lucide-react';
+import { formatApiValidationError } from '@lg/shared';
 import { apiGet, apiDelete, apiPatch, ApiError } from '@/lib/api';
 import { adminAuthQueryOptions } from '@/shared/lib/admin-auth-query';
 import { Button } from '@/components/ui/button';
@@ -74,16 +75,9 @@ const SOURCE_TABS: { key: Source; label: string }[] = [
 
 function parseApiErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof ApiError) {
-    try {
-      const j = JSON.parse(e.message) as { message?: string | string[] };
-      if (Array.isArray(j.message)) return j.message.join(', ');
-      if (typeof j.message === 'string') return j.message;
-    } catch {
-      if (e.message) return e.message;
-    }
-  } else if (e instanceof Error) {
-    return e.message;
+    return formatApiValidationError(e.message, e.status) || fallback;
   }
+  if (e instanceof Error && e.message.trim()) return e.message;
   return fallback;
 }
 

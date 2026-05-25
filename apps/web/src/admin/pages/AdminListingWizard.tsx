@@ -15,7 +15,14 @@ import {
   Trees,
 } from 'lucide-react';
 import type { WizardDraftResponse } from '@lg/shared';
-import { WIZARD_STEP_TITLES, validateWizardDraft, validateWizardStep } from '@lg/shared';
+import {
+  formatApiValidationError,
+  parseApiValidationErrors,
+  wizardStepFromValidationFields,
+  WIZARD_STEP_TITLES,
+  validateWizardDraft,
+  validateWizardStep,
+} from '@lg/shared';
 import { apiGet, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -200,18 +207,14 @@ export default function AdminListingWizard() {
       navigate('/admin/my-listings');
     },
     onError: (e: unknown) => {
-      let msg = 'Ошибка сохранения';
       if (e instanceof ApiError) {
-        try {
-          const j = JSON.parse(e.message) as { message?: string | string[] };
-          if (Array.isArray(j.message)) msg = j.message.join(', ');
-          else if (typeof j.message === 'string') msg = j.message;
-          else if (e.message) msg = e.message;
-        } catch {
-          if (e.message) msg = e.message;
-        }
-      } else if (e instanceof Error) msg = e.message;
-      setSubmitError(msg);
+        const fieldErrors = parseApiValidationErrors(e.message);
+        const stepHint = wizardStepFromValidationFields(fieldErrors);
+        if (stepHint != null) setStep(stepHint);
+        setSubmitError(formatApiValidationError(e.message, e.status));
+        return;
+      }
+      setSubmitError(e instanceof Error ? e.message : 'Ошибка сохранения');
     },
   });
 

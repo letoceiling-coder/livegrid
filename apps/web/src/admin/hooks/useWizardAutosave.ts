@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { WizardDraftResponse } from '@lg/shared';
+import { formatApiValidationError } from '@lg/shared';
 import { ApiError, apiPost, apiPut } from '@/lib/api';
+import { toast } from '@/components/ui/sonner';
 import type { ListingWizardDraft } from '@/admin/lib/listingWizardDraft';
 import { draftToServerPayload } from '@/admin/lib/listingWizardHydration';
 
@@ -60,6 +62,11 @@ export function useWizardAutosave({ draft, step, enabled, onPatched, onConflict 
         } catch {
           // ignore
         }
+      }
+      if (e instanceof ApiError) {
+        toast.error(formatApiValidationError(e.message, e.status));
+      } else {
+        toast.error('Не удалось сохранить черновик');
       }
       onPatched({ autosaveStatus: 'error' });
     } finally {

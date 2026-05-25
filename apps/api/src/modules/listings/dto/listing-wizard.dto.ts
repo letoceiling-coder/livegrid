@@ -125,6 +125,10 @@ export class WizardPayloadDto implements WizardServerPayload {
   @IsString()
   planUrl!: string;
 
+  @ApiPropertyOptional({ type: WizardSellerPayloadDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => WizardSellerPayloadDto)
   seller!: WizardServerPayload['seller'];
 }
 

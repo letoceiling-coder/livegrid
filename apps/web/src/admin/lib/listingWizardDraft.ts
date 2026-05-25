@@ -149,22 +149,29 @@ export function clearWizardDraft(): void {
   }
 }
 
+function activeParamGroup(
+  kind: ListingWizardUiKind,
+): 'apartment' | 'house' | 'land' | 'commercial' | 'parking' {
+  if (kind === 'APARTMENT' || kind === 'ROOM') return 'apartment';
+  if (kind === 'HOUSE' || kind === 'DACHA') return 'house';
+  if (kind === 'LAND') return 'land';
+  if (kind === 'COMMERCIAL') return 'commercial';
+  return 'parking';
+}
+
 export function applyKindDefaults(draft: ListingWizardDraft, kind: ListingWizardUiKind): ListingWizardDraft {
+  const empty = makeEmptyWizardDraft();
+  const active = activeParamGroup(kind);
   const defaults = emptyGroupDefaults(kind);
-  const groupKey =
-    kind === 'APARTMENT' || kind === 'ROOM'
-      ? 'apartment'
-      : kind === 'HOUSE' || kind === 'DACHA'
-        ? 'house'
-        : kind === 'LAND'
-          ? 'land'
-          : kind === 'COMMERCIAL'
-            ? 'commercial'
-            : 'parking';
   return {
     ...draft,
     kind,
-    [groupKey]: { ...defaults, ...draft[groupKey] },
+    apartment: active === 'apartment' ? { ...defaults, ...draft.apartment } : { ...empty.apartment },
+    house: active === 'house' ? { ...defaults, ...draft.house } : { ...empty.house },
+    land: active === 'land' ? { ...defaults, ...draft.land } : { ...empty.land },
+    commercial:
+      active === 'commercial' ? { ...defaults, ...draft.commercial } : { ...empty.commercial },
+    parking: active === 'parking' ? { ...defaults, ...draft.parking } : { ...empty.parking },
   };
 }
 
