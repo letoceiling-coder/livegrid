@@ -3,6 +3,8 @@ import {
   complexCompletionLine,
   complexFallbackPriceRow,
   complexImageOverlayLines,
+  complexMetroDisplayLine,
+  complexMetroTimeLabel,
   complexPriceBandRows,
   complexRoomBandLabel,
   complexTotalUnits,
@@ -62,6 +64,16 @@ describe('card-visual complex helpers', () => {
     });
     expect(lines.primary).toBe('Старт продаж');
     expect(lines.secondary).toMatch(/корпус 4\.1/);
+  });
+
+  it('formats metro display line with transport time', () => {
+    expect(
+      complexMetroDisplayLine({
+        ...base,
+        nearbySubways: [{ name: 'Томилино (D3)', distanceTime: 10, distanceType: 2 }],
+      }),
+    ).toBe('Томилино (D3), 10 минут транспортом');
+    expect(complexMetroTimeLabel(5, 1)).toBe('5 минут пешком');
   });
 
   it('emphasizes completion line with quarter', () => {

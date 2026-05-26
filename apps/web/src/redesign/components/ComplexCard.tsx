@@ -14,7 +14,7 @@ import {
   complexCompletionLine,
   complexFallbackPriceRow,
   complexImageOverlayLines,
-  complexMetroTimeLabel,
+  complexMetroDisplayLine,
   complexPriceBandRows,
   complexTotalUnits,
   complexYieldLabel,
@@ -43,16 +43,7 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
   const hasBuilder = Boolean(builderName && builderName !== '—');
   const addressLine = complex.address?.trim();
   const hasAddress = Boolean(addressLine && addressLine !== '—');
-  const primaryMetro = complex.nearbySubways?.[0];
-  const metroName =
-    primaryMetro?.name?.trim() ||
-    (complex.subway !== '—' ? complex.subway.replace(/^м\.\s*/i, '').trim() : '');
-  const metroTime =
-    complex.subwayDistance && complex.subwayDistance !== '—'
-      ? complex.subwayDistance
-      : primaryMetro
-        ? complexMetroTimeLabel(primaryMetro.distanceTime, primaryMetro.distanceType ?? undefined)
-        : '';
+  const metroLine = complexMetroDisplayLine(complex);
   const completion = complexCompletionLine(complex);
   const overlay = complexImageOverlayLines(complex);
   const showOverlay = Boolean(overlay.primary || overlay.secondary);
@@ -83,7 +74,8 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
       <button
         type="button"
         title={inCompare ? 'Убрать из сравнения' : 'В сравнение'}
-        className={cardVisual.complexActionBtn}
+        aria-label={inCompare ? 'Убрать из сравнения' : 'Добавить в сравнение'}
+        className={cn(cardVisual.complexActionBtn, 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary')}
         onClick={handleCompare}
       >
         <GitCompare className={cn('h-3.5 w-3.5', inCompare ? 'text-primary' : 'text-muted-foreground')} />
@@ -91,7 +83,8 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
       <button
         type="button"
         title="Избранное"
-        className={cardVisual.complexActionBtn}
+        aria-label={liked ? 'Убрать из избранного' : 'Добавить в избранное'}
+        className={cn(cardVisual.complexActionBtn, 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary')}
         onClick={handleLike}
       >
         <Heart className={cn('h-3.5 w-3.5', liked ? 'fill-destructive text-destructive' : 'text-muted-foreground')} />
@@ -105,39 +98,38 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
         {complex.name}
       </h3>
 
-      {metroName ? (
+      {metroLine ? (
         <div className={cardVisual.complexMetaRow}>
-          <span className={cardVisual.complexMetroDot} aria-hidden />
-          <span className="min-w-0 truncate">
-            <span className="text-foreground/90">
-              {metroName.startsWith('м.') ? metroName : `м. ${metroName}`}
-            </span>
-            {metroTime ? <span className="text-muted-foreground"> · {metroTime}</span> : null}
-          </span>
+          <TrainFront className={cardVisual.complexMetaIcon} aria-hidden />
+          <span className="min-w-0 line-clamp-1 text-foreground/85">{metroLine}</span>
         </div>
       ) : null}
 
       {hasAddress ? (
         <div className={cardVisual.complexMetaRow}>
           <MapPin className={cardVisual.complexMetaIcon} aria-hidden />
-          <span className="truncate">{addressLine}</span>
+          <span className="min-w-0 line-clamp-2 text-muted-foreground/90">{addressLine}</span>
         </div>
       ) : null}
 
       {hasBuilder ? (
         <div className={cardVisual.complexMetaRow}>
           <Building2 className={cardVisual.complexMetaIcon} aria-hidden />
-          <span className="truncate">
+          <span className="min-w-0 line-clamp-1">
             <span className="text-muted-foreground">Застройщик: </span>
             <span className="text-foreground/85">{builderName}</span>
           </span>
         </div>
       ) : null}
 
-      {completion ? <p className={cardVisual.complexCompletion}>{completion}</p> : null}
+      {completion ? (
+        <p className={cardVisual.complexCompletion} aria-label={`Срок сдачи: ${completion}`}>
+          {completion}
+        </p>
+      ) : null}
 
       {priceBandRows.length > 0 || fallbackRow ? (
-        <div className={cardVisual.dottedBlock} role="list">
+        <div className={cardVisual.dottedBlock} role="list" aria-label="Цены по типам квартир">
           {priceBandRows.map((row) => (
             <CardDottedPriceRow key={row.rooms} label={row.label} price={row.price} />
           ))}

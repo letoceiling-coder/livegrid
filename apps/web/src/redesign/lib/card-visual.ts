@@ -29,7 +29,7 @@ export const cardVisual = {
   sidebarRow: 'flex gap-2 p-1.5 rounded-lg border transition-colors min-w-0',
   sidebarThumb: 'w-12 shrink-0 rounded-md',
   sidebarPrice: 'text-xs font-bold tabular-nums leading-none',
-  sidebarTitle: 'text-[11px] font-medium leading-snug line-clamp-2 text-foreground',
+  sidebarTitle: 'text-[11px] font-semibold leading-snug line-clamp-2 text-foreground',
   sidebarMeta: 'text-[10px] text-muted-foreground/85 truncate leading-snug',
 
   /** Card shell */
@@ -39,28 +39,29 @@ export const cardVisual = {
 
   /** ЖК marketplace card */
   complexShell:
-    'rounded-[20px] border border-neutral-200/90 bg-card overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-px',
+    'rounded-[20px] border border-neutral-200/80 bg-card overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:-translate-y-px',
   complexMedia: 'relative shrink-0 overflow-hidden rounded-t-[20px] bg-muted aspect-[4/3]',
-  complexBody: 'flex flex-col gap-2 p-3.5 min-w-0',
-  complexTitle: 'text-base font-bold leading-snug text-foreground line-clamp-2',
-  complexMetaRow: 'flex items-center gap-2 min-w-0 text-[11px] text-muted-foreground leading-snug',
-  complexMetaIcon: 'w-3.5 h-3.5 shrink-0 text-muted-foreground/75',
-  complexMetroDot: 'w-2 h-2 shrink-0 rounded-full bg-amber-400',
-  complexCompletion: 'text-[11px] font-semibold text-foreground leading-snug truncate',
-  complexInventory: 'text-[11px] text-muted-foreground leading-snug',
+  complexBody: 'flex flex-col gap-2.5 p-4 min-w-0',
+  complexTitle: 'text-[17px] font-bold leading-[1.25] tracking-tight text-foreground line-clamp-2',
+  complexMetaRow: 'flex items-start gap-2 min-w-0 text-xs text-muted-foreground leading-snug',
+  complexMetaIcon: 'w-3.5 h-3.5 shrink-0 mt-0.5 text-muted-foreground/70',
+  complexMetroDot: 'w-2 h-2 shrink-0 mt-1.5 rounded-full bg-amber-400',
+  complexCompletion:
+    'text-xs font-semibold text-foreground leading-snug truncate pt-0.5 pb-0.5',
+  complexInventory: 'text-[11px] text-muted-foreground leading-snug mt-1',
   complexOverlayStack:
     'absolute left-2.5 bottom-2.5 z-10 flex flex-col items-start gap-1 max-w-[calc(100%-3.75rem)] pointer-events-none',
   complexOverlayPill:
     'rounded-lg bg-white/95 px-2.5 py-1 text-[10px] font-medium leading-tight text-foreground shadow-md backdrop-blur-sm dark:bg-background/92',
   complexActionBtn:
     'flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-md backdrop-blur-sm transition-colors hover:bg-white dark:bg-background/80',
-  complexFooter: 'flex items-center justify-between gap-2 pt-2.5 mt-0.5 border-t border-neutral-200/80',
+  complexFooter: 'flex items-center justify-between gap-2 pt-3 mt-1 border-t border-neutral-200/70 min-h-[36px]',
   complexFooterPill:
-    'inline-flex items-center rounded-full border border-neutral-200/90 bg-neutral-50 px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-muted/40',
+    'inline-flex items-center rounded-full border border-neutral-200/80 bg-neutral-50/90 px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-muted/40',
   complexYield: 'inline-flex items-center gap-1 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400',
-  dottedLabel: 'text-[11px] text-muted-foreground leading-none',
-  dottedPrice: 'text-[11px] font-semibold tabular-nums text-foreground leading-none',
-  dottedBlock: 'flex flex-col gap-1.5 pt-0.5',
+  dottedLabel: 'text-xs text-muted-foreground leading-none',
+  dottedPrice: 'text-xs font-semibold tabular-nums text-foreground leading-none',
+  dottedBlock: 'flex flex-col gap-2 pt-1',
 } as const;
 
 type BadgeVariant = 'primary' | 'secondary' | 'outline';
@@ -184,7 +185,33 @@ export function complexMetroTimeLabel(
 ): string {
   if (distanceTime == null || distanceTime <= 0) return '';
   const mode = distanceType === 1 ? 'пешком' : 'транспортом';
-  return `${distanceTime} мин ${mode}`;
+  return `${distanceTime} минут ${mode}`;
+}
+
+/** Single-line metro row for ЖК cards — matches complex page wording */
+export function complexMetroDisplayLine(complex: ResidentialComplex): string | null {
+  const primary = complex.nearbySubways?.[0];
+  const nameFromNearby = primary?.name?.trim();
+  const nameFromLegacy =
+    complex.subway !== '—' ? complex.subway.replace(/^м\.\s*/i, '').trim() : '';
+  const name = nameFromNearby || nameFromLegacy;
+  if (!name) return null;
+
+  if (primary?.distanceTime != null && primary.distanceTime > 0) {
+    const time = complexMetroTimeLabel(primary.distanceTime, primary.distanceType ?? undefined);
+    return time ? `${name}, ${time}` : name;
+  }
+
+  const legacy = complex.subwayDistance?.trim();
+  if (legacy && legacy !== '—') {
+    const normalized = legacy.replace(/\s*мин\.?\s*$/i, '').trim();
+    if (/^\d+$/.test(normalized)) {
+      return `${name}, ${normalized} минут транспортом`;
+    }
+    return `${name}, ${legacy}`;
+  }
+
+  return name;
 }
 
 export type ComplexPriceBandRow = { rooms: number; label: string; price: string };

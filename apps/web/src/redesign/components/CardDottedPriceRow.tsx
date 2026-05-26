@@ -7,18 +7,16 @@ type Props = {
   className?: string;
 };
 
-/** [label][flex dotted leader][price] — responsive, no fake dot characters */
+/** [label][flex dotted leader][price] — real dotted border, tabular price alignment */
 export default function CardDottedPriceRow({ label, price, className }: Props) {
   return (
-    <div className={cn('flex min-w-0 w-full items-baseline gap-1.5', className)} role="listitem">
-      <span className={cn(cardVisual.dottedLabel, 'shrink-0 max-w-[45%] truncate')}>{label}</span>
+    <div className={cn('flex min-w-0 w-full items-baseline gap-2', className)} role="listitem">
+      <span className={cn(cardVisual.dottedLabel, 'shrink min-w-0 max-w-[58%] truncate')}>{label}</span>
       <span
-        className="mb-[3px] min-w-[8px] flex-1 border-b border-dotted border-muted-foreground/35"
+        className="mb-[3px] h-0 min-w-[10px] flex-1 self-end border-b border-dotted border-muted-foreground/35"
         aria-hidden
       />
-      <span className={cn(cardVisual.dottedPrice, 'shrink-0 max-w-[52%] truncate text-right')}>
-        {price}
-      </span>
+      <span className={cn(cardVisual.dottedPrice, 'shrink-0 whitespace-nowrap')}>{price}</span>
     </div>
   );
 }
