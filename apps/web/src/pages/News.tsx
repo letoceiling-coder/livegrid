@@ -127,7 +127,7 @@ const News = () => {
       )}
 
       <QuizSection />
-      <AboutPlatform />
+      <AboutPlatform pageSlug="/news" />
       <ContactsSection />
       <FooterSection />
     </div>

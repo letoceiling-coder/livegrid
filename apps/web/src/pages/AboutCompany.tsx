@@ -10,7 +10,7 @@ export default function AboutCompany() {
         <h1 className="text-2xl font-bold tracking-tight">О компании</h1>
         <p className="text-sm text-muted-foreground mt-1">Команда и платформа LiveGrid</p>
       </div>
-      <AboutPlatform />
+      <AboutPlatform pageSlug="/" />
       <FooterSection />
     </div>
   );

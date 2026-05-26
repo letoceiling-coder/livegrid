@@ -228,7 +228,7 @@ const CatalogZhkPage = () => {
       <PropertyGridSection title="Старт продаж" type="start" />
 
       {/* About Platform */}
-      <AboutPlatform />
+      <AboutPlatform pageSlug="/catalog-zhk" />
 
       {/* Additional Features */}
       <AdditionalFeatures />

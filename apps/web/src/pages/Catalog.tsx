@@ -231,7 +231,7 @@ const Catalog = () => {
 
       <PropertyGridSection title="Горячие предложения" type="hot" />
       <QuizSection />
-      <AboutPlatform />
+      <AboutPlatform pageSlug="/catalog" />
       <AdditionalFeatures />
       <LatestNews />
       <ContactsSection />

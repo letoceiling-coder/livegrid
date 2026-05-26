@@ -46,6 +46,10 @@ const Index = () => {
       );
     }
 
+    if (section.type === 'about_platform') {
+      return <AboutPlatform key={section.id} pageSlug="/" />;
+    }
+
     const Component = sectionComponents[section.type];
     if (!Component) return null;
     return <Component key={section.id} />;

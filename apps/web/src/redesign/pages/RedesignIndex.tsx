@@ -106,7 +106,7 @@ const RedesignIndex = () => {
         <QuizSection />
       </div>
 
-      <AboutPlatform />
+      <AboutPlatform pageSlug="/" />
 
       {/* Map CTA — compact on mobile */}
       <section className="max-w-[1400px] mx-auto px-4 pb-6 sm:pb-8">

@@ -316,7 +316,7 @@ const ObjectDetail = () => {
       <QuizSection />
 
       {/* About Platform */}
-      <AboutPlatform />
+      <AboutPlatform pageSlug="/" />
 
       {/* Additional Features */}
       <AdditionalFeatures />

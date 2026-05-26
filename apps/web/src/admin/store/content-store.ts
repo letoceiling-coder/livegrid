@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { normalizeAboutPlatformSettings } from '@/shared/lib/about-platform-cms';
 
 // ============================================================
 // Content Store — единый контентный слой для управления данными
@@ -56,12 +57,24 @@ const defaultHomeContent: PageContent = {
     { id: 'home-quiz', type: 'quiz', label: 'Квиз', position: 4, is_active: true, settings: { title: 'Подберем объект под Ваш запрос', bannerTitle: 'Подберем\nза 5 минут' } },
     { id: 'home-hot', type: 'property_grid', label: 'Горячие предложения', position: 5, is_active: true, settings: { title: 'Горячие предложения', gridType: 'hot' } },
     { id: 'home-start', type: 'property_grid', label: 'Старт продаж', position: 6, is_active: true, settings: { title: 'Старт продаж', gridType: 'start' } },
-    { id: 'home-about', type: 'about_platform', label: 'О платформе', position: 7, is_active: true, settings: { title: 'О платформе Live Grid', subtitle: 'Платформа по недвижимости', description: 'LiveGrid — это современная платформа для поиска и продажи недвижимости в России. Мы объединяем застройщиков, агентства и частных продавцов на одной площадке, предоставляя удобные инструменты для поиска идеального объекта.', stats: [
-      { value: '100 000+', label: 'объектов' },
-      { value: '50 000+', label: 'пользователей' },
-      { value: '85', label: 'регионов' },
-      { value: '10 лет', label: 'на рынке' },
-    ] } },
+    { id: 'home-about', type: 'about_platform', label: 'О платформе', position: 7, is_active: true, settings: {
+      eyebrow: 'Платформа недвижимости нового поколения',
+      title: 'Live Grid — единая платформа для поиска и управления недвижимостью',
+      description: 'Агрегируем новостройки, вторичку и коммерцию в одном каталоге. Удобный поиск, карта и сопровождение сделки — без лишнего шума.',
+      primaryButtonText: 'Зарегистрироваться',
+      primaryButtonUrl: '/login',
+      secondaryButtonText: 'Помощь с подбором',
+      secondaryButtonUrl: '/catalog',
+      imageUrl: '',
+      imageAlt: 'Платформа Live Grid',
+      imageUrlMobile: '',
+      backgroundVariant: 'muted',
+      stats: [
+        { id: 's1', value: '65 122', label: 'объектов в каталоге', icon: 'layers', enabled: true, order: 0 },
+        { id: 's2', value: '480+', label: 'жилых комплексов', icon: 'building2', enabled: true, order: 1 },
+        { id: 's3', value: '120+', label: 'застройщиков', icon: 'users', enabled: true, order: 2 },
+      ],
+    } },
     { id: 'home-features', type: 'additional_features', label: 'Дополнительные возможности', position: 8, is_active: true, settings: { title: 'Дополнительные возможности', items: [
       { title: 'Ипотечный калькулятор', button: 'Рассчитаем ипотеку', action: 'calc' },
       { title: 'Индивидуальный подбор', button: 'Помощь с подбором', action: 'modal' },
@@ -141,12 +154,22 @@ const defaultPages: PageContent[] = [
 
 // --- Load / Save ---
 
+const migratePages = (pages: PageContent[]): PageContent[] =>
+  pages.map((page) => ({
+    ...page,
+    sections: page.sections.map((s) =>
+      s.type === 'about_platform'
+        ? { ...s, settings: normalizeAboutPlatformSettings(s.settings) as Record<string, unknown> }
+        : s,
+    ),
+  }));
+
 const loadContent = (): PageContent[] => {
   try {
     const raw = localStorage.getItem(CONTENT_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return migratePages(JSON.parse(raw));
   } catch {}
-  return defaultPages;
+  return migratePages(defaultPages);
 };
 
 const saveContent = (pages: PageContent[]) => {
