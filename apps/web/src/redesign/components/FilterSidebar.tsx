@@ -84,7 +84,7 @@ const FilterSection = ({
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="border-b border-border last:border-0">
-      <button className="flex items-center justify-between w-full py-2.5 group" onClick={() => setOpen(!open)}>
+      <button className="flex items-center justify-between w-full py-2 group" onClick={() => setOpen(!open)}>
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
           {title}
           {count !== undefined && count > 0 && (
@@ -98,7 +98,7 @@ const FilterSection = ({
       <div
         className={cn(
           'overflow-hidden transition-all duration-200',
-          open ? 'max-h-[500px] opacity-100 pb-3' : 'max-h-0 opacity-0',
+          open ? 'max-h-[500px] opacity-100 pb-2' : 'max-h-0 opacity-0',
         )}
       >
         <div className="space-y-2">{children}</div>
@@ -143,7 +143,7 @@ const SearchableCheckboxList = ({
           />
         </div>
       )}
-      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+      <div className="space-y-1 max-h-32 overflow-y-auto">
         {selected.filter(s => filtered.includes(s)).map(item => (
           <label key={item} className="flex items-center gap-2 cursor-pointer text-xs font-medium text-primary hover:text-primary/80 transition-colors">
             <Checkbox checked onCheckedChange={() => onToggle(item)} className="w-3.5 h-3.5" />
@@ -289,7 +289,7 @@ const FilterSidebar = ({
     <div className={cn('space-y-0', className)}>
       {/* Active tags */}
       {activeTags.length > 0 && (
-        <div className="pb-3 mb-1 border-b border-border">
+        <div className="pb-2 mb-0.5 border-b border-border">
           <div className="flex flex-wrap gap-1 min-w-0">
           {activeTags.map((tag, i) => (
             <button

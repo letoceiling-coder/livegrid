@@ -34,8 +34,6 @@ import CatalogActiveFilterChips from '@/redesign/components/CatalogActiveFilterC
 import CatalogFilterPresets from '@/redesign/components/CatalogFilterPresets';
 import PublicTrustStrip from '@/redesign/components/PublicTrustStrip';
 import CatalogLandingPanel from '@/redesign/components/CatalogLandingPanel';
-import SelectionInquiryBar from '@/redesign/components/SelectionInquiryBar';
-import ContinueBrowsingSection from '@/redesign/components/ContinueBrowsingSection';
 import SessionResumeBanner from '@/redesign/components/SessionResumeBanner';
 import SavedSearchReminder from '@/redesign/components/SavedSearchReminder';
 import CompareSessionChip from '@/shared/components/CompareSessionChip';
@@ -526,15 +524,14 @@ const RedesignCatalog = () => {
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-4 py-5">
-        <SessionResumeBanner className="mb-4" />
-        <SavedSearchReminder className="mb-4" />
-        <ContinueBrowsingSection className="mb-5" />
+      <div className="max-w-[1400px] mx-auto px-4 py-3">
+        <SessionResumeBanner className="mb-2" />
+        <SavedSearchReminder className="mb-2" />
 
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h1 className="text-lg font-bold">{pageTitle}</h1>
-            <PublicTrustStrip regionId={regionId ?? undefined} compact className="mt-1.5" />
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg font-bold leading-tight">{pageTitle}</h1>
+            <PublicTrustStrip regionId={regionId ?? undefined} catalogHeader className="mt-1" />
             <p className="text-xs text-muted-foreground mt-0.5">
               {loading
                 ? 'Загрузка…'
@@ -600,23 +597,17 @@ const RedesignCatalog = () => {
           filters={filters}
           onChange={handleFiltersChange}
           showNewBuildPresets={showBlocks}
-          className="mb-3"
+          className="mb-2"
         />
 
-        <CatalogLandingPanel
-          regionId={regionId}
-          regionName={regionName}
-          landing={catalogLanding}
-        />
-
-        <CatalogActiveFilterChips filters={filters} onChange={handleFiltersChange} className="mb-4" />
+        <CatalogActiveFilterChips filters={filters} onChange={handleFiltersChange} className="mb-2" />
 
         {!regionId && !regionLoading && (
           <p className="text-sm text-muted-foreground mb-4">Нет регионов в базе — добавьте регион и ЖК в админке.</p>
         )}
 
         {showKindSwitcher && (
-          <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <span className="text-xs text-muted-foreground mr-1">Тип объекта:</span>
             {objectKindLinks.map((x) => (
               <button
@@ -640,7 +631,7 @@ const RedesignCatalog = () => {
           </div>
         )}
 
-        <div className="flex gap-6">
+        <div className="flex gap-4">
           <aside className="hidden lg:block w-[260px] shrink-0">
             <div className="sticky top-20">
               <FilterSidebar
@@ -802,6 +793,12 @@ const RedesignCatalog = () => {
                 )}
               </div>
             )}
+
+            <CatalogLandingPanel
+              regionId={regionId}
+              regionName={regionName}
+              landing={catalogLanding}
+            />
           </div>
         </div>
       </div>
@@ -835,15 +832,6 @@ const RedesignCatalog = () => {
           </div>
         </div>
       )}
-
-      {catalogLanding.kind !== 'none' && regionId != null ? (
-        <SelectionInquiryBar
-          sticky
-          source={`catalog-landing-mobile:${catalogLanding.kind}`}
-          contextFooter={catalogSeo.title.slice(0, 80)}
-          className="lg:hidden"
-        />
-      ) : null}
 
       <CompareSessionChip />
     </div>

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MapPin, TrainFront, Building2, Home } from 'lucide-react';
 import { apiGet } from '@/lib/api';
 import { buildCatalogFilterUrl } from '@/redesign/lib/catalog-filter-links';
+import CollapsibleTagRow from '@/redesign/components/CollapsibleTagRow';
 import type { CatalogLandingContext } from '@/redesign/lib/catalog-landing';
 
 type GraphPayload = {
@@ -16,9 +17,44 @@ type Props = {
   regionId: number | null;
   landing: CatalogLandingContext;
   className?: string;
+  /** Tighter layout for catalog footer (district/subway landings). */
+  compact?: boolean;
 };
 
-export default function CatalogDiscoveryLinks({ regionId, landing, className = '' }: Props) {
+const TAG_LIMIT = 8;
+
+function DiscoveryGroup({
+  title,
+  icon: Icon,
+  compact,
+  children,
+}: {
+  title: string;
+  icon: typeof MapPin;
+  compact?: boolean;
+  children: React.ReactNode[];
+}) {
+  if (children.length === 0) return null;
+  return (
+    <div>
+      <p
+        className={
+          compact
+            ? 'text-[11px] font-medium text-muted-foreground mb-1.5 flex items-center gap-1'
+            : 'text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5'
+        }
+      >
+        <Icon className="w-3 h-3 shrink-0" /> {title}
+      </p>
+      <CollapsibleTagRow items={children} maxVisible={TAG_LIMIT} />
+    </div>
+  );
+}
+
+const tagClass =
+  'text-xs px-2 py-0.5 rounded-md border border-border/80 bg-background hover:border-primary/40 transition-colors';
+
+export default function CatalogDiscoveryLinks({ regionId, landing, className = '', compact }: Props) {
   const enabled = regionId != null && landing.kind !== 'none';
 
   const graphQuery = useQuery({
@@ -44,88 +80,57 @@ export default function CatalogDiscoveryLinks({ regionId, landing, className = '
 
   if (!hasLinks) return null;
 
+  const districtTags = relatedDistricts.map((d) => (
+    <Link key={d.id} to={buildCatalogFilterUrl(regionId!, { district: d.name })} className={tagClass}>
+      {d.name}
+      <span className="text-muted-foreground ml-1 tabular-nums">{d.listingCount}</span>
+    </Link>
+  ));
+
+  const subwayTags = relatedSubways.map((s) => (
+    <Link key={s.id} to={buildCatalogFilterUrl(regionId!, { subway: s.name })} className={tagClass}>
+      м. {s.name}
+    </Link>
+  ));
+
+  const blockTags = nearbyBlocks.map((b) => (
+    <Link key={b.id} to={`/complex/${b.slug}`} className={tagClass}>
+      {b.name}
+    </Link>
+  ));
+
+  const roomTags = roomTypes.map((r) => (
+    <Link
+      key={r.rooms}
+      to={`/catalog?region_id=${regionId}${landing.district ? `&district_names=${encodeURIComponent(landing.district)}` : ''}${landing.subway ? `&subway_names=${encodeURIComponent(landing.subway)}` : ''}&rooms=${r.rooms}`}
+      className={tagClass}
+    >
+      {r.label}
+      <span className="text-muted-foreground ml-1 tabular-nums">{r.count}</span>
+    </Link>
+  ));
+
   return (
     <nav
-      className={`rounded-xl border border-border bg-muted/20 p-4 space-y-4 ${className}`}
+      className={
+        compact
+          ? `space-y-3 ${className}`
+          : `rounded-lg border border-border/60 bg-muted/15 p-3 space-y-3 ${className}`
+      }
       aria-label="Смежные разделы каталога"
     >
-      {relatedDistricts.length > 0 ? (
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5" /> Другие районы
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {relatedDistricts.map((d) => (
-              <Link
-                key={d.id}
-                to={buildCatalogFilterUrl(regionId!, { district: d.name })}
-                className="text-xs px-2.5 py-1 rounded-full border bg-background hover:border-primary/40 transition-colors"
-              >
-                {d.name}
-                <span className="text-muted-foreground ml-1 tabular-nums">{d.listingCount}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {relatedSubways.length > 0 ? (
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-            <TrainFront className="w-3.5 h-3.5" /> Метро рядом
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {relatedSubways.map((s) => (
-              <Link
-                key={s.id}
-                to={buildCatalogFilterUrl(regionId!, { subway: s.name })}
-                className="text-xs px-2.5 py-1 rounded-full border bg-background hover:border-primary/40 transition-colors"
-              >
-                м. {s.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {nearbyBlocks.length > 0 ? (
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5" /> ЖК в районе
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {nearbyBlocks.map((b) => (
-              <Link
-                key={b.id}
-                to={`/complex/${b.slug}`}
-                className="text-xs px-2.5 py-1 rounded-full border bg-background hover:border-primary/40 transition-colors"
-              >
-                {b.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {roomTypes.length > 0 ? (
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
-            <Home className="w-3.5 h-3.5" /> По комнатности
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {roomTypes.map((r) => (
-              <Link
-                key={r.rooms}
-                to={`/catalog?region_id=${regionId}${landing.district ? `&district_names=${encodeURIComponent(landing.district)}` : ''}${landing.subway ? `&subway_names=${encodeURIComponent(landing.subway)}` : ''}&rooms=${r.rooms}`}
-                className="text-xs px-2.5 py-1 rounded-full border bg-background hover:border-primary/40 transition-colors"
-              >
-                {r.label}
-                <span className="text-muted-foreground ml-1 tabular-nums">{r.count}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <DiscoveryGroup title="Другие районы" icon={MapPin} compact={compact}>
+        {districtTags}
+      </DiscoveryGroup>
+      <DiscoveryGroup title="Метро рядом" icon={TrainFront} compact={compact}>
+        {subwayTags}
+      </DiscoveryGroup>
+      <DiscoveryGroup title="ЖК в районе" icon={Building2} compact={compact}>
+        {blockTags}
+      </DiscoveryGroup>
+      <DiscoveryGroup title="По комнатности" icon={Home} compact={compact}>
+        {roomTags}
+      </DiscoveryGroup>
     </nav>
   );
 }

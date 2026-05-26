@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { CatalogFilters } from '@/redesign/data/types';
 import { defaultFilters } from '@/redesign/data/types';
@@ -121,30 +122,48 @@ type Props = {
   className?: string;
 };
 
+const MAX_VISIBLE_CHIPS = 6;
+
 export default function CatalogActiveFilterChips({ filters, onChange, className }: Props) {
+  const [expanded, setExpanded] = useState(false);
   const chips = buildChips(filters);
   if (!chips.length) return null;
 
+  const overflow = chips.length > MAX_VISIBLE_CHIPS;
+  const visible = expanded || !overflow ? chips : chips.slice(0, MAX_VISIBLE_CHIPS);
+  const hiddenCount = chips.length - MAX_VISIBLE_CHIPS;
+
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${className ?? ''}`}>
-      {chips.map((chip) => (
+    <div className={className ?? ''}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {visible.map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            onClick={() => onChange(removeChip(filters, chip.key))}
+            className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted transition-colors min-h-[30px]"
+          >
+            {chip.label}
+            <X className="w-3 h-3 text-muted-foreground" />
+          </button>
+        ))}
+        {overflow ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-xs font-medium text-primary hover:text-primary/80 px-1 min-h-[30px]"
+          >
+            {expanded ? 'Свернуть' : `Показать ещё (${hiddenCount})`}
+          </button>
+        ) : null}
         <button
-          key={chip.key}
           type="button"
-          onClick={() => onChange(removeChip(filters, chip.key))}
-          className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted transition-colors min-h-[32px]"
+          onClick={() => onChange({ ...defaultFilters, objectType: filters.objectType })}
+          className="text-xs text-primary hover:underline px-1 min-h-[30px]"
         >
-          {chip.label}
-          <X className="w-3 h-3 text-muted-foreground" />
+          Сбросить всё
         </button>
-      ))}
-      <button
-        type="button"
-        onClick={() => onChange({ ...defaultFilters, objectType: filters.objectType })}
-        className="text-xs text-primary hover:underline px-1 min-h-[32px]"
-      >
-        Сбросить всё
-      </button>
+      </div>
     </div>
   );
 }
