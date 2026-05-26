@@ -3,9 +3,11 @@ import { Calculator, MapPin } from 'lucide-react';
 import type { Apartment } from '@/redesign/data/types';
 import {
   formatDisplayPrice,
+  formatPricePerMeterSafe,
   isPriceFallbackText,
   isPriceHidden,
   priceAriaLabel,
+  PRICE_ON_REQUEST_CLASS,
 } from '@/redesign/lib/display-price';
 import {
   estimateMortgageMonthlyPayment,
@@ -45,10 +47,8 @@ const ApartmentPriceTrust = ({
 }: Props) => {
   const priceDisplay = formatDisplayPrice(apartment.price);
   const priceHidden = isPriceHidden(apartment.price);
-  const ppmHidden = priceHidden || apartment.pricePerMeter <= 0;
-  const ppmDisplay = ppmHidden
-    ? 'Цена по запросу'
-    : `${apartment.pricePerMeter.toLocaleString('ru-RU')} ₽/м²`;
+  const ppmDisplay = formatPricePerMeterSafe(apartment.price, apartment.area);
+  const ppmHidden = isPriceFallbackText(ppmDisplay);
 
   const mortgageMonthly = !priceHidden
     ? estimateMortgageMonthlyPayment({ priceRub: apartment.price })
@@ -86,7 +86,7 @@ const ApartmentPriceTrust = ({
         <p
           className={cn(
             'text-3xl sm:text-4xl font-bold tracking-tight',
-            isPriceFallbackText(priceDisplay) ? 'text-muted-foreground' : 'text-primary',
+            isPriceFallbackText(priceDisplay) ? PRICE_ON_REQUEST_CLASS : 'text-primary',
           )}
           aria-label={priceAriaLabel(priceDisplay)}
         >
@@ -95,7 +95,7 @@ const ApartmentPriceTrust = ({
         <p
           className={cn(
             'text-sm mt-1',
-            ppmHidden ? 'text-muted-foreground' : 'text-muted-foreground',
+            ppmHidden ? PRICE_ON_REQUEST_CLASS : 'text-muted-foreground',
           )}
         >
           {ppmDisplay}

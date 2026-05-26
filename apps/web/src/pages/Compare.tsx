@@ -9,7 +9,12 @@ import { Trash2, MapPin, Heart, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiGetOrNull } from '@/lib/api';
 import type { ApiBlockDetail } from '@/redesign/lib/blocks-from-api';
-import { formatPrice } from '@/redesign/data/mock-data';
+import {
+  PRICE_ON_REQUEST,
+  formatPriceRangeSafe,
+  formatPriceSafe,
+  hasValidPrice,
+} from '@/redesign/lib/display-price';
 import SelectionInquiryBar from '@/redesign/components/SelectionInquiryBar';
 
 const PLACEHOLDER = '/placeholder.svg';
@@ -104,12 +109,8 @@ function buildingsLine(b: ApiBlockDetail | undefined): string {
 }
 
 function priceRange(b: ApiBlockDetail | undefined): string {
-  if (!b) return '—';
-  const min = b.listingPriceMin != null ? Math.round(Number(b.listingPriceMin)) : 0;
-  const max = b.listingPriceMax != null ? Math.round(Number(b.listingPriceMax)) : 0;
-  if (min <= 0 && max <= 0) return '—';
-  if (max > 0 && max !== min) return `${formatPrice(min)} — ${formatPrice(max)}`;
-  return min > 0 ? `от ${formatPrice(min)}` : '—';
+  if (!b) return PRICE_ON_REQUEST;
+  return formatPriceRangeSafe(b.listingPriceMin, b.listingPriceMax);
 }
 
 const COMPARE_ROWS: { label: string; get: (b: ApiBlockDetail | undefined) => string }[] = [
@@ -149,10 +150,7 @@ function listingTitleShort(l: CompareListingPayload): string {
 }
 
 function listingPriceShow(l: CompareListingPayload): string {
-  const p = l.price;
-  const n = p == null ? NaN : Number(p);
-  if (!Number.isFinite(n) || n <= 0) return '—';
-  return formatPrice(n);
+  return formatPriceSafe(l.price);
 }
 
 function listingDetailHref(l: CompareListingPayload): string {
@@ -324,7 +322,7 @@ const Compare = () => {
                               {district}
                             </p>
                             <p className="text-sm font-semibold text-primary mt-auto">
-                              {priceMin > 0 ? `от ${formatPrice(priceMin)}` : '—'}
+                              {formatPriceSafe(priceMin)}
                             </p>
                           </>
                         )}

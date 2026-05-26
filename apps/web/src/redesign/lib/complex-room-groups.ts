@@ -1,5 +1,5 @@
 import type { Apartment } from '@/redesign/data/types';
-import { formatPriceRangeDisplay } from '@/redesign/lib/display-price';
+import { formatPriceRangeDisplay, normalizePriceValue } from '@/redesign/lib/display-price';
 
 export type RoomCategoryKey = 0 | 1 | 2 | 3 | 4;
 
@@ -40,7 +40,7 @@ export function buildRoomCategoryGroups(apartments: Apartment[]): RoomCategoryGr
 
   return ROOM_CATEGORY_DEFS.map(({ key, label }) => {
     const list = byKey.get(key) ?? [];
-    const prices = list.map((a) => a.price).filter((p) => p > 0);
+    const prices = list.map((a) => normalizePriceValue(a.price)).filter((p): p is number => p != null);
     const areas = list.map((a) => a.area).filter((a) => a > 0);
     return {
       key,

@@ -3,7 +3,14 @@ import { ChevronDown, ChevronUp, Eye, Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { Apartment, SortField, SortDir } from '@/redesign/data/types';
-import { formatDisplayPrice, formatPriceRangeDisplay, isPriceFallbackText } from '@/redesign/lib/display-price';
+import {
+  formatDisplayPrice,
+  formatPricePerMeterSafe,
+  formatPriceRangeDisplay,
+  isPriceFallbackText,
+  PRICE_ON_REQUEST_CLASS,
+  normalizePriceValue,
+} from '@/redesign/lib/display-price';
 import MissingPhotoPlaceholder from '@/redesign/components/MissingPhotoPlaceholder';
 
 interface Props {
@@ -118,8 +125,9 @@ const ApartmentTable = ({ apartments }: Props) => {
       existing.apartments.push(a);
       existing.areaMin = Math.min(existing.areaMin, a.area);
       existing.areaMax = Math.max(existing.areaMax, a.area);
-      if (a.price > 0) {
-        existing.priceMin = existing.priceMin > 0 ? Math.min(existing.priceMin, a.price) : a.price;
+      const p = normalizePriceValue(a.price);
+      if (p != null) {
+        existing.priceMin = existing.priceMin > 0 ? Math.min(existing.priceMin, p) : p;
         existing.priceMax = Math.max(existing.priceMax, a.price);
       }
     }
@@ -239,16 +247,14 @@ const ApartmentTable = ({ apartments }: Props) => {
                           <td className="px-2 py-2">{a.area} м²</td>
                           <td className="px-2 py-2">{a.kitchenArea} м²</td>
                           <td className="px-2 py-2 capitalize">{a.finishing}</td>
-                          <td className={cn('px-2 py-2', isPriceFallbackText(formatDisplayPrice(a.price)) && 'text-[#6b7280]')}>
+                          <td className={cn('px-2 py-2', isPriceFallbackText(formatDisplayPrice(a.price)) && PRICE_ON_REQUEST_CLASS)}>
                             {formatDisplayPrice(a.price)}
                           </td>
-                          <td className={cn('px-2 py-2 font-medium', isPriceFallbackText(formatDisplayPrice(a.price)) && 'text-[#6b7280]')}>
+                          <td className={cn('px-2 py-2 font-medium', isPriceFallbackText(formatDisplayPrice(a.price)) && PRICE_ON_REQUEST_CLASS)}>
                             {formatDisplayPrice(a.price)}
                           </td>
                           <td className="px-2 py-2">
-                            {!isPriceFallbackText(formatDisplayPrice(a.price)) && a.pricePerMeter > 0
-                              ? `${a.pricePerMeter.toLocaleString('ru-RU')} ₽/м²`
-                              : '—'}
+                            {formatPricePerMeterSafe(a.price, a.area)}
                           </td>
                           <td className="px-2 py-2">—</td>
                           <td className={cn('px-2 py-2', STATUS_CLASS[a.status])}>{STATUS_LABEL[a.status]}</td>

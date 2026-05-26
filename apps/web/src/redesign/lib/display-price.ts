@@ -112,3 +112,55 @@ export function priceAriaLabel(displayText: string): string | undefined {
 export function isPriceFallbackText(displayText: string): boolean {
   return displayText === PRICE_ON_REQUEST;
 }
+
+/** Tailwind class for «Цена по запросу» (spec: #6b7280). */
+export const PRICE_ON_REQUEST_CLASS = 'text-[#6b7280]';
+
+/** Alias — canonical safe formatter. */
+export const formatPriceSafe = formatDisplayPrice;
+
+/** Alias — min/max range. */
+export const formatPriceRangeSafe = formatPriceRangeDisplay;
+
+/** Alias — valid price check. */
+export function hasValidPrice(value: string | number | null | undefined): boolean {
+  return normalizePriceValue(value) !== null;
+}
+
+/** Sort key: invalid prices → +Infinity (last when sorting asc). */
+export function priceSortKey(value: string | number | null | undefined): number {
+  const rub = normalizePriceValue(value);
+  return rub ?? Number.POSITIVE_INFINITY;
+}
+
+/** Compare two prices; invalid sorts last in ascending order. */
+export function compareByPrice(
+  a: string | number | null | undefined,
+  b: string | number | null | undefined,
+  dir: 'asc' | 'desc' = 'asc',
+): number {
+  const diff = priceSortKey(a) - priceSortKey(b);
+  return dir === 'asc' ? diff : -diff;
+}
+
+/** ₽/m² — invalid price or area → PRICE_ON_REQUEST (no NaN). */
+export function formatPricePerMeterSafe(
+  price: string | number | null | undefined,
+  area: string | number | null | undefined,
+): string {
+  const rub = normalizePriceValue(price);
+  if (rub === null) return PRICE_ON_REQUEST;
+  const areaN =
+    typeof area === 'number'
+      ? area
+      : Number(String(area ?? '').replace(/\s/g, '').replace(',', '.'));
+  if (!Number.isFinite(areaN) || areaN <= 0) return PRICE_ON_REQUEST;
+  const ppm = Math.round(rub / areaN);
+  if (!Number.isFinite(ppm) || ppm <= 0) return PRICE_ON_REQUEST;
+  return `${ppm.toLocaleString('ru-RU')} ₽/м²`;
+}
+
+/** cn() helper: muted class when display text is on-request. */
+export function priceFallbackClass(displayText: string, extra?: string): string {
+  return isPriceFallbackText(displayText) ? PRICE_ON_REQUEST_CLASS : (extra ?? '');
+}

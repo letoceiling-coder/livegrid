@@ -6,7 +6,8 @@ import { apiGet } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { LISTING_VISIBILITY_LABEL, listingVisibilityClass } from '@/admin/lib/listingVisibility';
 import { cn } from '@/lib/utils';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPriceSafe, isPriceFallbackText, PRICE_ON_REQUEST_CLASS } from '@/redesign/lib/display-price';
+import { cn } from '@/lib/utils';
 
 type Tab = 'REVIEW' | 'REJECTED' | 'PENDING_REVISION' | 'RECENTLY_APPROVED';
 
@@ -204,7 +205,7 @@ export default function AdminModerationListings() {
                   <p className="text-xs text-red-700 mt-1 truncate">{row.moderationNote}</p>
                 ) : null}
               </div>
-              <p className="text-sm font-semibold shrink-0">{formatPrice(Number(row.price ?? 0))}</p>
+              <p className={cn("text-sm font-semibold shrink-0", isPriceFallbackText(formatPriceSafe(row.price)) && PRICE_ON_REQUEST_CLASS)}>{formatPriceSafe(row.price)}</p>
             </Link>
           ))}
         </div>

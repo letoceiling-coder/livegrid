@@ -22,6 +22,9 @@ import { apiGet, apiGetOrNull } from '@/lib/api';
 import {
   formatPriceFrom,
   formatPriceRangeDisplay,
+  compareByPrice,
+  PRICE_ON_REQUEST_CLASS,
+  isPriceFallbackText,
   formatDisplayPrice,
   priceAriaLabel,
   isPriceHidden,
@@ -118,7 +121,7 @@ const RedesignComplex = () => {
   const entitySeo = useMemo(() => {
     if (!complex) return null;
     const priceHint =
-      complex.priceFrom > 0 ? ` от ${formatPriceFrom(complex.priceFrom)}` : '';
+      ` ${formatPriceFrom(complex.priceFrom)}`;
     const desc = `${complex.name}${priceHint} — ${complex.district || complex.address}. Квартиры, планировки и шахматка на LiveGrid.`.slice(
       0,
       160,
@@ -218,6 +221,9 @@ const RedesignComplex = () => {
       : complex.buildings.flatMap((b) => b.apartments);
     const apts = source.filter((a) => a.status !== 'sold');
     apts.sort((a, b) => {
+      if (sort.field === 'price') {
+        return compareByPrice(a.price, b.price, sort.dir);
+      }
       const m = sort.dir === 'asc' ? 1 : -1;
       return (a[sort.field] - b[sort.field]) * m;
     });
@@ -680,7 +686,7 @@ const RedesignComplex = () => {
               </div>
               <div className="rounded-xl border border-border bg-muted/30 p-5 space-y-3 h-fit">
                 <p className="text-xs text-muted-foreground">Сводка</p>
-                <p className="text-xl font-bold" aria-label={priceAriaLabel(formatPriceFrom(complex.priceFrom))}>
+                <p className={cn("text-xl font-bold", isPriceFallbackText(formatPriceFrom(complex.priceFrom)) && PRICE_ON_REQUEST_CLASS)} aria-label={priceAriaLabel(formatPriceFrom(complex.priceFrom))}>
                   {formatPriceFrom(complex.priceFrom)}
                 </p>
                 {!isPriceHidden(complex.priceTo) ? (

@@ -2,7 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Heart, Loader2, TrendingDown } from 'lucide-react';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPriceSafe, isPriceFallbackText, PRICE_ON_REQUEST_CLASS } from '@/redesign/lib/display-price';
+import { cn } from '@/lib/utils';
 import { useFavorites } from '@/shared/hooks/useFavorites';
 import { apiPatch } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -172,7 +173,7 @@ export default function AccountFavoritesPage() {
             <div className="p-4 border rounded-2xl text-sm">Объект недоступен</div>
           )}
           {row.listing?.price != null ? (
-            <p className="text-xs font-semibold px-3 pb-2">{formatPrice(Number(row.listing.price))}</p>
+            <p className={cn("text-xs font-semibold px-3 pb-2", isPriceFallbackText(formatPriceSafe(row.listing.price)) && PRICE_ON_REQUEST_CLASS)}>{formatPriceSafe(row.listing.price)}</p>
           ) : null}
         </SwipeFavoriteCard>
       ))}

@@ -24,7 +24,8 @@ import {
   LISTING_VISIBILITY_TABS,
   listingVisibilityClass,
 } from '@/admin/lib/listingVisibility';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPriceSafe, isPriceFallbackText, PRICE_ON_REQUEST_CLASS } from '@/redesign/lib/display-price';
+import { cn } from '@/lib/utils';
 import { loadWizardDraft } from '@/admin/lib/listingWizardDraft';
 
 type Kind = 'APARTMENT' | 'HOUSE' | 'LAND' | 'COMMERCIAL' | 'PARKING';
@@ -400,7 +401,7 @@ export default function AdminMyListings() {
                       Запросить VIP-продвижение
                     </button>
                   ) : null}
-                  <p className="text-sm font-semibold">{formatPrice(Number(row.price ?? 0))}</p>
+                  <p className={cn("text-sm font-semibold", isPriceFallbackText(formatPriceSafe(row.price)) && PRICE_ON_REQUEST_CLASS)}>{formatPriceSafe(row.price)}</p>
                   <p className="text-[10px] text-muted-foreground">
                     обновлено {new Date(row.updatedAt).toLocaleDateString('ru-RU')}
                     {row.isStale ? ' · рекомендуется обновить (30+ дн.)' : ''}

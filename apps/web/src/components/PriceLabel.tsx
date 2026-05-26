@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import {
   PRICE_ON_REQUEST,
+  PRICE_ON_REQUEST_CLASS,
   isPriceFallbackText,
   priceAriaLabel,
 } from '@/redesign/lib/display-price';
@@ -24,7 +25,7 @@ const PriceLabel = ({ value, className, hot }: Props) => {
     <span
       className={cn(
         'font-bold text-sm shrink-0',
-        hot && !fallback ? 'text-[#EF4444]' : fallback ? 'text-muted-foreground' : 'text-primary',
+        hot && !fallback ? 'text-[#EF4444]' : fallback ? PRICE_ON_REQUEST_CLASS : 'text-primary',
         className,
       )}
       aria-label={priceAriaLabel(text)}

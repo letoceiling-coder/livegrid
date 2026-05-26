@@ -29,7 +29,7 @@ import ConsultationFlow from '@/redesign/components/ConsultationFlow';
 import { CONVERSION_CTA, type ConsultationContext } from '@/redesign/lib/conversion-cta';
 import { apiGet } from '@/lib/api';
 import TrustBadgeRow from '@/redesign/components/TrustBadgeRow';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPriceSafe, formatPricePerMeterSafe, hasValidPrice, isPriceFallbackText, PRICE_ON_REQUEST_CLASS } from '@/redesign/lib/display-price';
 import { LIVEGRID_LOGO_SRC } from '@/redesign/lib/branding';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -344,7 +344,7 @@ const RedesignListingDetail = () => {
     if (data.kind === 'APARTMENT' && data.block) return null;
     const title = data.title?.trim() || buildTitle(data);
     const price = num(data.price);
-    const pricePart = price > 0 ? formatPrice(price) : '';
+    const pricePart = isPriceFallbackText(formatPriceSafe(price)) ? '' : formatPriceSafe(price);
     const kindLabel = KIND_LABEL[data.kind] ?? 'Объект';
     const address = pickAddress(data);
     const description = [kindLabel, pricePart, address, data.region?.name]
@@ -365,7 +365,7 @@ const RedesignListingDetail = () => {
         '@type': schemaType,
         name: title,
         url: `${typeof window !== 'undefined' ? window.location.origin : ''}${path}`,
-        ...(price > 0
+        ...(hasValidPrice(price)
           ? { offers: { '@type': 'Offer', price, priceCurrency: 'RUB', availability: 'https://schema.org/InStock' } }
           : {}),
         ...(address ? { address: { '@type': 'PostalAddress', streetAddress: address } } : {}),
@@ -437,7 +437,7 @@ const RedesignListingDetail = () => {
   const description = data.description?.trim() || null;
   const KindIcon = KIND_ICON[data.kind] ?? BuildingIcon;
   const price = num(data.price);
-  const priceDisplay = formatPrice(price);
+  const priceDisplay = formatPriceSafe(price);
   const address = pickAddress(data);
   const regionName = data.region?.name ?? '';
   const statusTone = STATUS_TONE[data.status] ?? 'bg-muted text-muted-foreground';
@@ -711,13 +711,10 @@ const RedesignListingDetail = () => {
               )}
 
               <div className="border-t border-border pt-5 mb-5">
-                <p className="text-3xl font-bold">{priceDisplay}</p>
-                {data.kind === 'APARTMENT' &&
-                data.apartment?.areaTotal &&
-                num(data.apartment.areaTotal) > 0 &&
-                priceDisplay !== 'Цена по запросу' ? (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {Math.round(price / num(data.apartment.areaTotal)).toLocaleString('ru-RU')} ₽/м²
+                <p className={cn('text-3xl font-bold', isPriceFallbackText(priceDisplay) && PRICE_ON_REQUEST_CLASS)}>{priceDisplay}</p>
+                {data.kind === 'APARTMENT' && data.apartment?.areaTotal ? (
+                  <p className={cn('text-sm mt-1', isPriceFallbackText(formatPricePerMeterSafe(price, data.apartment.areaTotal)) && PRICE_ON_REQUEST_CLASS)}>
+                    {formatPricePerMeterSafe(price, data.apartment.areaTotal)}
                   </p>
                 ) : null}
               </div>

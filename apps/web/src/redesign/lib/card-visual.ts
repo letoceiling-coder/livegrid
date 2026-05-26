@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
-import { formatPriceFrom, isPriceFallbackText } from '@/redesign/lib/display-price';
+import { formatPriceFrom, isPriceFallbackText, normalizePriceValue } from '@/redesign/lib/display-price';
 import { MIN_REASONABLE_PRICE_RUB } from '@/redesign/data/mock-data';
 
 /**
@@ -219,7 +219,7 @@ export type ComplexPriceBandRow = { rooms: number; label: string; price: string 
 /** Dotted price rows from API priceRanges or loaded apartments */
 export function complexPriceBandRows(complex: ResidentialComplex): ComplexPriceBandRow[] {
   const fromApi = (complex.priceRanges ?? [])
-    .filter((r) => r.priceMin >= MIN_REASONABLE_PRICE_RUB)
+    .filter((r) => normalizePriceValue(r.priceMin) != null)
     .sort((a, b) => a.rooms - b.rooms)
     .slice(0, 3)
     .map((r) => ({
@@ -231,7 +231,7 @@ export function complexPriceBandRows(complex: ResidentialComplex): ComplexPriceB
   if (fromApi.length > 0) return fromApi;
 
   const priceBands = [...complex.buildings.flatMap((b) => b.apartments)]
-    .filter((a) => a.status !== 'sold' && a.price > 0)
+    .filter((a) => a.status !== 'sold' && normalizePriceValue(a.price) != null)
     .reduce<Map<number, number>>((acc, apt) => {
       const key = apt.rooms >= 4 ? 4 : apt.rooms;
       const prev = acc.get(key);

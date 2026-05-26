@@ -141,7 +141,7 @@ const RedesignApartment = () => {
   const entitySeo = useMemo(() => {
     if (!apt) return null;
     const roomsLabel = apt.rooms != null ? `${apt.rooms}-комн.` : 'Квартира';
-    const priceLabel = apt.price > 0 ? formatDisplayPrice(apt.price) : '';
+    const priceLabel = formatDisplayPrice(apt.price);
     const title = [roomsLabel, complex?.name].filter(Boolean).join(' · ');
     const description = [priceLabel, complex?.name, apt.area ? `${apt.area} м²` : '']
       .filter(Boolean)

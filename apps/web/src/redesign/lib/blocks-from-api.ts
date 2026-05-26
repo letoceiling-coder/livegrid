@@ -1,5 +1,6 @@
 import type { Apartment, Building, LayoutGroup, ResidentialComplex } from '@/redesign/data/types';
 import { MIN_REASONABLE_PRICE_RUB } from '@/redesign/data/mock-data';
+import { normalizePriceValue } from '@/redesign/lib/display-price';
 import { IMAGE_PLACEHOLDER } from '@/redesign/lib/image-media';
 
 export type ApiBlockListRow = {
@@ -283,8 +284,9 @@ export function buildLayoutGroupsFromApartments(complexId: string, apartments: A
     }
     const g = map.get(key)!;
     g.availableCount++;
-    if (a.price > 0 && (g.priceFrom <= 0 || a.price < g.priceFrom)) {
-      g.priceFrom = a.price;
+    const p = normalizePriceValue(a.price);
+    if (p != null && (g.priceFrom <= 0 || p < g.priceFrom)) {
+      g.priceFrom = p;
       g.apartmentId = a.id;
     }
   }
@@ -345,7 +347,7 @@ export function mapApiBlockDetailToResidentialComplex(
   // Цены берём только у свободных и забронированных, и только с валидной (>0) ценой,
   // чтобы «от …» не схлопывалась в 0 из-за мусора в фиде.
   const inSalePrices = allApts
-    .filter((a) => a.status !== 'sold' && a.price > 0)
+    .filter((a) => a.status !== 'sold' && normalizePriceValue(a.price) != null)
     .map((a) => a.price);
   const priceFrom = inSalePrices.length ? Math.min(...inSalePrices) : base.priceFrom;
   const priceTo = inSalePrices.length ? Math.max(...inSalePrices) : base.priceTo;

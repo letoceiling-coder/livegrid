@@ -5,7 +5,8 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/sonner';
-import { formatPrice } from '@/redesign/data/mock-data';
+import { formatPriceSafe, isPriceFallbackText, PRICE_ON_REQUEST_CLASS } from '@/redesign/lib/display-price';
+import { cn } from '@/lib/utils';
 
 type PromoRow = {
   id: number;
@@ -138,7 +139,7 @@ export default function AdminListingsPromotions() {
                   {row.ownerUser?.fullName ?? row.ownerUser?.email ?? '—'}
                 </p>
               </div>
-              <p className="text-sm font-semibold shrink-0">{formatPrice(Number(row.price ?? 0))}</p>
+              <p className={cn("text-sm font-semibold shrink-0", isPriceFallbackText(formatPriceSafe(row.price)) && PRICE_ON_REQUEST_CLASS)}>{formatPriceSafe(row.price)}</p>
               <div className="flex gap-2">
                 <Button
                   size="sm"
