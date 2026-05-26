@@ -1,7 +1,26 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import type { RegionRow } from '@/redesign/hooks/useDefaultRegionId';
+import RegionPickerPanel from '@/redesign/components/RegionPickerPanel';
+import {
+  isBelgorodRegion,
+  orderRegionsWithBelgorodFirst,
+  regionLabel,
+} from '@/redesign/lib/region-picker-utils';
 
 type Props = {
   regions?: RegionRow[];
@@ -10,95 +29,83 @@ type Props = {
   className?: string;
 };
 
-function isBelgorod(region: RegionRow): boolean {
-  const code = (region.code ?? '').toLowerCase();
-  const name = (region.name ?? '').toLowerCase();
-  return code === 'belgorod' || name.includes('белгород');
-}
-
-function regionLabel(region: RegionRow): string {
-  return region.name?.trim() || region.code || `Регион ${region.id}`;
-}
-
 const RegionSelector = ({ regions, selectedRegionId, onSelect, className }: Props) => {
   const [open, setOpen] = useState(false);
-  const ordered = useMemo(() => {
-    const rows = regions ?? [];
-    const belgorod = rows.find(isBelgorod);
-    const rest = rows
-      .filter((r) => r.id !== belgorod?.id)
-      .sort((a, b) => regionLabel(a).localeCompare(regionLabel(b), 'ru'));
-    return belgorod ? [belgorod, ...rest] : rest;
-  }, [regions]);
-  const visible = ordered.slice(0, 6);
+  const isMobile = useIsMobile();
+
+  const ordered = useMemo(
+    () => orderRegionsWithBelgorodFirst(regions ?? []),
+    [regions],
+  );
   const selected = ordered.find((r) => r.id === selectedRegionId);
+  const belgorod = ordered.find(isBelgorodRegion);
+  const showBelgorodQuick =
+    belgorod != null && belgorod.id !== selectedRegionId && ordered.length > 1;
 
   if (!ordered.length) return null;
 
+  const handleSelect = (id: number) => {
+    onSelect(id);
+    setOpen(false);
+  };
+
+  const picker = (
+    <RegionPickerPanel
+      regions={ordered}
+      selectedRegionId={selectedRegionId}
+      onSelect={handleSelect}
+      className={isMobile ? 'h-[min(70vh,520px)]' : 'h-[min(60vh,480px)]'}
+    />
+  );
+
   return (
-    <div className={cn('relative min-w-0', className)}>
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {visible.map((region) => {
-          const active = region.id === selectedRegionId;
-          const belgorod = isBelgorod(region);
-          return (
-            <button
-              key={region.id}
-              type="button"
-              onClick={() => onSelect(region.id)}
-              className={cn(
-                'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
-                active
-                  ? 'border-[#2563EB] bg-[#2563EB] text-white shadow-sm'
-                  : belgorod
-                    ? 'border-[#F97316] bg-[#F97316] text-white hover:bg-[#EA580C]'
-                    : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-muted/60',
-              )}
-            >
-              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-              {regionLabel(region)}
-            </button>
-          );
-        })}
+    <div className={cn('flex flex-wrap items-center justify-center gap-2 min-w-0 max-w-full', className)}>
+      {showBelgorodQuick ? (
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
-            open ? 'border-primary bg-accent text-primary' : 'border-border bg-background text-muted-foreground hover:text-foreground',
-          )}
+          onClick={() => handleSelect(belgorod.id)}
+          className="inline-flex items-center gap-1.5 rounded-full border border-[#F97316]/40 bg-[#FFF7ED] px-3 py-1.5 text-sm font-medium text-[#C2410C] hover:bg-[#FFEDD5] transition-colors shrink-0"
         >
-          Все регионы
-          {selected ? <span className="max-w-[120px] truncate text-[11px] opacity-75">· {regionLabel(selected)}</span> : null}
-          <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} aria-hidden="true" />
+          <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {regionLabel(belgorod)}
         </button>
-      </div>
+      ) : null}
 
-      {open ? (
-        <div className="absolute left-0 top-full z-50 mt-1.5 max-h-[320px] min-w-[260px] overflow-y-auto rounded-xl border border-border bg-card py-1.5 shadow-lg">
-          {ordered.map((region) => (
-            <button
-              key={region.id}
-              type="button"
-              onClick={() => {
-                onSelect(region.id);
-                setOpen(false);
-              }}
-              className={cn(
-                'flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors hover:bg-muted/50',
-                region.id === selectedRegionId && 'font-medium text-primary',
-              )}
-            >
-              <span
-                className={cn(
-                  'h-1.5 w-1.5 rounded-full',
-                  region.id === selectedRegionId ? 'bg-primary' : isBelgorod(region) ? 'bg-[#F97316]' : 'bg-muted-foreground/40',
-                )}
-              />
-              {regionLabel(region)}
-            </button>
-          ))}
-        </div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors shrink-0 max-w-[min(100%,280px)]',
+          'border-border bg-background shadow-sm hover:border-primary/30 hover:bg-muted/40',
+        )}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <MapPin className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden />
+        <span className="truncate">{selected ? regionLabel(selected) : 'Выберите регион'}</span>
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden />
+      </button>
+
+      {open && isMobile ? (
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent side="bottom" className="rounded-t-2xl px-4 pb-8 pt-4 max-h-[92vh] flex flex-col">
+            <SheetHeader className="text-left shrink-0 mb-2">
+              <SheetTitle>Регион поиска</SheetTitle>
+            </SheetHeader>
+            {picker}
+          </SheetContent>
+        </Sheet>
+      ) : null}
+
+      {open && !isMobile ? (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
+            <DialogHeader className="px-6 pt-6 pb-2">
+              <DialogTitle>Регион поиска</DialogTitle>
+            </DialogHeader>
+            <div className="px-6 pb-6">{picker}</div>
+          </DialogContent>
+        </Dialog>
       ) : null}
     </div>
   );

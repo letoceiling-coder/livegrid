@@ -10,9 +10,6 @@ import FilterSidebar from '@/redesign/components/FilterSidebar';
 import type { CatalogHints } from '@/redesign/lib/catalog-hints-types';
 import { catalogFiltersIntoSearchParams } from '@/redesign/lib/catalog-url-sync';
 import {
-  buildBlocksSearchParams,
-  buildListingsSearchParams,
-  hasNarrowingFilters,
   LISTING_KIND_BY_OBJECT_TYPE,
 } from '@/redesign/lib/catalog-api-params';
 import type { CatalogFilters, ObjectType } from '@/redesign/data/types';
@@ -115,63 +112,6 @@ const HeroSearch = () => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const catalogCountParams = useMemo(() => {
-    if (regionId == null || !isApartmentMode || useSecondaryMarket) return null;
-    return buildBlocksSearchParams({ filters: debouncedFilters, regionId }).toString();
-  }, [regionId, isApartmentMode, useSecondaryMarket, debouncedFilters]);
-
-  const listingHeroCountParams = useMemo(() => {
-    if (regionId == null) return null;
-    if (isApartmentMode && !useSecondaryMarket) return null;
-    return buildListingsSearchParams({
-      filters: debouncedFilters,
-      regionId,
-      kind: isApartmentMode ? 'APARTMENT' : LISTING_KIND_BY_OBJECT_TYPE[debouncedFilters.objectType],
-      page: 1,
-      perPage: 1,
-    }).toString();
-  }, [regionId, isApartmentMode, useSecondaryMarket, debouncedFilters]);
-
-  const apartmentFallbackCountParams = useMemo(() => {
-    if (regionId == null || !isApartmentMode || useSecondaryMarket) return null;
-    return buildListingsSearchParams({
-      filters: debouncedFilters,
-      regionId,
-      kind: 'APARTMENT',
-      page: 1,
-      perPage: 1,
-    }).toString();
-  }, [regionId, isApartmentMode, useSecondaryMarket, debouncedFilters]);
-
-  const { data: catalogStats } = useQuery({
-    queryKey: ['blocks', 'catalog-counts', catalogCountParams],
-    queryFn: () =>
-      apiGet<{ blocks: number; apartments: number }>(`/blocks/catalog-counts?${catalogCountParams}`),
-    enabled: catalogCountParams != null,
-    staleTime: 30_000,
-  });
-
-  const { data: listingMarketCount } = useQuery({
-    queryKey: ['listings', 'hero-count', listingHeroCountParams],
-    queryFn: () => apiGet<{ meta: { total: number } }>(`/listings?${listingHeroCountParams}`),
-    enabled: listingHeroCountParams != null,
-    staleTime: 30_000,
-  });
-
-  const { data: apartmentFallbackCount } = useQuery({
-    queryKey: ['listings', 'hero-apt-fallback-count', apartmentFallbackCountParams],
-    queryFn: () => apiGet<{ meta: { total: number } }>(`/listings?${apartmentFallbackCountParams}`),
-    enabled: apartmentFallbackCountParams != null,
-    staleTime: 30_000,
-  });
-
-  const { data: kindCounts } = useQuery({
-    queryKey: ['stats', 'listing-kind-counts', regionId],
-    queryFn: () => apiGet<Record<string, number>>(`/stats/listing-kind-counts?region_id=${regionId}`),
-    enabled: regionId != null,
-    staleTime: 60_000,
-  });
-
   const switchObjectType = useCallback((nextType: ObjectType) => {
     setFilters((prev) => resetFiltersForObjectType(prev, nextType));
     setPriceFromStr('');
@@ -213,109 +153,24 @@ const HeroSearch = () => {
 
   const showHintsPanel = isApartmentMode && searchFocused && filters.search.trim().length >= 2 && regionId != null;
 
-  const nonAptTotal = listingMarketCount?.meta?.total;
-
-  const ctaLabel = useMemo(() => {
-    if (isApartmentMode) {
-      if (useSecondaryMarket) {
-        const t = listingMarketCount?.meta?.total;
-        if (t != null && t > 0) return `${t.toLocaleString('ru')} квартир →`;
-        if (t === 0) return 'Нет квартир →';
-        return 'Найти →';
-      }
-      const blocks = catalogStats?.blocks ?? 0;
-      const apartmentsInBlocks = catalogStats?.apartments ?? 0;
-      if (blocks > 0) {
-        return `${apartmentsInBlocks.toLocaleString('ru')} квартир в ${blocks.toLocaleString('ru')} ЖК →`;
-      }
-      if (catalogStats == null) return 'Найти →';
-      const fallbackTotal = apartmentFallbackCount?.meta?.total;
-      if (fallbackTotal != null && fallbackTotal > 0) return `${fallbackTotal.toLocaleString('ru')} квартир →`;
-      if (fallbackTotal === 0) return 'Нет квартир в этом регионе';
-      return 'Найти →';
-    }
-    if (nonAptTotal != null) {
-      if (nonAptTotal > 0) {
-        const word =
-          filters.objectType === 'houses'
-            ? 'домов'
-            : filters.objectType === 'land'
-              ? 'участков'
-              : filters.objectType === 'commercial'
-                ? 'объектов'
-                : filters.objectType === 'rooms'
-                  ? 'комнат'
-                  : 'объектов';
-        return `${nonAptTotal.toLocaleString('ru')} ${word} →`;
-      }
-      return 'Нет лотов →';
-    }
-    const k = LISTING_KIND_BY_OBJECT_TYPE[filters.objectType];
-    const n = !hasNarrowingFilters(debouncedFilters) && kindCounts ? (kindCounts[k] ?? 0) : 0;
-    if (n > 0) {
-      const word =
-        filters.objectType === 'houses'
-          ? 'домов'
-          : filters.objectType === 'land'
-            ? 'участков'
-            : filters.objectType === 'commercial'
-              ? 'объектов'
-              : 'объектов';
-      return `${n.toLocaleString('ru')} ${word} →`;
-    }
-    return 'Найти →';
-  }, [
-    isApartmentMode,
-    useSecondaryMarket,
-    listingMarketCount,
-    catalogStats,
-    apartmentFallbackCount,
-    nonAptTotal,
-    debouncedFilters,
-    kindCounts,
-    filters.objectType,
-  ]);
-
-  const apartmentsHeadlineCount = useMemo(() => {
-    if (!isApartmentMode) return 0;
-    if (useSecondaryMarket && listingMarketCount?.meta?.total != null) {
-      return listingMarketCount.meta.total;
-    }
-    const fromStats = catalogStats?.apartments ?? 0;
-    if (fromStats > 0) return fromStats;
-    const fallbackApt = apartmentFallbackCount?.meta?.total ?? 0;
-    if (fallbackApt > 0) return fallbackApt;
-    if (!hasNarrowingFilters(debouncedFilters)) {
-      return kindCounts?.APARTMENT ?? 0;
-    }
-    return 0;
-  }, [
-    isApartmentMode,
-    useSecondaryMarket,
-    listingMarketCount,
-    catalogStats,
-    apartmentFallbackCount,
-    debouncedFilters,
-    kindCounts,
-  ]);
-
   const heroSubtitle = useMemo(() => {
-    if (isApartmentMode) {
-      return `${apartmentsHeadlineCount.toLocaleString('ru-RU')}+ квартир по России`;
+    switch (filters.objectType) {
+      case 'apartments':
+        return 'Новостройки и вторичка';
+      case 'rooms':
+        return 'Комнаты';
+      case 'houses':
+        return 'Дома и коттеджи';
+      case 'dachas':
+        return 'Дачи';
+      case 'land':
+        return 'Земельные участки';
+      case 'commercial':
+        return 'Коммерческая недвижимость';
+      default:
+        return 'Поиск недвижимости';
     }
-    if (filters.objectType === 'rooms') return 'Комнаты в регионе';
-    if (filters.objectType === 'dachas') return 'Дачи в регионе';
-    const nf = nonAptTotal;
-    const k = LISTING_KIND_BY_OBJECT_TYPE[filters.objectType];
-    const n = nf != null ? nf : kindCounts ? (kindCounts[k] ?? 0) : 0;
-    if (filters.objectType === 'houses') {
-      return n > 0 ? `${n.toLocaleString('ru-RU')} домов в регионе` : 'Дома в регионе';
-    }
-    if (filters.objectType === 'land') {
-      return n > 0 ? `${n.toLocaleString('ru-RU')} участков в регионе` : 'Земельные участки';
-    }
-    return n > 0 ? `${n.toLocaleString('ru-RU')} коммерческих объектов` : 'Коммерческая недвижимость';
-  }, [isApartmentMode, apartmentsHeadlineCount, filters.objectType, kindCounts, nonAptTotal]);
+  }, [filters.objectType]);
 
   const searchPlaceholder = useMemo(() => {
     if (isApartmentMode) return 'Метро, район, ЖК, улица, застройщик';
@@ -326,22 +181,22 @@ const HeroSearch = () => {
   }, [isApartmentMode, filters.objectType]);
 
   return (
-    <section className="relative bg-background">
-      <div className="max-w-[1400px] mx-auto px-4 pt-4 pb-5 sm:pt-6 sm:pb-5">
-        <div className="flex flex-col items-center gap-1 mb-3">
+    <section className="relative bg-background overflow-x-hidden">
+      <div className="max-w-[1400px] mx-auto px-4 pt-6 pb-6 sm:pt-10 sm:pb-8">
+        <div className="flex flex-col items-center gap-3 sm:gap-4 mb-5 sm:mb-6 max-w-3xl mx-auto">
           <RegionSelector
             regions={regionRows}
             selectedRegionId={regionId}
             onSelect={setStoredRegionId}
-            className="w-full max-w-[720px]"
+            className="w-full"
           />
-          <h1 className="text-xl sm:text-2xl md:text-4xl font-extrabold leading-tight text-center">
+          <h1 className="text-2xl sm:text-3xl md:text-[2.5rem] font-bold leading-tight text-center tracking-tight">
             <span className="text-[#2563EB]">Live Grid.</span>{' '}
             <span className="text-foreground">{heroSubtitle}</span>
           </h1>
         </div>
 
-        <div className="flex items-center sm:justify-center gap-1.5 sm:gap-2 mb-4 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="flex items-center sm:justify-center gap-2 mb-5 sm:mb-6 max-w-full overflow-x-auto pb-0.5 scrollbar-hide">
           {OBJECT_TYPE_TABS.map((tab) => {
             const Icon = objectTabIcons[tab.type];
             return (
@@ -365,7 +220,7 @@ const HeroSearch = () => {
 
         <div
           ref={searchRef}
-          className="w-full max-w-[1400px] mx-auto bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.10)] px-5 sm:px-6 py-5 relative"
+          className="w-full max-w-[900px] mx-auto bg-card rounded-2xl border border-border/60 shadow-[0_8px_32px_rgba(15,23,42,0.06)] px-4 sm:px-6 py-4 sm:py-5 relative"
         >
           <div className="relative z-20">
             <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-0 lg:h-[52px]">
@@ -601,7 +456,7 @@ const HeroSearch = () => {
               onClick={doSearch}
               className="py-2.5 px-6 flex-1 sm:flex-none rounded-[10px] bg-[#2563EB] text-white text-xs sm:text-sm font-semibold hover:bg-[#1d4ed8] transition-colors shadow-sm"
             >
-              {ctaLabel}
+              'Найти'
             </button>
           </div>
         </div>
