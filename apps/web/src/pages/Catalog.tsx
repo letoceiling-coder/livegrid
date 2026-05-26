@@ -232,7 +232,7 @@ const Catalog = () => {
       <PropertyGridSection title="Горячие предложения" type="hot" />
       <QuizSection />
       <AboutPlatform pageSlug="/catalog" />
-      <AdditionalFeatures />
+      <AdditionalFeatures pageSlug="/catalog" />
       <LatestNews />
       <ContactsSection />
       <FooterSection />

@@ -1,6 +1,7 @@
 import { type SectionConfig } from '../../store/content-store';
 import HeroEditor from './editors/HeroEditor';
 import AboutEditor from './editors/AboutEditor';
+import HelpSelectionEditor from './editors/HelpSelectionEditor';
 import ContactsEditor from './editors/ContactsEditor';
 import FeaturesEditor from './editors/FeaturesEditor';
 import GenericEditor from './editors/GenericEditor';
@@ -19,6 +20,8 @@ export default function SectionEditorForm({ section, onUpdate }: Props) {
       return <HeroEditor settings={section.settings} onUpdate={onUpdate} />;
     case 'about_platform':
       return <AboutEditor settings={section.settings} onUpdate={onUpdate} />;
+    case 'help_selection':
+      return <HelpSelectionEditor settings={section.settings} onUpdate={onUpdate} />;
     case 'contacts':
       return <ContactsEditor settings={section.settings} onUpdate={onUpdate} />;
     case 'additional_features':

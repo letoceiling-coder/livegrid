@@ -319,7 +319,7 @@ const ObjectDetail = () => {
       <AboutPlatform pageSlug="/" />
 
       {/* Additional Features */}
-      <AdditionalFeatures />
+      <AdditionalFeatures pageSlug="/" />
 
       {/* Contacts */}
       <ContactsSection />

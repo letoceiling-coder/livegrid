@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { normalizeAboutPlatformSettings } from '@/shared/lib/about-platform-cms';
+import { normalizeHelpSelectionSettings } from '@/shared/lib/help-selection-cms';
+import { normalizePlatformToolsSettings } from '@/shared/lib/platform-tools-cms';
 
 // ============================================================
 // Content Store — единый контентный слой для управления данными
@@ -75,15 +77,24 @@ const defaultHomeContent: PageContent = {
         { id: 's3', value: '120+', label: 'застройщиков', icon: 'users', enabled: true, order: 2 },
       ],
     } },
-    { id: 'home-features', type: 'additional_features', label: 'Дополнительные возможности', position: 8, is_active: true, settings: { title: 'Дополнительные возможности', items: [
-      { title: 'Ипотечный калькулятор', button: 'Рассчитаем ипотеку', action: 'calc' },
-      { title: 'Индивидуальный подбор', button: 'Помощь с подбором', action: 'modal' },
-      { title: 'Вся недвижимость', button: 'Все предложения', action: 'catalog' },
-      { title: 'Ваш личный кабинет', button: 'Войти / Зарегистрироваться', action: 'auth' },
-    ] } },
-    { id: 'home-news', type: 'latest_news', label: 'Последние новости', position: 9, is_active: true, settings: { title: 'Последние новости' } },
-    { id: 'home-contacts', type: 'contacts', label: 'Контакты', position: 10, is_active: true, settings: { title: 'Свяжитесь с LiveGrid', phone1: '+7 (4) 333 44 11', phone2: '+7 (4) 333 66 12', email: 'info@livegrid.ru', address: 'Москва, ул. Примерная, д. 1', socials: ['VK', 'TG', 'YT', 'OK'] } },
-    { id: 'home-footer', type: 'footer', label: 'Подвал', position: 11, is_active: true, settings: { columns: [
+    { id: 'home-help', type: 'help_selection', label: 'Помощь с выбором', position: 8, is_active: true, settings: {
+      title: 'Поможем подобрать недвижимость',
+      description: 'Подберём квартиры, дома и ЖК под ваш бюджет и задачи.',
+      buttonText: 'Получить консультацию',
+      buttonUrl: '#consult',
+      backgroundVariant: 'soft-blue',
+    } },
+    { id: 'home-features', type: 'additional_features', label: 'Инструменты', position: 9, is_active: true, settings: {
+      title: 'Инструменты',
+      items: [
+        { id: 't1', icon: 'user-search', title: 'Индивидуальный подбор', description: 'Подберём под запрос', link: '/selection', enabled: true, order: 0 },
+        { id: 't2', icon: 'building2', title: 'Вся недвижимость', description: 'Каталог объектов', link: '/catalog', enabled: true, order: 1 },
+        { id: 't3', icon: 'user-circle', title: 'Личный кабинет', description: 'Избранное и заявки', link: '/login', enabled: true, order: 2 },
+      ],
+    } },
+    { id: 'home-news', type: 'latest_news', label: 'Последние новости', position: 10, is_active: true, settings: { title: 'Последние новости' } },
+    { id: 'home-contacts', type: 'contacts', label: 'Контакты', position: 11, is_active: true, settings: { title: 'Свяжитесь с LiveGrid', phone1: '+7 (4) 333 44 11', phone2: '+7 (4) 333 66 12', email: 'info@livegrid.ru', address: 'Москва, ул. Примерная, д. 1', socials: ['VK', 'TG', 'YT', 'OK'] } },
+    { id: 'home-footer', type: 'footer', label: 'Подвал', position: 12, is_active: true, settings: { columns: [
       { title: 'Покупка', items: ['Новостройки', 'Вторичка', 'Коттеджи', 'Участки', 'Коммерция'] },
       { title: 'Аренда', items: ['Квартиры', 'Дома', 'Офисы', 'Склады', 'Помещения'] },
       { title: 'Ипотека', items: ['Калькулятор', 'Банки-партнеры', 'Программы', 'Рефинансирование'] },
@@ -157,11 +168,18 @@ const defaultPages: PageContent[] = [
 const migratePages = (pages: PageContent[]): PageContent[] =>
   pages.map((page) => ({
     ...page,
-    sections: page.sections.map((s) =>
-      s.type === 'about_platform'
-        ? { ...s, settings: normalizeAboutPlatformSettings(s.settings) as Record<string, unknown> }
-        : s,
-    ),
+    sections: page.sections.map((s) => {
+      if (s.type === 'about_platform') {
+        return { ...s, settings: normalizeAboutPlatformSettings(s.settings) as Record<string, unknown> };
+      }
+      if (s.type === 'help_selection') {
+        return { ...s, settings: normalizeHelpSelectionSettings(s.settings) as Record<string, unknown> };
+      }
+      if (s.type === 'additional_features') {
+        return { ...s, settings: normalizePlatformToolsSettings(s.settings) as Record<string, unknown> };
+      }
+      return s;
+    }),
   }));
 
 const loadContent = (): PageContent[] => {

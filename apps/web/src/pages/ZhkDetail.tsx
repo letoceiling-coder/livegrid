@@ -410,7 +410,7 @@ const ZhkDetail = () => {
         </div>
       </section>
 
-      <AdditionalFeatures />
+      <AdditionalFeatures pageSlug="/" />
       <LatestNews />
       <ContactsSection />
       <FooterSection />

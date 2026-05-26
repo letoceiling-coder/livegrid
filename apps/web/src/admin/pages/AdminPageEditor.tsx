@@ -26,6 +26,7 @@ const sectionTypeLabels: Record<string, string> = {
   quiz: 'Квиз',
   property_grid: 'Сетка объектов',
   about_platform: 'О платформе',
+  help_selection: 'Помощь с выбором',
   additional_features: 'Доп. возможности',
   latest_news: 'Новости',
   contacts: 'Контакты',

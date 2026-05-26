@@ -231,7 +231,7 @@ const CatalogZhkPage = () => {
       <AboutPlatform pageSlug="/catalog-zhk" />
 
       {/* Additional Features */}
-      <AdditionalFeatures />
+      <AdditionalFeatures pageSlug="/catalog-zhk" />
 
       {/* Latest News */}
       <LatestNews />

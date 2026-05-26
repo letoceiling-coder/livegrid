@@ -6,6 +6,7 @@ import CatalogZhk from '@/components/CatalogZhk';
 import QuizSection from '@/components/QuizSection';
 import PropertyGridSection from '@/components/PropertyGridSection';
 import AboutPlatform from '@/components/AboutPlatform';
+import HelpSelectionCta from '@/components/HelpSelectionCta';
 import AdditionalFeatures from '@/components/AdditionalFeatures';
 import LatestNews from '@/components/LatestNews';
 import ContactsSection from '@/components/ContactsSection';
@@ -20,6 +21,7 @@ const sectionComponents: Record<string, React.ComponentType<any>> = {
   catalog_zhk: CatalogZhk,
   quiz: QuizSection,
   about_platform: AboutPlatform,
+  help_selection: HelpSelectionCta,
   additional_features: AdditionalFeatures,
   latest_news: LatestNews,
   contacts: ContactsSection,

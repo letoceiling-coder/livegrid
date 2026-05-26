@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, MapPin } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { ApiConnectionStrip } from '@/components/ApiConnectionStrip';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import HeroSearch from '@/redesign/components/HeroSearch';
@@ -10,12 +9,13 @@ import ComplexCard from '@/redesign/components/ComplexCard';
 import QuizSection from '@/components/QuizSection';
 import PropertyGridSection from '@/components/PropertyGridSection';
 import AboutPlatform from '@/components/AboutPlatform';
+import HelpSelectionCta from '@/components/HelpSelectionCta';
 import AdditionalFeatures from '@/components/AdditionalFeatures';
 import LatestNews from '@/components/LatestNews';
 import ContactsSection from '@/components/ContactsSection';
 import FooterSection from '@/components/FooterSection';
 import ConsultationFlow from '@/redesign/components/ConsultationFlow';
-import { CONVERSION_CTA, type ConsultationContext } from '@/redesign/lib/conversion-cta';
+import type { ConsultationContext } from '@/redesign/lib/conversion-cta';
 import { apiGet } from '@/lib/api';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 import { mapApiBlockListRowToResidentialComplex, type ApiBlockListRow } from '@/redesign/lib/blocks-from-api';
@@ -124,33 +124,31 @@ const RedesignIndex = () => {
         </Link>
       </section>
 
-      {/* Help CTA — compact on mobile */}
-      <section className="max-w-[1400px] mx-auto px-4 pb-8 sm:pb-12">
-        <div className="rounded-xl sm:rounded-2xl bg-primary p-5 sm:p-12 text-primary-foreground text-center">
-          <h2 className="text-lg sm:text-2xl font-bold mb-1 sm:mb-2">Нужна помощь с выбором?</h2>
-          <p className="text-xs sm:text-sm opacity-90 mb-4 sm:mb-6 max-w-md mx-auto">Эксперты подберут квартиру бесплатно</p>
-          <Button
-            variant="secondary"
-            size="default"
-            className="shadow-sm text-sm"
-            type="button"
-            onClick={() => {
-              setConsultContext({
-                surface: 'home',
-                source: 'home:help-cta',
-                contextFooter: 'Запрос с главной страницы',
-              });
-              setConsultOpen(true);
-            }}
-          >
-            {CONVERSION_CTA.consultation}
-          </Button>
-        </div>
-      </section>
+      <HelpSelectionCta
+        pageSlug="/"
+        onConsult={() => {
+          setConsultContext({
+            surface: 'home',
+            source: 'home:help-cta',
+            contextFooter: 'Запрос с главной страницы',
+          });
+          setConsultOpen(true);
+        }}
+      />
 
       <ConsultationFlow open={consultOpen} onOpenChange={setConsultOpen} context={consultContext} />
 
-      <AdditionalFeatures />
+      <AdditionalFeatures
+        pageSlug="/"
+        onConsult={() => {
+          setConsultContext({
+            surface: 'home',
+            source: 'home:tools-consult',
+            contextFooter: 'Запрос с блока инструментов',
+          });
+          setConsultOpen(true);
+        }}
+      />
       <LatestNews />
       <ContactsSection />
       <FooterSection />
