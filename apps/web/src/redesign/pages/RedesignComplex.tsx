@@ -400,6 +400,35 @@ const RedesignComplex = () => {
     void shareCurrentPage({ title: complex.name });
   };
 
+  const openComplexConsult = useCallback(
+    (source: string) => {
+      if (!complex) return;
+      setConsultContext({
+        surface: 'complex',
+        source,
+        blockId: blockNum ?? undefined,
+        contextFooter: `ЖК «${complex.name}»`,
+      });
+      setConsultOpen(true);
+    },
+    [blockNum, complex],
+  );
+
+  const buildingFilterOptions = useMemo(
+    () => buildings.map((b) => ({ id: b.id, label: b.name || `Корпус ${b.id}` })),
+    [buildings],
+  );
+
+  const metroItems = (complex?.nearbySubways ?? []).slice(0, 8);
+  const availableCount = useMemo(() => {
+    if (!complex) return 0;
+    return (
+      complex.buildings.reduce((s, b) => s + b.apartments.filter((a) => a.status === 'available').length, 0) ||
+      complex.listingCount ||
+      0
+    );
+  }, [complex]);
+
   if (!complex) {
     if (slug && !mockComplex && apiBlockQuery.isPending) {
       return (
@@ -421,30 +450,6 @@ const RedesignComplex = () => {
       </div>
     );
   }
-
-  const openComplexConsult = useCallback(
-    (source: string) => {
-      setConsultContext({
-        surface: 'complex',
-        source,
-        blockId: blockNum ?? undefined,
-        contextFooter: `ЖК «${complex.name}»`,
-      });
-      setConsultOpen(true);
-    },
-    [blockNum, complex.name],
-  );
-
-  const buildingFilterOptions = useMemo(
-    () => buildings.map((b) => ({ id: b.id, label: b.name || `Корпус ${b.id}` })),
-    [buildings],
-  );
-
-  const metroItems = (complex.nearbySubways ?? []).slice(0, 8);
-  const availableCount =
-    complex.buildings.reduce((s, b) => s + b.apartments.filter((a) => a.status === 'available').length, 0) ||
-    complex.listingCount ||
-    0;
 
   return (
     <div className="min-h-screen bg-background pb-24 lg:pb-8">
