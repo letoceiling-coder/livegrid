@@ -187,6 +187,24 @@ const ApartmentMediaGallery = ({ planSrc, finishingSrc, gallerySrcs = [], title 
             </>
           ) : null}
         </div>
+        {tabItems.length > 1 ? (
+          <div className="flex gap-1.5 overflow-x-auto border-t border-border/60 bg-muted/20 p-2 scrollbar-hide">
+            {tabItems.map((item, i) => (
+              <button
+                key={`${item.src}-${i}`}
+                type="button"
+                onClick={() => setIndexInTab(i)}
+                className={cn(
+                  'relative h-12 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-all sm:h-14 sm:w-20',
+                  i === indexInTab ? 'border-primary' : 'border-transparent opacity-70 hover:opacity-100',
+                )}
+                aria-label={item.label}
+              >
+                <img src={item.src} alt="" className="h-full w-full object-cover" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       {lightboxOpen && current ? (

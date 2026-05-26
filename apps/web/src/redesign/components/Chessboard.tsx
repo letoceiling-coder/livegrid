@@ -294,9 +294,10 @@ const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = n
           В этой секции нет данных о квартирах
         </div>
       ) : (
-        <div className="overflow-x-auto p-3">
+        <div className="overflow-x-auto p-2 sm:p-3 max-h-[min(70vh,640px)]">
           <div
-            className="inline-grid gap-1.5"
+            className="inline-grid gap-1"
+            style={{ minWidth: 'min-content' }}
             style={{
               gridTemplateColumns: `42px repeat(${Math.max(board.columns.length, 1)}, min(118px, 28vw))`,
             }}

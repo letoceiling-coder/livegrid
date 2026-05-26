@@ -18,6 +18,7 @@ import ConsultationFlow from '@/redesign/components/ConsultationFlow';
 import ConversionDebugOverlay from '@/redesign/components/ConversionDebugOverlay';
 import { CONVERSION_CTA, type ConsultationContext } from '@/redesign/lib/conversion-cta';
 import ApartmentMediaGallery from '@/redesign/components/ApartmentMediaGallery';
+import ObjectPageActionBar from '@/redesign/components/ObjectPageActionBar';
 import ApartmentPriceTrust from '@/redesign/components/ApartmentPriceTrust';
 import ApartmentCharacteristics from '@/redesign/components/ApartmentCharacteristics';
 import ComplexAnchorNav, { type ComplexSection } from '@/redesign/components/ComplexAnchorNav';
@@ -403,22 +404,46 @@ const RedesignApartment = () => {
               {roomLabel}, {apt.area} м²
             </span>
           </nav>
-          <div className="flex items-center gap-0.5 shrink-0">
-            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={listingId == null} onClick={handleListingFavorite}>
-              <Heart className={cn('w-4 h-4', listingLiked ? 'fill-destructive text-destructive' : 'text-muted-foreground')} />
-            </Button>
-            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleCompare}>
-              <GitCompare className={cn('w-4 h-4', inCompare ? 'text-primary' : 'text-muted-foreground')} />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-              <Link to={listingId != null ? `/presentation/listing/${listingId}` : `/presentation/${complex.slug}`}>
-                <FileText className="w-4 h-4" />
-              </Link>
-            </Button>
-            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleShare}>
-              <Share2 className="w-4 h-4" />
-            </Button>
-          </div>
+          <ObjectPageActionBar
+            actions={[
+              {
+                key: 'fav',
+                icon: <Heart className={cn('w-4 h-4', listingLiked && 'fill-destructive text-destructive')} />,
+                label: listingLiked ? 'В избранном' : 'В избранное',
+                disabled: listingId == null,
+                active: listingLiked,
+                onClick: handleListingFavorite as unknown as () => void,
+              },
+              {
+                key: 'compare',
+                icon: <GitCompare className="w-4 h-4" />,
+                label: inCompare ? 'В сравнении' : 'Сравнить',
+                active: inCompare,
+                onClick: handleCompare as unknown as () => void,
+              },
+              {
+                key: 'pdf',
+                icon: <FileText className="w-4 h-4" />,
+                label: 'Презентация',
+                href: listingId != null ? `/presentation/listing/${listingId}` : `/presentation/${complex.slug}`,
+              },
+              {
+                key: 'share',
+                icon: <Share2 className="w-4 h-4" />,
+                label: 'Поделиться',
+                onClick: handleShare as unknown as () => void,
+              },
+            ]}
+          />
+        </div>
+
+        <div className="mb-3">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-tight">
+            {roomLabel}, {apt.area} м²
+          </h1>
+          <Link to={`/complex/${complex.slug}`} className="text-xs text-muted-foreground hover:text-primary mt-1 inline-block">
+            {complex.name}
+          </Link>
         </div>
 
         {isSold || isReserved ? (
@@ -447,7 +472,7 @@ const RedesignApartment = () => {
           onNavigate={scrollToSection}
         />
 
-        <div className="space-y-10 sm:space-y-14">
+        <div className="space-y-8 sm:space-y-10">
           <ApartmentPriceTrust
             apartment={apt}
             complexName={complex.name}
@@ -457,7 +482,7 @@ const RedesignApartment = () => {
             roomLabel={roomLabel}
           />
 
-          <section id="cta" className="scroll-mt-32">
+          <section id="cta" className="scroll-mt-28">
             <ConversionCTABar
               context={baseConsultContext}
               onConsultation={openConsultation}
@@ -472,7 +497,7 @@ const RedesignApartment = () => {
             roomLabel={roomLabel}
           />
 
-          <section id="building-context" className="scroll-mt-32 rounded-xl border border-border bg-card p-5 sm:p-6">
+          <section id="building-context" className="scroll-mt-28 rounded-xl border border-border bg-card p-5 sm:p-6">
             {sectionHeading('Корпус и ЖК')}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -491,7 +516,7 @@ const RedesignApartment = () => {
             </div>
           </section>
 
-          <section id="description" className="scroll-mt-32">
+          <section id="description" className="scroll-mt-28">
             {sectionHeading('О квартире')}
             <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
               <p className="text-sm text-muted-foreground leading-relaxed">
@@ -537,7 +562,7 @@ const RedesignApartment = () => {
             </div>
           </section>
 
-          <section id="map" className="scroll-mt-32">
+          <section id="map" className="scroll-mt-28">
             {sectionHeading('Расположение')}
             <div className="rounded-xl border border-border overflow-hidden bg-card">
               <div className="p-4 border-b border-border flex flex-wrap items-center gap-2 text-sm">
@@ -554,12 +579,12 @@ const RedesignApartment = () => {
               fetchUrl={`/discovery/listings/${listingId}/price-neighbors?limit=8`}
               queryKey={['discovery', 'price-neighbors', listingId]}
               excludeId={listingId}
-              className="scroll-mt-32"
+              className="scroll-mt-28"
             />
           ) : null}
 
           {similarApts.length > 0 ? (
-            <section id="similar" className="scroll-mt-32">
+            <section id="similar" className="scroll-mt-28">
               {sectionHeading(`Похожие квартиры в ${complex.name}`)}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {similarApts.map((a) => (
@@ -595,11 +620,11 @@ const RedesignApartment = () => {
             <SessionDiscoverySection
               regionId={regionId}
               excludeListingId={listingId}
-              className="scroll-mt-32"
+              className="scroll-mt-28"
             />
           ) : null}
 
-          <section id="lead" className="scroll-mt-32">
+          <section id="lead" className="scroll-mt-28">
             {sectionHeading('Связаться с нами', isSold ? 'Объект продан — заявка на консультацию по похожим' : 'Оставьте заявку на консультацию или просмотр')}
             <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
               <LeadForm

@@ -1,9 +1,6 @@
 import { cn } from '@/lib/utils';
 
-export type ComplexSection = {
-  id: string;
-  label: string;
-};
+export type ComplexSection = { id: string; label: string };
 
 type Props = {
   sections: ComplexSection[];
@@ -16,10 +13,10 @@ const ComplexAnchorNav = ({ sections, activeId, onNavigate }: Props) => {
 
   return (
     <nav
-      className="sticky top-16 z-30 -mx-4 px-4 py-2 bg-background/95 backdrop-blur-sm border-b border-border mb-6"
+      className="sticky top-14 z-30 -mx-4 px-4 mb-4 border-b border-border/80 bg-background/95 backdrop-blur-md"
       aria-label="Разделы комплекса"
     >
-      <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-hide">
+      <div className="flex gap-0 overflow-x-auto scrollbar-hide">
         {sections.map(({ id, label }) => (
           <a
             key={id}
@@ -29,13 +26,19 @@ const ComplexAnchorNav = ({ sections, activeId, onNavigate }: Props) => {
               onNavigate(id);
             }}
             className={cn(
-              'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-              activeId === id
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border bg-background hover:border-primary/40 hover:bg-muted/60',
+              'relative shrink-0 px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap',
+              'text-muted-foreground hover:text-foreground',
+              activeId === id && 'text-primary',
             )}
           >
             {label}
+            <span
+              className={cn(
+                'absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-primary transition-transform duration-200 origin-center',
+                activeId === id ? 'scale-x-100' : 'scale-x-0',
+              )}
+              aria-hidden
+            />
           </a>
         ))}
       </div>
