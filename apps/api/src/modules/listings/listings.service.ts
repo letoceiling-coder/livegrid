@@ -168,7 +168,17 @@ export class ListingsService implements OnModuleInit {
       builder: { select: { name: true } },
       region: { select: { code: true, name: true } },
       seller: true,
-      ownerUser: { select: { id: true, fullName: true, email: true, phone: true, avatarUrl: true, role: true } },
+        ownerUser: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+            role: true,
+            agentProfile: { select: { slug: true } },
+          },
+        },
     } satisfies Prisma.ListingInclude;
 
     const include: Prisma.ListingInclude =
@@ -278,7 +288,17 @@ export class ListingsService implements OnModuleInit {
         district: true,
         region: true,
         seller: true,
-        ownerUser: { select: { id: true, fullName: true, phone: true, email: true, avatarUrl: true, role: true } },
+        ownerUser: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            avatarUrl: true,
+            role: true,
+            agentProfile: { select: { slug: true } },
+          },
+        },
       },
     });
     if (!listing) throw new NotFoundException('Listing not found');
@@ -416,6 +436,9 @@ export class ListingsService implements OnModuleInit {
       where.lng = { not: null };
     }
     if (query.data_source) where.dataSource = query.data_source as $Enums.DataSource;
+    if (query.external_id_prefix?.trim()) {
+      where.externalId = { startsWith: query.external_id_prefix.trim() };
+    }
     if (query.builder_id != null) where.builderId = query.builder_id;
     if (query.district_id != null) where.districtId = query.district_id;
     if (query.district_names?.trim() && query.kind !== 'HOUSE') {

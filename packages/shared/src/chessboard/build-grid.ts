@@ -1,9 +1,12 @@
-import { buildShaftMatrix } from './matrix.js';
+import { buildArchitecturalMatrixWithTopology } from './matrix.js';
 import type {
+  ArchitecturalShaftDto,
+  BuildingTopologyDto,
   ChessboardApartmentInput,
   ChessboardApartmentCell,
   ChessboardBuildingMatrix,
   ChessboardGridCell,
+  FloorTemplateDto,
 } from './types.js';
 
 export function chessboardBuildingLabel(name: string, id: string): string {
@@ -38,56 +41,54 @@ function toCellApartment(apt: ChessboardApartmentInput): ChessboardApartmentCell
   };
 }
 
-/**
- * Derives a human-readable diagnostic label for a shaft column.
- * Uses the most common layout fingerprint from all non-null cells.
- * Example: "2|45.1" → "2-к|45.1"  "0|24.3" → "Студия|24.3"
- */
-function deriveShaftLabel(col: Array<ChessboardApartmentInput | null>): string {
-  const counts = new Map<string, number>();
-  for (const apt of col) {
-    if (!apt) continue;
-    const key = `${apt.rooms}|${Math.round(apt.area * 10) / 10}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  if (!counts.size) return '—';
-  const [top] = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  const [rooms, area] = top[0].split('|');
-  const r = Number(rooms);
-  const prefix = r === 0 ? 'Студия' : `${r}-к.кв`;
-  return `${prefix} ${area}м²`;
+function toTopologyDto(topology: ReturnType<typeof buildArchitecturalMatrixWithTopology>['topology']): BuildingTopologyDto {
+  return {
+    sectionCount: topology.sectionCount,
+    shafts: topology.shafts.map((s) => ({ ...s })),
+    floorTemplates: topology.floorTemplates.map((t) => ({
+      floor: t.floor,
+      slots: t.slots.map((slot) => ({ ...slot })),
+    })),
+    apartmentToShaft: { ...topology.apartmentToShaft },
+  };
 }
 
 /**
- * Builds the full API contract: floors, columns, grid[][] — single source of truth.
+ * Builds the full API contract: topology, shafts, floorTemplates, grid[][].
  *
- * Uses the deterministic Architectural Matrix Engine (buildShaftMatrix v2):
- *   - Apartments ranked by number within each floor → fixed column assignment.
- *   - Column count = max apartments per floor (immutable after build).
- *   - Null cells = architectural placeholders, never shifted.
- *   - Frontend receives a complete, ready-to-render matrix.
+ * Architectural Matrix Engine v4: topology graph → floor templates → matrix projection.
  */
 export function buildChessboardBuildingMatrix(
   buildingId: string,
   buildingName: string,
   apartments: ChessboardApartmentInput[],
 ): ChessboardBuildingMatrix {
-  const { floors, columns } = buildShaftMatrix(apartments);
+  const { matrix, topology: topo } = buildArchitecturalMatrixWithTopology(apartments);
+  const { floors, columns } = matrix;
   const shaftCount = columns.length;
+  const topology = toTopologyDto(topo);
+  const shafts: ArchitecturalShaftDto[] = topology.shafts;
+  const floorTemplates: FloorTemplateDto[] = topology.floorTemplates;
 
   const statusCounts = { available: 0, reserved: 0, sold: 0 };
   for (const a of apartments) {
     statusCounts[a.status] += 1;
   }
 
-  const columnDtos = columns.map((col, idx) => ({
-    shaftIndex: idx + 1,
-    shaftLabel: deriveShaftLabel(col),
-    cells: floors.map((floor, rowIndex) => ({
-      floor,
-      apartment: col[rowIndex] ? toCellApartment(col[rowIndex]!) : null,
-    })),
-  }));
+  const columnDtos = columns.map((col, idx) => {
+    const shaft = shafts[idx];
+    return {
+      shaftIndex: idx + 1,
+      shaftId: shaft?.shaftId ?? `shaft-${idx + 1}`,
+      shaftLabel: shaft?.label ?? '—',
+      primaryFingerprint: shaft?.primaryFingerprint ?? '—',
+      mirroredPlanSignatures: shaft?.mirroredPlanSignatures ?? [],
+      cells: floors.map((floor, rowIndex) => ({
+        floor,
+        apartment: col[rowIndex] ? toCellApartment(col[rowIndex]!) : null,
+      })),
+    };
+  });
 
   const grid: ChessboardGridCell[][] = floors.map((floor, rowIndex) =>
     columns.map((col, colIndex) => ({
@@ -107,5 +108,8 @@ export function buildChessboardBuildingMatrix(
     shaftCount,
     columns: columnDtos,
     grid,
+    topology,
+    shafts,
+    floorTemplates,
   };
 }

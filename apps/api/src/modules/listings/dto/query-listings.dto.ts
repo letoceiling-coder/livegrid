@@ -36,6 +36,10 @@ export class QueryListingsDto {
   @IsString()
   statuses?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() data_source?: string;
+  @ApiPropertyOptional({ description: 'Filter listings whose externalId starts with this prefix (admin)' })
+  @IsOptional()
+  @IsString()
+  external_id_prefix?: string;
   @ApiPropertyOptional({ description: 'Filter by isPublished (true/false). Default: true for anonymous, no filter for admin.' })
   @IsOptional()
   @Transform(({ value }) => {

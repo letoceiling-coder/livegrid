@@ -1,7 +1,7 @@
 import { Controller, Get, Param, ParseIntPipe, Res, StreamableFile } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
-import { Public } from '../../auth/decorators';
+import { CurrentUser, OptionalJwtUser, Public } from '../../auth/decorators';
 import { PresentationsService } from './presentations.service';
 
 @ApiTags('Presentations')
@@ -17,13 +17,16 @@ export class PresentationsController {
   }
 
   @Public()
+  @OptionalJwtUser()
   @Get('listing/:listingId/pdf')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Public: download listing presentation PDF (photos + plans)' })
   async downloadListingPdf(
     @Param('listingId', ParseIntPipe) listingId: number,
+    @CurrentUser('sub') userId: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const buf = await this.service.generateListingPdf(listingId);
+    const buf = await this.service.generateListingPdf(listingId, userId);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=\"listing-${listingId}.pdf\"`);
     res.setHeader('Content-Length', String(buf.length));

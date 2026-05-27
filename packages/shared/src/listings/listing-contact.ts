@@ -3,6 +3,7 @@ import type { DataSource } from '../enums/data-source.js';
 export type ListingContactAgent = {
   kind: 'agent';
   userId: string;
+  slug: string | null;
   fullName: string | null;
   phone: string | null;
   avatarUrl: string | null;
@@ -29,6 +30,7 @@ type ContactInput = {
     phone?: string | null;
     email?: string | null;
     avatarUrl?: string | null;
+    agentProfile?: { slug: string } | null;
   } | null;
   seller?: { fullName?: string | null; phone?: string | null; email?: string | null } | null;
 };
@@ -44,6 +46,7 @@ export function resolveListingPublicContact(
     return {
       kind: 'agent',
       userId: listing.ownerUser.id,
+      slug: listing.ownerUser.agentProfile?.slug?.trim() || null,
       fullName: listing.ownerUser.fullName ?? null,
       phone: listing.ownerUser.phone ?? null,
       avatarUrl: listing.ownerUser.avatarUrl ?? null,

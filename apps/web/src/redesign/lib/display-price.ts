@@ -34,18 +34,13 @@ export function isPriceHidden(value: string | number | null | undefined): boolea
 }
 
 function formatAmountRub(rub: number, withCurrency: boolean): string {
-  let amount: string;
-  if (rub >= 1_000_000) {
-    amount = `${(rub / 1_000_000).toFixed(1).replace(/\.0$/, '')} млн`;
-  } else {
-    amount = `${Math.round(rub / 1000)} тыс`;
-  }
+  const amount = Math.trunc(rub).toLocaleString('ru-RU');
   return withCurrency ? `${amount} ₽` : amount;
 }
 
 /**
  * Core formatter. Invalid → PRICE_ON_REQUEST.
- * Valid → «6.8 млн ₽» / «350 тыс ₽» (optional prefix «от» / «до»).
+ * Valid → exact ruble amount with thin spaces (optional prefix «от» / «до»).
  */
 export function formatDisplayPrice(
   value: string | number | null | undefined,
@@ -62,7 +57,7 @@ export function formatDisplayPrice(
   return amount;
 }
 
-/** Card / popup default: «от 6.8 млн ₽» or PRICE_ON_REQUEST. */
+/** Card / popup default: «от 8 283 750 ₽» or PRICE_ON_REQUEST. */
 export function formatPriceFrom(
   value: string | number | null | undefined,
   withCurrency = true,
@@ -70,7 +65,7 @@ export function formatPriceFrom(
   return formatDisplayPrice(value, { prefix: 'от', withCurrency });
 }
 
-/** Map marker badge: «от 6.8 млн» without ₽. */
+/** Map marker badge: «от 8.3 млн» style exact amount without ₽. */
 export function formatMarkerPriceFrom(value: string | number | null | undefined): string {
   return formatDisplayPrice(value, { prefix: 'от', withCurrency: false });
 }

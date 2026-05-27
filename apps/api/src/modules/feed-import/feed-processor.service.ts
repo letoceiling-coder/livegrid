@@ -51,6 +51,52 @@ export class FeedProcessorService {
     return t;
   }
 
+  /** Убирает артефакт одиночного «Q» из текстов фида (не трогает кварталы вида Q1 2026). */
+  private sanitizeFeedText(text: unknown): string | null {
+    if (text == null || typeof text !== 'string') return null;
+    let s = text.trim();
+    if (!s) return null;
+    s = s.replace(/(^|[\s.,;:!—–-])Q([\s.,;:!—–-]|$)/g, '$1$2');
+    s = s.replace(/\s+Q$/gi, '');
+    s = s.replace(/\s{2,}/g, ' ').trim();
+    return s || null;
+  }
+
+  private isFeedPriceOnRequest(apt: Record<string, unknown>): boolean {
+    for (const key of [
+      'price_on_request',
+      'priceOnRequest',
+      'on_request',
+      'is_price_on_request',
+      'request_price',
+      'price_request',
+    ]) {
+      const v = apt[key];
+      if (v === true || v === 1 || v === '1' || v === 'true') return true;
+    }
+    const raw = apt.price;
+    if (typeof raw === 'string' && /^(on_?request|по\s*запросу)$/iu.test(raw.trim())) {
+      return true;
+    }
+    return false;
+  }
+
+  private resolveFeedListingPrice(apt: Record<string, unknown>, externalId?: string): number | null {
+    if (this.isFeedPriceOnRequest(apt)) return null;
+    return this.normalizeListingPrice(apt.price, externalId);
+  }
+
+  private resolveFeedListingKind(apt: Record<string, unknown>): 'APARTMENT' | 'HOUSE' {
+    const blob = [apt.object_type, apt.type, apt.category, apt.block_name, apt.building_name]
+      .filter((x) => x != null)
+      .map((x) => String(x).toLowerCase())
+      .join(' ');
+    if (/коттедж|пос[её]лок|кп\b|townhouse|дуплекс|\bдом\b|\bhouse\b|cottage|кофьино/.test(blob)) {
+      return 'HOUSE';
+    }
+    return 'APARTMENT';
+  }
+
   /**
    * Извлекает инфраструктуру из произвольного формата фида.
    * Возвращает:
@@ -289,7 +335,7 @@ export class FeedProcessorService {
         where: { regionId_externalId: { regionId, externalId: item._id } },
         update: {
           name: item.name.trim(),
-          description: item.description || null,
+          description: this.sanitizeFeedText(item.description) || null,
           districtId: districtMap.get(item.district) || null,
           latitude: lat ?? null,
           longitude: lng ?? null,
@@ -303,7 +349,7 @@ export class FeedProcessorService {
           externalId: item._id,
           slug: existing?.slug || slug,
           name: item.name.trim(),
-          description: item.description || null,
+          description: this.sanitizeFeedText(item.description) || null,
           districtId: districtMap.get(item.district) || null,
           latitude: lat ?? null,
           longitude: lng ?? null,
@@ -464,11 +510,15 @@ export class FeedProcessorService {
         const builderId = builderMap.get(apt.block_builder) || null;
         const districtId = districtMap.get(apt.block_district) || null;
 
-        const normalizedPrice = this.normalizeListingPrice(apt.price, apt._id);
+        const aptRecord = apt as Record<string, unknown>;
+        const feedKind = this.resolveFeedListingKind(aptRecord);
+        const normalizedPrice = this.resolveFeedListingPrice(aptRecord, apt._id);
+        const areaTotal = apt.area_total ?? apt.area_given ?? null;
 
         const listing = await this.prisma.listing.upsert({
           where: { regionId_externalId: { regionId, externalId: apt._id } },
           update: {
+            kind: feedKind,
             price: normalizedPrice,
             blockId,
             buildingId,
@@ -481,7 +531,7 @@ export class FeedProcessorService {
           },
           create: {
             regionId,
-            kind: 'APARTMENT',
+            kind: feedKind,
             externalId: apt._id,
             crmId: this.toCrmBigInt(apt.block_crm_id),
             price: normalizedPrice,
@@ -529,6 +579,42 @@ export class FeedProcessorService {
           finishingPhotoUrl: finishingPhotoUrl ?? null,
         };
 
+        if (feedKind === 'HOUSE') {
+          await this.prisma.listingApartment.deleteMany({ where: { listingId: listing.id } });
+          const housePhotos = this.extractPhotoArray(aptRecord, [
+            'photos',
+            'photo',
+            'gallery',
+            'images',
+            'extra_photos',
+          ]);
+          await this.prisma.listingHouse.upsert({
+            where: { listingId: listing.id },
+            update: {
+              areaTotal: areaTotal ?? null,
+              floorsCount: apt.floors ?? null,
+              photoUrl: apt.plan?.[0] || housePhotos?.[0] || null,
+              extraPhotoUrls:
+                housePhotos != null
+                  ? (housePhotos as Prisma.InputJsonValue)
+                  : Prisma.DbNull,
+            },
+            create: {
+              listingId: listing.id,
+              areaTotal: areaTotal ?? null,
+              floorsCount: apt.floors ?? null,
+              photoUrl: apt.plan?.[0] || housePhotos?.[0] || null,
+              extraPhotoUrls:
+                housePhotos != null
+                  ? (housePhotos as Prisma.InputJsonValue)
+                  : undefined,
+            },
+          });
+        } else {
+          await this.prisma.listingHouse.deleteMany({ where: { listingId: listing.id } });
+        }
+
+        if (feedKind !== 'HOUSE') {
         await this.prisma.listingApartment.upsert({
           where: { listingId: listing.id },
           update: {
@@ -538,8 +624,8 @@ export class FeedProcessorService {
             floor: apt.floor ?? null,
             floorsTotal: apt.floors ?? null,
             number: apt.number || null,
-            areaTotal: apt.area_total ?? null,
-            areaGiven: apt.area_given ?? null,
+            areaTotal: areaTotal ?? null,
+            areaGiven: apt.area_given ?? areaTotal ?? null,
             areaRoomsTotal: apt.area_rooms_total ?? null,
             areaKitchen: apt.area_kitchen ?? null,
             areaBalconies: apt.area_balconies_total ?? null,
@@ -568,8 +654,8 @@ export class FeedProcessorService {
             floor: apt.floor ?? null,
             floorsTotal: apt.floors ?? null,
             number: apt.number || null,
-            areaTotal: apt.area_total ?? null,
-            areaGiven: apt.area_given ?? null,
+            areaTotal: areaTotal ?? null,
+            areaGiven: apt.area_given ?? areaTotal ?? null,
             areaRoomsTotal: apt.area_rooms_total ?? null,
             areaKitchen: apt.area_kitchen ?? null,
             areaBalconies: apt.area_balconies_total ?? null,
@@ -616,6 +702,7 @@ export class FeedProcessorService {
             });
           }
         }
+        }
 
         count++;
       }
@@ -660,7 +747,7 @@ export class FeedProcessorService {
     activeExtIds: Set<string>,
   ): Promise<number> {
     const feedListings = await this.prisma.listing.findMany({
-      where: { regionId, dataSource: 'FEED', kind: 'APARTMENT', status: 'ACTIVE' },
+      where: { regionId, dataSource: 'FEED', kind: { in: ['APARTMENT', 'HOUSE'] }, status: 'ACTIVE' },
       select: { id: true, externalId: true },
     });
 

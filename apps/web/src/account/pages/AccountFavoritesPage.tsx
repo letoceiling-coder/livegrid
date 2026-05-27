@@ -6,7 +6,6 @@ import { formatPriceSafe, isPriceFallbackText, PRICE_ON_REQUEST_CLASS } from '@/
 import { cn } from '@/lib/utils';
 import { useFavorites } from '@/shared/hooks/useFavorites';
 import { apiPatch } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import ListingCard, { type ApiListingCardRow } from '@/redesign/components/ListingCard';
 import RelatedListingsCarousel from '@/discovery/components/RelatedListingsCarousel';
 import ComplexCard from '@/redesign/components/ComplexCard';
@@ -157,8 +156,8 @@ export default function AccountFavoritesPage() {
   }
 
   return (
-    <div className="space-y-8">
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="space-y-8 min-h-[40vh]">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
       {rows.map((row) => (
         <SwipeFavoriteCard key={row.id} row={row} onRemove={() => void removeByFavoriteId(row.id)}>
           {row.blockId != null ? (

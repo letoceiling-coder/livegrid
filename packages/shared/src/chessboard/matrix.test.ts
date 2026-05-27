@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildShaftMatrix, matchScore } from './matrix.js';
+import {
+  buildArchitecturalMatrix,
+  buildArchitecturalMatrixWithTopology,
+  buildShaftMatrix,
+  matchScore,
+  planSignature,
+} from './matrix.js';
 import type { ChessboardApartmentInput } from './types.js';
 
 function apt(
@@ -14,7 +20,12 @@ function apt(
   };
 }
 
-describe('buildShaftMatrix', () => {
+const PLAN_76 =
+  'https://cdn-dataout.trendagent.ru/images/ks/example-76.png';
+const PLAN_STUDIO =
+  'https://cdn-dataout.trendagent.ru/images/ks/example-studio.png';
+
+describe('buildArchitecturalMatrix', () => {
   it('prefers low score for same layout on adjacent floors', () => {
     const a = apt({ id: '1', floor: 1, rooms: 3, area: 93.2 });
     const b = apt({ id: '2', floor: 1, rooms: 3, area: 93.3 });
@@ -22,7 +33,7 @@ describe('buildShaftMatrix', () => {
     expect(matchScore(a, b)).toBeLessThan(matchScore(a, c));
   });
 
-  it('is fully deterministic: same input always produces identical output', () => {
+  it('is fully deterministic: same input always produces identical topology', () => {
     const input = [
       apt({ id: 'a', floor: 3, number: '301', rooms: 2, area: 55 }),
       apt({ id: 'b', floor: 3, number: '302', rooms: 3, area: 80 }),
@@ -30,92 +41,222 @@ describe('buildShaftMatrix', () => {
       apt({ id: 'd', floor: 1, number: '101', rooms: 2, area: 55 }),
       apt({ id: 'e', floor: 1, number: '102', rooms: 3, area: 80 }),
     ];
-    const run1 = buildShaftMatrix([...input]);
-    const run2 = buildShaftMatrix([...input].reverse());
-    expect(run1.floors).toEqual(run2.floors);
-    expect(run1.columns.length).toBe(run2.columns.length);
-    for (let c = 0; c < run1.columns.length; c++) {
-      for (let r = 0; r < run1.floors.length; r++) {
-        expect(run1.columns[c][r]?.id).toBe(run2.columns[c][r]?.id);
-      }
-    }
+    const run1 = buildArchitecturalMatrixWithTopology([...input]);
+    const run2 = buildArchitecturalMatrixWithTopology([...input].reverse());
+    expect(run1.topology.apartmentToShaft).toEqual(run2.topology.apartmentToShaft);
+    const groups = (topo: typeof run1.topology) =>
+      topo.shafts.map((s) => [...s.apartmentIds].sort().join('|')).sort();
+    expect(groups(run1.topology)).toEqual(groups(run2.topology));
+    expect(run1.matrix).toEqual(run2.matrix);
   });
 
-  it('assigns column by number-rank within floor (lower number = leftmost)', () => {
-    // Floor 3: two apts [301, 302]. 301 should be col 0, 302 should be col 1.
-    const matrix = buildShaftMatrix([
-      apt({ id: 'high', floor: 3, number: '302', rooms: 3, area: 80 }),
-      apt({ id: 'low',  floor: 3, number: '301', rooms: 2, area: 55 }),
-      apt({ id: 'mid',  floor: 2, number: '201', rooms: 2, area: 55 }),
+  it('buildShaftMatrix is an alias for buildArchitecturalMatrix', () => {
+    const input = [apt({ id: 'x', floor: 2, number: '201' })];
+    expect(buildShaftMatrix(input)).toEqual(buildArchitecturalMatrix(input));
+  });
+
+  it('places vertical plan chains in the same column (not number-rank)', () => {
+    const matrix = buildArchitecturalMatrix([
+      apt({
+        id: 'top',
+        floor: 16,
+        number: '160',
+        rooms: 3,
+        area: 76.3,
+        planImage: PLAN_76,
+      }),
+      apt({
+        id: 'mid',
+        floor: 11,
+        number: '105',
+        rooms: 3,
+        area: 76.3,
+        planImage: PLAN_76,
+      }),
+      apt({
+        id: 'low',
+        floor: 6,
+        number: '50',
+        rooms: 3,
+        area: 76.3,
+        planImage: PLAN_76,
+      }),
+      apt({
+        id: 'other',
+        floor: 11,
+        number: '97',
+        rooms: 3,
+        area: 62.2,
+        planImage: 'https://cdn-dataout.trendagent.ru/images/other-62.png',
+      }),
     ]);
-    // col 0 on floor 3 must be apt '301' (lower number)
-    expect(matrix.columns[0][0]?.id).toBe('low');
-    // col 1 on floor 3 must be apt '302' (higher number)
-    expect(matrix.columns[1][0]?.id).toBe('high');
-    // col 1 on floor 2 must be null (only 1 apt on floor 2)
-    expect(matrix.columns[1][1]).toBeNull();
-    // col 0 on floor 2 = apt '201' (leftmost rank on that floor)
-    expect(matrix.columns[0][1]?.id).toBe('mid');
+
+    const colLow = matrix.columns.findIndex((col) =>
+      col.some((cell) => cell?.id === 'low'),
+    );
+    const colMid = matrix.columns.findIndex((col) =>
+      col.some((cell) => cell?.id === 'mid'),
+    );
+    const colTop = matrix.columns.findIndex((col) =>
+      col.some((cell) => cell?.id === 'top'),
+    );
+
+    expect(colLow).toBe(colMid);
+    expect(colMid).toBe(colTop);
+    expect(colLow).toBeGreaterThanOrEqual(0);
   });
 
   it('never shifts apartments to fill empty slots (columns are immutable)', () => {
-    // Floor 3 has 3 apts, floor 2 has only 1. Columns 1 and 2 on floor 2 must be null.
-    const matrix = buildShaftMatrix([
+    const matrix = buildArchitecturalMatrix([
       apt({ id: 'a', floor: 3, number: '301' }),
       apt({ id: 'b', floor: 3, number: '302' }),
       apt({ id: 'c', floor: 3, number: '303' }),
-      apt({ id: 'd', floor: 2, number: '201' }),
+      apt({ id: 'd', floor: 2, number: '201', planImage: PLAN_STUDIO }),
     ]);
-    expect(matrix.columns.length).toBe(3);
-    // Only col 0 on floor 2 has an apartment
-    expect(matrix.columns[0][1]?.id).toBe('d');
-    expect(matrix.columns[1][1]).toBeNull();
-    expect(matrix.columns[2][1]).toBeNull();
+    expect(matrix.columns.length).toBeGreaterThanOrEqual(3);
+    const rowFloor2 = matrix.columns.map((col) => col[matrix.floors.indexOf(2)]);
+    const occupied = rowFloor2.filter((c) => c != null);
+    expect(occupied).toHaveLength(1);
+    expect(rowFloor2.some((c) => c === null)).toBe(true);
   });
 
-  it('luxury building: variable apts per floor gives 3 fixed columns', () => {
-    // Mirrors Shelepiha Tower A: max 3 apts/floor, many floors with 1-2
-    const matrix = buildShaftMatrix([
-      apt({ id: 'f16a', floor: 16, number: '158', rooms: 0, area: 24.3 }),
-      apt({ id: 'f16b', floor: 16, number: '159', rooms: 0, area: 24.3 }),
-      apt({ id: 'f16c', floor: 16, number: '160', rooms: 3, area: 76.3 }),
-      apt({ id: 'f17a', floor: 17, number: '170', rooms: 0, area: 24.3 }),
-      apt({ id: 'f11a', floor: 11, number: '97',  rooms: 3, area: 62.2 }),
-      apt({ id: 'f11b', floor: 11, number: '105', rooms: 3, area: 76.3 }),
-      apt({ id: 'f6a',  floor: 6,  number: '50',  rooms: 3, area: 76.3 }),
+  it('luxury building: variable apts per floor with aligned 76.3 shaft', () => {
+    const matrix = buildArchitecturalMatrix([
+      apt({
+        id: 'f16a',
+        floor: 16,
+        number: '158',
+        rooms: 0,
+        area: 24.3,
+        planImage: PLAN_STUDIO,
+      }),
+      apt({
+        id: 'f16b',
+        floor: 16,
+        number: '159',
+        rooms: 0,
+        area: 24.3,
+        planImage: PLAN_STUDIO,
+      }),
+      apt({
+        id: 'f16c',
+        floor: 16,
+        number: '160',
+        rooms: 3,
+        area: 76.3,
+        planImage: PLAN_76,
+      }),
+      apt({
+        id: 'f17a',
+        floor: 17,
+        number: '170',
+        rooms: 0,
+        area: 24.3,
+        planImage: PLAN_STUDIO,
+      }),
+      apt({
+        id: 'f11a',
+        floor: 11,
+        number: '97',
+        rooms: 3,
+        area: 62.2,
+        planImage: 'https://cdn-dataout.trendagent.ru/images/other-62.png',
+      }),
+      apt({
+        id: 'f11b',
+        floor: 11,
+        number: '105',
+        rooms: 3,
+        area: 76.3,
+        planImage: PLAN_76,
+      }),
+      apt({
+        id: 'f6a',
+        floor: 6,
+        number: '50',
+        rooms: 3,
+        area: 76.3,
+        planImage: PLAN_76,
+      }),
     ]);
-    // 3 columns (max per floor = 3)
-    expect(matrix.columns.length).toBe(3);
-    // Floor 17 row: col0=f17a, col1=null, col2=null
-    const rowF17 = matrix.columns.map((col) => col[matrix.floors.indexOf(17)]?.id ?? null);
-    expect(rowF17).toEqual(['f17a', null, null]);
-    // Floor 16 row: col0=f16a, col1=f16b, col2=f16c
-    const rowF16 = matrix.columns.map((col) => col[matrix.floors.indexOf(16)]?.id ?? null);
-    expect(rowF16).toEqual(['f16a', 'f16b', 'f16c']);
-    // Floor 6 row: col0=f6a, col1=null, col2=null
-    const rowF6 = matrix.columns.map((col) => col[matrix.floors.indexOf(6)]?.id ?? null);
-    expect(rowF6).toEqual(['f6a', null, null]);
+
+    expect(matrix.columns.length).toBeGreaterThanOrEqual(3);
+
+    const shaft76 = matrix.columns.find((col) =>
+      col.some((cell) => cell?.id === 'f6a'),
+    );
+    expect(shaft76?.some((cell) => cell?.id === 'f11b')).toBe(true);
+    expect(shaft76?.some((cell) => cell?.id === 'f16c')).toBe(true);
   });
 
   it('aligns repeating layouts in the same shaft column', () => {
-    const matrix = buildShaftMatrix([
-      apt({ id: 'top', floor: 34, number: '326', rooms: 3, area: 93.2 }),
-      apt({ id: 'mid-4e', floor: 33, number: '319', rooms: 4, area: 93.9 }),
-      apt({ id: 'mid-2e', floor: 33, number: '322', rooms: 2, area: 49.3 }),
-      apt({ id: 'low-3e', floor: 31, number: '302', rooms: 3, area: 93.2 }),
-      apt({ id: 'low-2e', floor: 31, number: '304', rooms: 2, area: 47.4 }),
+    const plan93 = 'https://cdn-dataout.trendagent.ru/images/plan-93.png';
+    const { topology } = buildArchitecturalMatrixWithTopology([
+      apt({
+        id: 'top',
+        floor: 34,
+        number: '326',
+        rooms: 3,
+        area: 93.2,
+        planImage: plan93,
+      }),
+      apt({
+        id: 'bridge-33',
+        floor: 33,
+        number: '318',
+        rooms: 3,
+        area: 93.2,
+        planImage: plan93,
+      }),
+      apt({
+        id: 'mid-4e',
+        floor: 33,
+        number: '319',
+        rooms: 4,
+        area: 93.9,
+        planImage: 'https://cdn-dataout.trendagent.ru/images/plan-94.png',
+      }),
+      apt({
+        id: 'mid-2e',
+        floor: 33,
+        number: '322',
+        rooms: 2,
+        area: 49.3,
+        planImage: 'https://cdn-dataout.trendagent.ru/images/plan-49.png',
+      }),
+      apt({
+        id: 'low-3e',
+        floor: 31,
+        number: '302',
+        rooms: 3,
+        area: 93.2,
+        planImage: plan93,
+      }),
+      apt({
+        id: 'low-2e',
+        floor: 31,
+        number: '304',
+        rooms: 2,
+        area: 47.4,
+        planImage: 'https://cdn-dataout.trendagent.ru/images/plan-47.png',
+      }),
     ]);
-
-    expect(matrix.floors).toEqual([34, 33, 32, 31]);
-    const colWithTop = matrix.columns.find((col) => col[0]?.id === 'top');
-    expect(colWithTop?.[3]?.id).toBe('low-3e');
+    expect(topology.apartmentToShaft.top).toBe(topology.apartmentToShaft['low-3e']);
+    expect(topology.apartmentToShaft.top).toBe(topology.apartmentToShaft['bridge-33']);
   });
 
   it('preserves empty slots for missing apartments on a floor', () => {
-    const matrix = buildShaftMatrix([
-      apt({ id: 'a', floor: 2, number: '201', rooms: 1, area: 40 }),
-      apt({ id: 'b', floor: 1, number: '101', rooms: 1, area: 40 }),
-      apt({ id: 'c', floor: 1, number: '102', rooms: 2, area: 55 }),
+    const matrix = buildArchitecturalMatrix([
+      apt({ id: 'a', floor: 2, number: '201', rooms: 1, area: 40, planImage: PLAN_STUDIO }),
+      apt({ id: 'b', floor: 1, number: '101', rooms: 1, area: 40, planImage: PLAN_STUDIO }),
+      apt({
+        id: 'c',
+        floor: 1,
+        number: '102',
+        rooms: 2,
+        area: 55,
+        planImage: 'https://cdn-dataout.trendagent.ru/images/plan-55.png',
+      }),
     ]);
 
     expect(matrix.floors).toEqual([2, 1]);
@@ -124,14 +265,27 @@ describe('buildShaftMatrix', () => {
     expect(rowFloor2.some((c) => c === null)).toBe(true);
   });
 
-  it('uses max apartments per floor as column count', () => {
-    const matrix = buildShaftMatrix([
+  it('grid width covers busiest floor', () => {
+    const matrix = buildArchitecturalMatrix([
       apt({ id: 'a', floor: 3, number: '301' }),
       apt({ id: 'b', floor: 3, number: '302' }),
       apt({ id: 'c', floor: 3, number: '303' }),
       apt({ id: 'd', floor: 2, number: '201' }),
     ]);
-    expect(matrix.columns.length).toBe(3);
-    expect(matrix.columns[0][1]?.id).toBe('d');
+    expect(matrix.columns.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('planSignature normalizes URL paths', () => {
+    const a = apt({
+      id: '1',
+      floor: 1,
+      planImage: 'https://cdn.example.com/a/b.png?x=1',
+    });
+    const b = apt({
+      id: '2',
+      floor: 2,
+      planImage: 'https://cdn.example.com/a/b.png?y=2',
+    });
+    expect(planSignature(a)).toBe(planSignature(b));
   });
 });

@@ -37,13 +37,42 @@ export type ChessboardGridCell = {
 
 export type ChessboardColumnDto = {
   shaftIndex: number;
-  /**
-   * Diagnostic key describing this shaft's dominant layout.
-   * Format: "N-к|{area}" or "Студия|{area}" — derived from the most common
-   * apartment fingerprint in this column. Useful for debug overlays.
-   */
+  shaftId: string;
   shaftLabel: string;
+  primaryFingerprint: string;
+  mirroredPlanSignatures: string[];
   cells: Array<{ floor: number; apartment: ChessboardApartmentCell | null }>;
+};
+
+export type ArchitecturalShaftDto = {
+  shaftId: string;
+  shaftIndex: number;
+  label: string;
+  primaryFingerprint: string;
+  primaryPlanSignature: string | null;
+  mirroredPlanSignatures: string[];
+  layoutGroupKey: string;
+  floorsPresent: number[];
+  apartmentIds: string[];
+};
+
+export type FloorTemplateSlotDto = {
+  shaftId: string;
+  shaftIndex: number;
+  apartmentId: string | null;
+  isPlaceholder: boolean;
+};
+
+export type FloorTemplateDto = {
+  floor: number;
+  slots: FloorTemplateSlotDto[];
+};
+
+export type BuildingTopologyDto = {
+  sectionCount: number;
+  shafts: ArchitecturalShaftDto[];
+  floorTemplates: FloorTemplateDto[];
+  apartmentToShaft: Record<string, string>;
 };
 
 export type ChessboardBuildingMatrix = {
@@ -57,6 +86,10 @@ export type ChessboardBuildingMatrix = {
   columns: ChessboardColumnDto[];
   /** Row-major: grid[floorRowIndex][shaftIndex]. Source of truth for rendering. */
   grid: ChessboardGridCell[][];
+  /** v4: architectural topology graph (shaft entities + floor templates). */
+  topology: BuildingTopologyDto;
+  shafts: ArchitecturalShaftDto[];
+  floorTemplates: FloorTemplateDto[];
 };
 
 export type ChessboardBlockResponse = {

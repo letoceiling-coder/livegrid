@@ -92,7 +92,6 @@ const materialOptions = [
 /** Per-UI-kind dynamic parameter fields (schema-driven form engine). */
 export const LISTING_FIELD_REGISTRY: Record<ListingWizardUiKind, ListingFieldDefinition[]> = {
   APARTMENT: [
-    { key: 'blockAddress', label: 'Адрес объекта', type: 'text', group: 'apartment', colSpan: 2 },
     { key: 'marketSegment', label: 'Тип рынка', type: 'select', options: marketSegmentOptions, group: 'apartment', colSpan: 2 },
     { key: 'areaTotal', label: 'Площадь квартиры, м²', type: 'number', required: true, min: 0.01, group: 'apartment', colSpan: 2 },
     { key: 'areaKitchen', label: 'Кухня, м²', type: 'number', min: 0, group: 'apartment' },
@@ -104,7 +103,6 @@ export const LISTING_FIELD_REGISTRY: Record<ListingWizardUiKind, ListingFieldDef
     { key: 'number', label: 'Номер квартиры', type: 'text', group: 'apartment' },
   ],
   ROOM: [
-    { key: 'blockAddress', label: 'Адрес объекта', type: 'text', group: 'apartment', colSpan: 2 },
     { key: 'marketSegment', label: 'Тип рынка', type: 'select', options: marketSegmentOptions, group: 'apartment', colSpan: 2 },
     { key: 'areaTotal', label: 'Площадь комнаты, м²', type: 'number', required: true, min: 0.01, group: 'apartment', colSpan: 2 },
     { key: 'areaKitchen', label: 'Кухня (доля), м²', type: 'number', min: 0, group: 'apartment' },

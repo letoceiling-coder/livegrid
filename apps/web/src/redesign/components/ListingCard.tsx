@@ -160,11 +160,14 @@ const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
   const linkTo = listing.kind === 'APARTMENT' ? `/apartment/${listing.id}` : `/listing/${listing.id}`;
 
   const isList = variant === 'list';
-  const freshness = listingFreshnessBadge({
-    dataSource: listing.dataSource,
-    lastActivityAt: listing.lastActivityAt,
-    updatedAt: listing.updatedAt,
-  });
+  const freshness =
+    listing.status === 'ACTIVE' || listing.status === 'RESERVED'
+      ? listingFreshnessBadge({
+          dataSource: listing.dataSource,
+          lastActivityAt: listing.lastActivityAt,
+          updatedAt: listing.updatedAt,
+        })
+      : null;
 
   return (
     <Link

@@ -28,7 +28,8 @@
     "check:symbol-drift": "node scripts/reliability/symbol-drift.mjs",
     "check:runtime-integrity": "pnpm check:symbol-drift && pnpm --filter @lg/web test src/shared/lib/runtime-import-integrity.test.ts && pnpm --filter @lg/web typecheck:runtime",
     "verify:admin-routes": "node scripts/verify-admin-routes.mjs",
-    "verify:public-routes": "node scripts/verify-public-routes.mjs"
+    "verify:public-routes": "node scripts/verify-public-routes.mjs",
+    "chessboard:validate": "pnpm --filter @lg/api exec tsx ../../scripts/chessboard-validate-shelepiha.mts"
   },
   "engines": {
     "node": ">=22.0.0",

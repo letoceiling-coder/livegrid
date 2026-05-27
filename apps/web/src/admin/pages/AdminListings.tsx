@@ -21,13 +21,15 @@ import {
 } from '@/admin/lib/listingVisibility';
 
 type Kind = 'APARTMENT' | 'HOUSE' | 'LAND' | 'COMMERCIAL' | 'PARKING';
-type Source = 'all' | 'feed' | 'manual';
+type Source = 'all' | 'feed' | 'manual' | 'donor';
 
 type ListingRow = {
   id: number;
   kind?: string;
   price: string | number | null;
+  address?: string | null;
   dataSource?: string;
+  externalId?: string | null;
   status?: string;
   visibility?: string;
   isPublished?: boolean;
@@ -37,8 +39,14 @@ type ListingRow = {
   region?: { id: number; code?: string; name?: string } | null;
   block?: { id: number; slug: string; name: string } | null;
   ownerUser?: { id: string; fullName: string | null; email: string | null } | null;
-  apartment: { areaTotal: string | number | null; floor: number | null; roomType: { name: string } | null } | null;
-  house: { houseType: string | null; areaTotal: string | number | null; floorsCount: number | null } | null;
+  apartment: {
+    areaTotal: string | number | null;
+    floor: number | null;
+    planUrl?: string | null;
+    blockAddress?: string | null;
+    roomType: { name: string } | null;
+  } | null;
+  house: { houseType: string | null; areaTotal: string | number | null; floorsCount: number | null; photoUrl?: string | null } | null;
   land: { areaSotki: string | number | null; landCategory: string | null; hasCommunications: boolean | null } | null;
   commercial: { commercialType: string | null; area: string | number | null; floor: number | null } | null;
   parking: { parkingType: string | null; area: string | number | null; floor: number | null; number: string | null } | null;
@@ -71,7 +79,25 @@ const SOURCE_TABS: { key: Source; label: string }[] = [
   { key: 'all',    label: 'Все источники' },
   { key: 'feed',   label: 'Из фида (FEED)' },
   { key: 'manual', label: 'Ручные (MANUAL)' },
+  { key: 'donor',  label: 'Авангард (donor)' },
 ];
+
+function listingThumbUrl(r: ListingRow): string | null {
+  const apt = r.apartment?.planUrl?.trim();
+  if (apt) return apt;
+  const house = r.house?.photoUrl?.trim();
+  if (house) return house;
+  return null;
+}
+
+function listingAddressLine(r: ListingRow): string {
+  const direct = r.address?.trim();
+  if (direct) return direct;
+  const blockAddr = r.apartment?.blockAddress?.trim();
+  if (blockAddr) return blockAddr;
+  if (r.block?.name) return r.block.name;
+  return '—';
+}
 
 function parseApiErrorMessage(e: unknown, fallback: string): string {
   if (e instanceof ApiError) {
@@ -141,6 +167,7 @@ export default function AdminListings() {
     if (regionId !== 'all') sp.set('region_id', String(regionId));
     if (source === 'feed') sp.set('data_source', 'FEED');
     if (source === 'manual') sp.set('data_source', 'MANUAL');
+    if (source === 'donor') sp.set('external_id_prefix', 'donor:');
     if (visibilityFilter !== 'all') sp.set('visibility', visibilityFilter);
     if (ownerFilter !== 'all') sp.set('owner_user_id', ownerFilter);
     if (staleOnly) sp.set('stale_only', 'true');
@@ -439,6 +466,8 @@ export default function AdminListings() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="px-3 py-3 font-medium w-12">Фото</th>
+                  <th className="px-4 py-3 font-medium min-w-[140px]">Адрес</th>
                   <th className="px-4 py-3 font-medium">ID</th>
                   <th className="px-4 py-3 font-medium">Регион</th>
                   <th className="px-4 py-3 font-medium">Источник</th>
@@ -470,6 +499,21 @@ export default function AdminListings() {
                   const inactive = r.status === 'INACTIVE' || !r.isPublished;
                   return (
                     <tr key={r.id} className={cn('hover:bg-muted/40', inactive && 'bg-red-50/40')}>
+                      <td className="px-3 py-2">
+                        {listingThumbUrl(r) ? (
+                          <img
+                            src={listingThumbUrl(r)!}
+                            alt=""
+                            className="w-10 h-10 rounded object-cover bg-muted"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded bg-muted" />
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-xs max-w-[200px] truncate" title={listingAddressLine(r)}>
+                        {listingAddressLine(r)}
+                      </td>
                       <td className="px-4 py-2 text-muted-foreground text-xs">{r.id}</td>
                       <td className="px-4 py-2 text-xs">{r.region?.name ?? '—'}</td>
                       <td className="px-4 py-2 text-xs">{r.dataSource ?? '—'}</td>

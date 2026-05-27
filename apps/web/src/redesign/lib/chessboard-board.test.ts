@@ -1,87 +1,44 @@
 import { describe, it, expect } from 'vitest';
-import {
-  buildSectionBoards,
-  countByStatus,
-  isFloorFullySold,
-  sectionNumbersFrom,
-} from './chessboard-board';
-import type { Apartment } from '@/redesign/data/types';
+import { columnFingerprintCount, isFloorFullySoldFromGrid } from './chessboard-board';
+import type { ChessboardGridCell } from '@lg/shared';
 
-function apt(partial: Partial<Apartment> & Pick<Apartment, 'id' | 'floor' | 'section'>): Apartment {
-  return {
-    complexId: 'c1',
-    buildingId: 'b1',
-    rooms: 1,
-    area: 40,
-    kitchenArea: 10,
-    totalFloors: 10,
-    price: 8_000_000,
-    pricePerMeter: 200_000,
-    finishing: 'без отделки',
-    status: 'available',
-    planImage: '',
-    section: 1,
-    ...partial,
-  } as Apartment;
+function row(cells: Array<{ status: 'available' | 'reserved' | 'sold' } | null>): ChessboardGridCell[] {
+  return cells.map((c, i) => ({
+    floor: 1,
+    shaftIndex: i + 1,
+    apartment: c
+      ? {
+          id: `a${i}`,
+          number: String(i),
+          floor: 1,
+          rooms: 2,
+          roomLabel: '2-к.кв',
+          area: 50,
+          layoutFingerprint: '2|50',
+          price: 1,
+          pricePerMeter: 1,
+          finishing: '—',
+          status: c.status,
+          section: 1,
+          planImage: null,
+        }
+      : null,
+  }));
 }
 
 describe('chessboard-board', () => {
-  it('derives section numbers from apartments and count', () => {
-    const nums = sectionNumbersFrom(
-      [apt({ id: '1', floor: 1, section: 2 }), apt({ id: '2', floor: 2, section: 1 })],
-      3,
-    );
-    expect(nums).toEqual([1, 2, 3]);
+  it('detects fully sold floor from API grid row', () => {
+    expect(isFloorFullySoldFromGrid(row([{ status: 'sold' }, { status: 'sold' }]))).toBe(true);
+    expect(isFloorFullySoldFromGrid(row([{ status: 'sold' }, { status: 'available' }]))).toBe(false);
+    expect(isFloorFullySoldFromGrid(row([null, null]))).toBe(false);
   });
 
-  it('builds descending floor rows with gaps', () => {
-    const boards = buildSectionBoards(
-      [
-        apt({ id: 'a', floor: 1, section: 1, number: '1' }),
-        apt({ id: 'b', floor: 3, section: 1, number: '2' }),
-        apt({ id: 'c', floor: 2, section: 1, number: '3' }),
-      ],
-      3,
-      [1],
-    );
-    expect(boards[0].floors).toEqual([3, 2, 1]);
-    expect(boards[0].availableCount).toBe(3);
-  });
-
-  it('keeps shaft columns for same layout across floors', () => {
-    const boards = buildSectionBoards(
-      [
-        apt({ id: 'top', floor: 3, section: 1, number: '302', rooms: 3, area: 93.2 }),
-        apt({ id: 'low', floor: 1, section: 1, number: '286', rooms: 3, area: 93.2 }),
-        apt({ id: 'other', floor: 3, section: 1, number: '322', rooms: 2, area: 49 }),
-      ],
-      3,
-      [1],
-    );
-    const topCol = boards[0].columns.find((col) => col[0]?.id === 'top');
-    expect(topCol?.[2]?.id).toBe('low');
-  });
-
-  it('counts statuses', () => {
-    const c = countByStatus([
-      apt({ id: '1', floor: 1, section: 1, status: 'available' }),
-      apt({ id: '2', floor: 1, section: 1, status: 'sold' }),
-      apt({ id: '3', floor: 2, section: 1, status: 'reserved' }),
-    ]);
-    expect(c).toEqual({ available: 1, reserved: 1, sold: 1 });
-  });
-
-  it('detects fully sold floor', () => {
-    const boards = buildSectionBoards(
-      [
-        apt({ id: '1', floor: 5, section: 1, status: 'sold' }),
-        apt({ id: '2', floor: 5, section: 1, status: 'sold' }),
-        apt({ id: '3', floor: 4, section: 1, status: 'available' }),
-      ],
-      5,
-      [1],
-    );
-    expect(isFloorFullySold(boards[0], 5)).toBe(true);
-    expect(isFloorFullySold(boards[0], 4)).toBe(false);
+  it('counts distinct fingerprints per column', () => {
+    const cells = [
+      { apartment: { layoutFingerprint: '2|50' } },
+      { apartment: { layoutFingerprint: '3|80' } },
+      { apartment: { layoutFingerprint: '2|50' } },
+    ];
+    expect(columnFingerprintCount(cells)).toBe(2);
   });
 });

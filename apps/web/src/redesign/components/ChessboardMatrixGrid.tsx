@@ -3,7 +3,8 @@ import { cn } from '@/lib/utils';
 import type { ChessboardApartmentCell, ChessboardBuildingMatrix } from '@/redesign/lib/chessboard-api';
 import type { Apartment } from '@/redesign/data/types';
 import ChessboardCell from '@/redesign/components/ChessboardCell';
-import { isFloorFullySoldFromGrid } from '@/redesign/lib/chessboard-board';
+import { columnFingerprintCount, isFloorFullySoldFromGrid } from '@/redesign/lib/chessboard-board';
+import { isChessDebugEnabled } from '@/redesign/lib/chessboard-observability';
 
 const CELL_H = 86;
 const FLOOR_COL_W = 42;
@@ -47,7 +48,8 @@ const ChessboardMatrixGrid = memo(function ChessboardMatrixGrid({
   isHidden,
   roomLabel,
 }: Props) {
-  const { floors, grid, shaftCount } = matrix;
+  const { floors, grid, shaftCount, columns } = matrix;
+  const debug = isChessDebugEnabled();
   if (!shaftCount || !floors.length) {
     return (
       <div className="p-6 text-center text-sm text-muted-foreground">
@@ -100,18 +102,21 @@ const ChessboardMatrixGrid = memo(function ChessboardMatrixGrid({
                 {floor}
               </div>
               {Array.from({ length: shaftCount }, (_, colIndex) => {
+                const colDto = columns[colIndex];
+                const shaftId = colDto?.shaftId ?? matrix.shafts[colIndex]?.shaftId;
                 const cell = row[colIndex] ?? { floor, shaftIndex: colIndex + 1, apartment: null };
                 const aptCell = cell.apartment;
                 if (!aptCell) {
                   return (
                     <div
-                      key={`empty-${floor}-${cell.shaftIndex}`}
+                      key={`empty-${floor}-${shaftId ?? cell.shaftIndex}`}
                       className="rounded-lg border border-dashed border-border/60 bg-muted/10"
                       style={{ height: CELL_H, minWidth: SHAFT_MIN_W }}
                       aria-hidden="true"
                       data-empty="true"
                       data-floor={floor}
                       data-shaft={cell.shaftIndex}
+                      data-shaft-id={shaftId}
                     />
                   );
                 }
@@ -119,12 +124,13 @@ const ChessboardMatrixGrid = memo(function ChessboardMatrixGrid({
                 const hidden = isHidden(apt);
                 return (
                   <ChessboardCell
-                    key={`cell-${floor}-${cell.shaftIndex}-${apt.id}`}
+                    key={`cell-${floor}-${shaftId ?? cell.shaftIndex}-${apt.id}`}
                     apartment={apt}
                     section={section}
                     hidden={hidden}
                     selected={selectedId === apt.id}
                     roomLabel={roomLabel(apt.rooms)}
+                    dataShaftId={debug ? shaftId : undefined}
                   />
                 );
               })}

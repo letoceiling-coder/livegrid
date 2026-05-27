@@ -422,10 +422,18 @@ export class PresentationsService {
     };
   }
 
-  async generateListingPdf(listingId: number): Promise<Buffer> {
+  async generateListingPdf(listingId: number, creatorUserId?: string): Promise<Buffer> {
     const FONT_REGULAR = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
     const FONT_BOLD = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
     const p = await this.getListingPresentation(listingId);
+    let contactPhone: string | null = null;
+    if (creatorUserId) {
+      const creator = await this.prisma.user.findUnique({
+        where: { id: creatorUserId },
+        select: { phone: true },
+      });
+      contactPhone = creator?.phone?.trim() || null;
+    }
     const chunks: Buffer[] = [];
     const doc = new PDFDocument({ size: 'A4', margin: 48 });
     doc.registerFont('Regular', FONT_REGULAR);
@@ -442,7 +450,8 @@ export class PresentationsService {
     lines.push(`Тип: ${p.kindLabel}`);
     if (p.subtitle) lines.push(`Параметры: ${p.subtitle}`);
     if (p.price != null)
-      lines.push(`Цена: ${new Intl.NumberFormat('ru-RU').format(Math.round(p.price))} ₽`);
+      lines.push(`Цена: ${new Intl.NumberFormat('ru-RU').format(Math.trunc(p.price))} ₽`);
+    if (contactPhone) lines.push(`Контакт: ${contactPhone}`);
     if (p.region) lines.push(`Регион: ${p.region}`);
     if (p.district) lines.push(`Район: ${p.district}`);
     if (p.address) lines.push(`Адрес: ${p.address}`);

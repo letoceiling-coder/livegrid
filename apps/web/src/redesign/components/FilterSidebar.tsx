@@ -97,8 +97,8 @@ const FilterSection = ({
       </button>
       <div
         className={cn(
-          'overflow-hidden transition-all duration-200',
-          open ? 'max-h-[500px] opacity-100 pb-2' : 'max-h-0 opacity-0',
+          'transition-all duration-200',
+          open ? 'max-h-[500px] opacity-100 pb-2 overflow-visible' : 'max-h-0 opacity-0 overflow-hidden',
         )}
       >
         <div className="space-y-2">{children}</div>

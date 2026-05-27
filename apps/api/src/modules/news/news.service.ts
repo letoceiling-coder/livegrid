@@ -24,6 +24,8 @@ export class NewsService implements OnModuleInit {
   private readonly log = new Logger(NewsService.name);
   private readonly mediaRoot: string;
   private rssTimer?: NodeJS.Timeout;
+  private telegramDailyTimer?: NodeJS.Timeout;
+  private lastTelegramAutoSyncDay: string | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -45,6 +47,31 @@ export class NewsService implements OnModuleInit {
       );
     }, safeInterval);
     this.rssTimer.unref?.();
+
+    if (this.config.get<string>('TELEGRAM_NEWS_AUTO_SYNC_DISABLE') !== 'true') {
+      this.telegramDailyTimer = setInterval(() => {
+        void this.runScheduledTelegramSync();
+      }, 60 * 60 * 1000);
+      this.telegramDailyTimer.unref?.();
+      void this.runScheduledTelegramSync();
+    }
+  }
+
+  /** Daily import at 09:00 local server time (draft unless channel has publishOnImport). */
+  private async runScheduledTelegramSync(): Promise<void> {
+    const now = new Date();
+    if (now.getHours() !== 9) return;
+    const dayKey = now.toISOString().slice(0, 10);
+    if (this.lastTelegramAutoSyncDay === dayKey) return;
+    this.lastTelegramAutoSyncDay = dayKey;
+    try {
+      const result = await this.syncFromTelegramChannels();
+      this.log.log(`Scheduled Telegram news sync: ${JSON.stringify(result)}`);
+    } catch (e) {
+      this.log.warn(
+        `Scheduled Telegram news sync failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   async findAll(page = 1, perPage = 20, publishedOnly = false, regionId?: number | null) {
@@ -357,7 +384,7 @@ export class NewsService implements OnModuleInit {
           label: dto.label?.trim() ? dto.label.trim() : null,
           isEnabled: dto.isEnabled ?? true,
           limitPerRun,
-          publishOnImport: dto.publishOnImport ?? true,
+          publishOnImport: dto.publishOnImport ?? false,
           sortOrder: dto.sortOrder ?? 0,
         },
       });
@@ -743,7 +770,7 @@ export class NewsService implements OnModuleInit {
       .map((c) => this.normalizeTelegramChannelRef(c))
       .filter(Boolean);
     if (fromBody.length > 0) {
-      return fromBody.map((ref) => ({ ref, limit: defaultLimit, publishOnImport: true, regionId: null }));
+      return fromBody.map((ref) => ({ ref, limit: defaultLimit, publishOnImport: false, regionId: null }));
     }
 
     const where: Prisma.NewsTelegramChannelWhereInput = { isEnabled: true };
@@ -767,7 +794,7 @@ export class NewsService implements OnModuleInit {
       .split(',')
       .map((v) => this.normalizeTelegramChannelRef(v))
       .filter(Boolean);
-    return envList.map((ref) => ({ ref, limit: defaultLimit, publishOnImport: true, regionId: null }));
+    return envList.map((ref) => ({ ref, limit: defaultLimit, publishOnImport: false, regionId: null }));
   }
 
   private telegramMessageText(msg: unknown): string | null {
