@@ -14,6 +14,7 @@ import ComplexInlineFilters from '@/redesign/components/ComplexInlineFilters';
 import ComplexQueueTable from '@/redesign/components/ComplexQueueTable';
 import ComplexAnchorNav, { type ComplexSection } from '@/redesign/components/ComplexAnchorNav';
 import Chessboard from '@/redesign/components/Chessboard';
+import { chessboardBuildingLabel } from '@/redesign/lib/chessboard-building-label';
 import ChessDebugOverlay from '@/redesign/components/ChessDebugOverlay';
 import ConversionDebugOverlay from '@/redesign/components/ConversionDebugOverlay';
 import ConsultationFlow from '@/redesign/components/ConsultationFlow';
@@ -570,6 +571,17 @@ const RedesignComplex = () => {
                 sections={activeBuilding.sections}
                 buildingName={activeBuilding.name}
                 roomFilter={roomFilter}
+                buildingOptions={
+                  buildings.length > 1
+                    ? buildings.map((b) => ({
+                        id: b.id,
+                        name: chessboardBuildingLabel(b.name, b.id),
+                        apartmentCount: b.apartments.length,
+                      }))
+                    : undefined
+                }
+                activeBuildingId={activeBuildingId}
+                onBuildingChange={setActiveBuildingId}
               />
             </section>
           ) : null}

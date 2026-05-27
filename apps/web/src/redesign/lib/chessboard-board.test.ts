@@ -34,7 +34,7 @@ describe('chessboard-board', () => {
     expect(nums).toEqual([1, 2, 3]);
   });
 
-  it('builds descending floor rows', () => {
+  it('builds descending floor rows with gaps', () => {
     const boards = buildSectionBoards(
       [
         apt({ id: 'a', floor: 1, section: 1, number: '1' }),
@@ -46,6 +46,20 @@ describe('chessboard-board', () => {
     );
     expect(boards[0].floors).toEqual([3, 2, 1]);
     expect(boards[0].availableCount).toBe(3);
+  });
+
+  it('keeps shaft columns for same layout across floors', () => {
+    const boards = buildSectionBoards(
+      [
+        apt({ id: 'top', floor: 3, section: 1, number: '302', rooms: 3, area: 93.2 }),
+        apt({ id: 'low', floor: 1, section: 1, number: '286', rooms: 3, area: 93.2 }),
+        apt({ id: 'other', floor: 3, section: 1, number: '322', rooms: 2, area: 49 }),
+      ],
+      3,
+      [1],
+    );
+    const topCol = boards[0].columns.find((col) => col[0]?.id === 'top');
+    expect(topCol?.[2]?.id).toBe('low');
   });
 
   it('counts statuses', () => {

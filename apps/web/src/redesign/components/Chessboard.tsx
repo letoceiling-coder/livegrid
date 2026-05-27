@@ -32,12 +32,22 @@ import {
 } from '@/redesign/lib/chessboard-observability';
 import { roomCategoryFromRooms } from '@/redesign/lib/complex-room-groups';
 
+export type ChessboardBuildingOption = {
+  id: string;
+  name: string;
+  apartmentCount: number;
+};
+
 interface Props {
   apartments: Apartment[];
   floors: number;
   sections: number;
   buildingName: string;
   roomFilter?: number | null;
+  /** When multiple towers/corpuses — TrendAgent-style tabs above the grid. */
+  buildingOptions?: ChessboardBuildingOption[];
+  activeBuildingId?: string | null;
+  onBuildingChange?: (id: string) => void;
 }
 
 function roomLabel(rooms: number): string {
@@ -64,7 +74,16 @@ function useIsMobileChess(): boolean {
   return mobile;
 }
 
-const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = null }: Props) => {
+const Chessboard = ({
+  apartments,
+  floors,
+  sections,
+  buildingName,
+  roomFilter = null,
+  buildingOptions,
+  activeBuildingId,
+  onBuildingChange,
+}: Props) => {
   const navigate = useNavigate();
   const isMobile = useIsMobileChess();
   const gridRef = useRef<HTMLDivElement>(null);
@@ -394,8 +413,47 @@ const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = n
     </div>
   );
 
+  const showBuildingTabs =
+    buildingOptions && buildingOptions.length > 1 && onBuildingChange != null;
+
   return (
     <div className="space-y-4">
+      {showBuildingTabs ? (
+        <div
+          className="flex gap-0 overflow-x-auto border-b border-border/60 scrollbar-hide"
+          role="tablist"
+          aria-label="Корпуса и башни"
+        >
+          {buildingOptions.map((b) => {
+            const active = b.id === (activeBuildingId ?? buildingOptions[0]?.id);
+            return (
+              <button
+                key={b.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onBuildingChange(b.id)}
+                className={cn(
+                  'relative shrink-0 px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap',
+                  active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground/80',
+                )}
+              >
+                {b.name}
+                <span className="ml-1.5 text-xs font-normal tabular-nums text-muted-foreground">
+                  ({b.apartmentCount})
+                </span>
+                <span
+                  className={cn(
+                    'absolute bottom-0 left-3 right-3 h-0.5 rounded-full bg-primary transition-opacity',
+                    active ? 'opacity-100' : 'opacity-0',
+                  )}
+                />
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="font-semibold text-sm">{buildingName}</h3>
