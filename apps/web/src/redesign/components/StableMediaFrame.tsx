@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties, type SyntheticEvent } from 'react';
 import { cn } from '@/lib/utils';
 import MissingPhotoPlaceholder from '@/redesign/components/MissingPhotoPlaceholder';
 import {
@@ -24,6 +24,8 @@ type Props = {
   loading?: 'lazy' | 'eager';
   className?: string;
   imgClassName?: string;
+  imgStyle?: CSSProperties;
+  onImageLoad?: (event: SyntheticEvent<HTMLImageElement>) => void;
 };
 
 function aspectClass(aspect: MediaAspect): string {
@@ -68,6 +70,8 @@ const StableMediaFrame = ({
   loading = 'lazy',
   className,
   imgClassName,
+  imgStyle,
+  onImageLoad,
 }: Props) => {
   const [useFallback, setUseFallback] = useState(() => shouldUseFallbackImage(src));
   const [loaded, setLoaded] = useState(false);
@@ -94,8 +98,12 @@ const StableMediaFrame = ({
             alt={imageAltText(altContext, decorative)}
             loading={loading}
             decoding="async"
-            onLoad={() => setLoaded(true)}
+            onLoad={(e) => {
+              setLoaded(true);
+              onImageLoad?.(e);
+            }}
             onError={() => setUseFallback(true)}
+            style={imgStyle}
             className={cn(
               'absolute inset-0 h-full w-full object-cover transition-opacity duration-200',
               loaded ? 'opacity-100' : 'opacity-0',

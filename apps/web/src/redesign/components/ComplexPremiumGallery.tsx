@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type SyntheticEvent } from 'react';
 import { ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import StableMediaFrame from '@/redesign/components/StableMediaFrame';
-import { COMPLEX_HERO_IMG_CLASS } from '@/redesign/lib/image-media';
+import { useAdaptiveCoverPosition } from '@/redesign/hooks/useAdaptiveCoverPosition';
+import {
+  COMPLEX_GALLERY_THUMB_CLASS,
+  COMPLEX_GALLERY_THUMB_SIZE_CLASS,
+  COMPLEX_GALLERY_VIEWPORT_CLASS,
+  computeArchitecturalCoverPosition,
+} from '@/redesign/lib/hero-composition';
 import { prefersReducedMotion } from '@/redesign/lib/map-sidebar-scroll-utils';
 
 type Props = {
@@ -10,11 +16,70 @@ type Props = {
   title: string;
 };
 
+function GalleryThumbnail({
+  src,
+  active,
+  animate,
+  index,
+  onSelect,
+  onHover,
+}: {
+  src: string;
+  active: boolean;
+  animate: boolean;
+  index: number;
+  onSelect: () => void;
+  onHover: () => void;
+}) {
+  const [thumbPosition, setThumbPosition] = useState('center center');
+
+  const handleThumbLoad = (e: SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const box = img.parentElement?.getBoundingClientRect();
+    if (!img.naturalWidth || !box) return;
+    setThumbPosition(
+      computeArchitecturalCoverPosition(img.naturalWidth, img.naturalHeight, box.width, box.height),
+    );
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      onMouseEnter={onHover}
+      className={cn(
+        COMPLEX_GALLERY_THUMB_CLASS,
+        COMPLEX_GALLERY_THUMB_SIZE_CLASS,
+        'border-2 transition-all duration-200',
+        active ? 'border-primary shadow-sm ring-1 ring-primary/20' : 'border-transparent opacity-80 hover:opacity-100',
+        !animate && 'transition-none',
+      )}
+      aria-label={`Фото ${index + 1}`}
+      aria-current={active}
+    >
+      <img
+        src={src}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ objectPosition: thumbPosition }}
+        loading="lazy"
+        onLoad={handleThumbLoad}
+      />
+    </button>
+  );
+}
+
 export default function ComplexPremiumGallery({ images, title }: Props) {
   const [idx, setIdx] = useState(0);
   const [lightbox, setLightbox] = useState(false);
   const hasImages = images.length > 0;
   const animate = !prefersReducedMotion();
+  const currentSrc = hasImages ? images[idx] : null;
+
+  const { objectPosition, useContain, onImageLoad, containerRef } = useAdaptiveCoverPosition(
+    currentSrc,
+    hasImages,
+  );
 
   const prev = useCallback(() => {
     if (images.length <= 1) return;
@@ -50,20 +115,29 @@ export default function ComplexPremiumGallery({ images, title }: Props) {
 
   return (
     <>
-      <section id="gallery" className="scroll-mt-28 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+      <section
+        id="gallery"
+        className="scroll-mt-28 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
+      >
         <div
-          className="relative aspect-[4/3] sm:aspect-[16/10] max-h-[min(440px,58vh)] bg-muted"
+          ref={containerRef}
+          className={COMPLEX_GALLERY_VIEWPORT_CLASS}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
           <StableMediaFrame
-            src={hasImages ? images[idx] : null}
+            src={currentSrc}
             altContext={title}
             aspect="none"
             fallback="branded"
             loading="eager"
-            className="h-full w-full"
-            imgClassName={COMPLEX_HERO_IMG_CLASS}
+            className="absolute inset-0 h-full w-full"
+            imgClassName={cn(
+              'h-full w-full transition-opacity duration-200',
+              useContain ? 'object-contain' : 'object-cover',
+            )}
+            imgStyle={useContain ? undefined : { objectPosition }}
+            onImageLoad={onImageLoad}
           />
           {images.length > 1 ? (
             <>
@@ -95,35 +169,37 @@ export default function ComplexPremiumGallery({ images, title }: Props) {
           ) : null}
         </div>
         {images.length > 1 ? (
-          <div className="flex gap-1.5 overflow-x-auto border-t border-border/60 bg-muted/20 p-2 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto border-t border-border/50 bg-muted/15 px-2.5 py-2.5 scrollbar-hide sm:gap-2.5 sm:px-3">
             {images.map((src, i) => (
-              <button
+              <GalleryThumbnail
                 key={`${src}-${i}`}
-                type="button"
-                onClick={() => setIdx(i)}
-                onMouseEnter={() => setIdx(i)}
-                className={cn(
-                  'relative h-14 w-20 shrink-0 overflow-hidden rounded-lg border-2 transition-all duration-200 sm:h-16 sm:w-24',
-                  i === idx ? 'border-primary shadow-sm' : 'border-transparent opacity-75 hover:opacity-100',
-                  !animate && 'transition-none',
-                )}
-                aria-label={`Фото ${i + 1}`}
-                aria-current={i === idx}
-              >
-                <img src={src} alt="" className={COMPLEX_HERO_IMG_CLASS} loading="lazy" />
-              </button>
+                src={src}
+                active={i === idx}
+                animate={animate}
+                index={i}
+                onSelect={() => setIdx(i)}
+                onHover={() => setIdx(i)}
+              />
             ))}
           </div>
         ) : null}
       </section>
 
       {lightbox && hasImages ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-3 sm:p-6" role="dialog" aria-modal="true">
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+        >
           <button type="button" className="absolute inset-0" aria-label="Закрыть" onClick={() => setLightbox(false)} />
           <div className="relative z-10 w-full max-w-5xl rounded-2xl bg-background p-3 shadow-2xl">
             <div className="mb-2 flex items-center justify-between gap-2 px-1">
               <p className="text-sm font-medium truncate">{title}</p>
-              <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setLightbox(false)}>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setLightbox(false)}
+              >
                 Закрыть
               </button>
             </div>

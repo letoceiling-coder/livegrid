@@ -502,7 +502,7 @@ const RedesignComplex = () => {
           onNavigate={scrollToSection}
         />
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8 lg:items-start">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_272px] lg:gap-6 xl:gap-7 lg:items-start">
           <div className="min-w-0">
             <ComplexPremiumGallery images={complex.images} title={complex.name} />
             <ComplexQuickMeta complex={complex} districtCatalogUrl={districtCatalogUrl} subwayCatalogUrl={subwayCatalogUrl} />
