@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { Apartment } from '@/redesign/data/types';
@@ -68,6 +69,24 @@ const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = n
   const isMobile = useIsMobileChess();
   const gridRef = useRef<HTMLDivElement>(null);
   const hoverStartRef = useRef(0);
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewHoveredRef = useRef(false);
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current);
+      hoverCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleHoverClose = useCallback(() => {
+    clearHoverCloseTimer();
+    hoverCloseTimerRef.current = setTimeout(() => {
+      if (!previewHoveredRef.current) setHoverPreview(null);
+    }, 160);
+  }, [clearHoverCloseTimer]);
+
+  useEffect(() => () => clearHoverCloseTimer(), [clearHoverCloseTimer]);
 
   const counts = useMemo(() => countByStatus(apartments), [apartments]);
 
@@ -183,6 +202,7 @@ const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = n
       }
       const cell = (e.target as HTMLElement).closest('[data-apt-id]') as HTMLElement;
       if (!cell) return;
+      clearHoverCloseTimer();
       hoverStartRef.current = chessObsHoverStart(ctx.apt.id);
       const rect = cell.getBoundingClientRect();
       setHoverPreview({ apt: ctx.apt, section: ctx.section, rect });
@@ -190,12 +210,25 @@ const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = n
         chessObsHoverEnd(performance.now() - hoverStartRef.current);
       });
     },
-    [isMobile, resolveCellContext, isHidden],
+    [isMobile, resolveCellContext, isHidden, clearHoverCloseTimer],
   );
 
   const handleGridMouseLeave = useCallback(() => {
-    if (!isMobile) setHoverPreview(null);
-  }, [isMobile]);
+    if (!isMobile) scheduleHoverClose();
+  }, [isMobile, scheduleHoverClose]);
+
+  useEffect(() => {
+    if (!hoverPreview || isMobile) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        clearHoverCloseTimer();
+        previewHoveredRef.current = false;
+        setHoverPreview(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [hoverPreview, isMobile, clearHoverCloseTimer]);
 
   const handleGridClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -431,20 +464,32 @@ const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = n
         {visibleBoards.map(renderBoard)}
       </div>
 
-      {!isMobile && hoverPreview && previewPosition ? (
-        <div
-          className="fixed z-[70] w-[280px] rounded-xl border border-border bg-popover p-3 shadow-xl pointer-events-none"
-          style={{ left: previewPosition.left, top: previewPosition.top }}
-          role="tooltip"
-        >
-          <ChessboardPreview
-            apartment={hoverPreview.apt}
-            buildingName={buildingName}
-            section={hoverPreview.section}
-            roomLabel={roomLabel(hoverPreview.apt.rooms)}
-          />
-        </div>
-      ) : null}
+      {!isMobile && hoverPreview && previewPosition
+        ? createPortal(
+            <div
+              className="fixed z-[70] w-[280px] rounded-xl border border-border bg-popover p-3 shadow-xl pointer-events-auto transition-opacity duration-150"
+              style={{ left: previewPosition.left, top: previewPosition.top }}
+              role="dialog"
+              aria-label="Превью квартиры"
+              onMouseEnter={() => {
+                previewHoveredRef.current = true;
+                clearHoverCloseTimer();
+              }}
+              onMouseLeave={() => {
+                previewHoveredRef.current = false;
+                scheduleHoverClose();
+              }}
+            >
+              <ChessboardPreview
+                apartment={hoverPreview.apt}
+                buildingName={buildingName}
+                section={hoverPreview.section}
+                roomLabel={roomLabel(hoverPreview.apt.rooms)}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
 
       {isMobile && selectedApt ? (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
@@ -476,7 +521,7 @@ const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = n
       <p className="text-[11px] text-muted-foreground">
         {isMobile
           ? 'Нажмите на квартиру для просмотра. Доступные — белые, бронь — жёлтые, продано — тёмные.'
-          : 'Наведите для превью, двойной клик — открыть страницу. Стрелки — навигация с клавиатуры.'}
+          : 'Наведите для превью — карточка остаётся при наведении на неё, «Открыть» кликабелен. Двойной клик по ячейке — страница квартиры. Esc — закрыть.'}
       </p>
     </div>
   );

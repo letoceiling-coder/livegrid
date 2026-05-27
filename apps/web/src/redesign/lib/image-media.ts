@@ -13,6 +13,10 @@ export const MEDIA_ASPECT = {
   popup: 'aspect-video', // 16:9
 } as const;
 
+/** Complex hero / gallery — keeps building mass centered, reduces awkward sky crop. */
+export const COMPLEX_HERO_IMG_CLASS =
+  'h-full w-full object-cover object-[center_42%] sm:object-[center_38%]';
+
 export function isValidImageUrl(url: unknown): url is string {
   if (typeof url !== 'string') return false;
   const trimmed = url.trim();

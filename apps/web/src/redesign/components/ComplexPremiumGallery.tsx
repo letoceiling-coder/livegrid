@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import StableMediaFrame from '@/redesign/components/StableMediaFrame';
+import { COMPLEX_HERO_IMG_CLASS } from '@/redesign/lib/image-media';
 import { prefersReducedMotion } from '@/redesign/lib/map-sidebar-scroll-utils';
 
 type Props = {
@@ -62,7 +63,7 @@ export default function ComplexPremiumGallery({ images, title }: Props) {
             fallback="branded"
             loading="eager"
             className="h-full w-full"
-            imgClassName="h-full w-full object-cover"
+            imgClassName={COMPLEX_HERO_IMG_CLASS}
           />
           {images.length > 1 ? (
             <>
@@ -109,7 +110,7 @@ export default function ComplexPremiumGallery({ images, title }: Props) {
                 aria-label={`Фото ${i + 1}`}
                 aria-current={i === idx}
               >
-                <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <img src={src} alt="" className={COMPLEX_HERO_IMG_CLASS} loading="lazy" />
               </button>
             ))}
           </div>
