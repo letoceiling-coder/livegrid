@@ -1,5 +1,7 @@
+import type { ChessboardGridCell } from '@lg/shared';
 import type { Apartment } from '@/redesign/data/types';
 import { apartmentNumber, buildShaftMatrix } from '@/redesign/lib/chessboard-matrix';
+import type { ChessboardApartmentInput } from '@lg/shared';
 
 export type { apartmentNumber } from '@/redesign/lib/chessboard-matrix';
 
@@ -42,7 +44,9 @@ export function buildSectionBoards(
       continue;
     }
 
-    const { floors: floorNumbers, columns } = buildShaftMatrix(sectionApts);
+    const { floors: floorNumbers, columns } = buildShaftMatrix(
+      sectionApts.map(apartmentToChessboardInput),
+    );
 
     result.push({
       section,
@@ -68,6 +72,29 @@ export function countByStatus(apartments: Apartment[]): Record<Apartment['status
 export function isFloorFullySold(board: SectionBoard, floor: number): boolean {
   const rowIndex = board.floors.indexOf(floor);
   if (rowIndex < 0) return false;
-  const cells = board.columns.map((col) => col[rowIndex]).filter(Boolean) as Apartment[];
+  const cells = board.columns.map((col) => col[rowIndex]).filter((a): a is Apartment => a != null);
   return cells.length > 0 && cells.every((a) => a.status === 'sold');
+}
+
+/** For API grid row — preserves null slots, no filter(Boolean). */
+export function isFloorFullySoldFromGrid(row: ChessboardGridCell[]): boolean {
+  const withApt = row.filter((c) => c.apartment != null);
+  if (!withApt.length) return false;
+  return withApt.every((c) => c.apartment!.status === 'sold');
+}
+
+export function apartmentToChessboardInput(a: Apartment): ChessboardApartmentInput {
+  return {
+    id: a.id,
+    number: a.number,
+    floor: a.floor,
+    rooms: a.rooms,
+    area: a.area,
+    price: a.price,
+    pricePerMeter: a.pricePerMeter,
+    finishing: a.finishing,
+    status: a.status,
+    section: a.section,
+    planImage: a.planImage,
+  };
 }

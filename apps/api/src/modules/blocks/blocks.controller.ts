@@ -44,6 +44,13 @@ export class BlocksController {
     return this.service.listDeadlines(Number.isFinite(regionId) ? regionId : 1);
   }
   @Public()
+  @Get(':id/chessboard')
+  @ApiOperation({ summary: 'Chessboard matrix per building (shaft-aligned grid)' })
+  getChessboard(@Param('id') id: string) {
+    return this.service.getChessboard(id);
+  }
+
+  @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get block details by ID or slug' })
   findOne(@Param('id') id: string) {

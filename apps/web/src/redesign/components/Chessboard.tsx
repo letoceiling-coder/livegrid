@@ -1,9 +1,9 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { Apartment } from '@/redesign/data/types';
-import ChessboardCell from '@/redesign/components/ChessboardCell';
+import ChessboardMatrixGrid from '@/redesign/components/ChessboardMatrixGrid';
 import ChessboardPreview, { ChessboardPreviewInline } from '@/redesign/components/ChessboardPreview';
 import {
   Sheet,
@@ -18,19 +18,13 @@ import {
   type ChessStatusKey,
 } from '@/redesign/lib/chessboard-status';
 import {
-  buildSectionBoards,
-  countByStatus,
-  isFloorFullySold,
-  sectionNumbersFrom,
-  type SectionBoard,
-} from '@/redesign/lib/chessboard-board';
-import {
   chessObsHoverEnd,
   chessObsHoverStart,
   chessObsRegisterRender,
   chessObsSelection,
 } from '@/redesign/lib/chessboard-observability';
 import { roomCategoryFromRooms } from '@/redesign/lib/complex-room-groups';
+import type { ChessboardApartmentCell, ChessboardBuildingMatrix } from '@/redesign/lib/chessboard-api';
 
 export type ChessboardBuildingOption = {
   id: string;
@@ -39,15 +33,14 @@ export type ChessboardBuildingOption = {
 };
 
 interface Props {
-  apartments: Apartment[];
-  floors: number;
-  sections: number;
+  /** Precomputed matrix from GET /blocks/:slug/chessboard — do not rebuild on client. */
+  matrix: ChessboardBuildingMatrix;
   buildingName: string;
   roomFilter?: number | null;
-  /** When multiple towers/corpuses — TrendAgent-style tabs above the grid. */
   buildingOptions?: ChessboardBuildingOption[];
   activeBuildingId?: string | null;
   onBuildingChange?: (id: string) => void;
+  isLoading?: boolean;
 }
 
 function roomLabel(rooms: number): string {
@@ -56,9 +49,24 @@ function roomLabel(rooms: number): string {
   return '';
 }
 
-function sectionTitle(section: number, buildingName: string): string {
-  const normalizedName = buildingName.trim();
-  return `Секция ${section}${normalizedName ? ` · ${normalizedName}` : ''}`;
+function cellToApartment(cell: ChessboardApartmentCell): Apartment {
+  return {
+    id: cell.id,
+    complexId: '',
+    buildingId: '',
+    rooms: cell.rooms,
+    area: cell.area,
+    kitchenArea: 0,
+    floor: cell.floor,
+    totalFloors: 1,
+    price: cell.price,
+    pricePerMeter: cell.pricePerMeter,
+    finishing: cell.finishing as Apartment['finishing'],
+    status: cell.status,
+    planImage: cell.planImage ?? '',
+    section: cell.section,
+    number: cell.number,
+  };
 }
 
 function useIsMobileChess(): boolean {
@@ -75,14 +83,13 @@ function useIsMobileChess(): boolean {
 }
 
 const Chessboard = ({
-  apartments,
-  floors,
-  sections,
+  matrix,
   buildingName,
   roomFilter = null,
   buildingOptions,
   activeBuildingId,
   onBuildingChange,
+  isLoading = false,
 }: Props) => {
   const navigate = useNavigate();
   const isMobile = useIsMobileChess();
@@ -107,64 +114,56 @@ const Chessboard = ({
 
   useEffect(() => () => clearHoverCloseTimer(), [clearHoverCloseTimer]);
 
-  const counts = useMemo(() => countByStatus(apartments), [apartments]);
+  const counts = matrix.statusCounts;
 
   const [activeStatuses, setActiveStatuses] = useState<Set<ChessStatusKey>>(
     () => new Set<ChessStatusKey>(['available', 'reserved', 'sold']),
   );
-  const [activeSectionTab, setActiveSectionTab] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverPreview, setHoverPreview] = useState<{
     apt: Apartment;
-    section: number;
     rect: DOMRect;
   } | null>(null);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [mobileSheetApt, setMobileSheetApt] = useState<{ apt: Apartment; section: number } | null>(
-    null,
-  );
+  const [mobileSheetApt, setMobileSheetApt] = useState<Apartment | null>(null);
 
-  const sectionNumbers = useMemo(
-    () => sectionNumbersFrom(apartments, sections),
-    [apartments, sections],
-  );
-
-  const sectionBoards = useMemo(
-    () => buildSectionBoards(apartments, floors, sectionNumbers),
-    [apartments, floors, sectionNumbers],
-  );
-
-  const visibleBoards = useMemo(() => {
-    if (sectionBoards.length <= 1) return sectionBoards;
-    if (activeSectionTab != null) {
-      return sectionBoards.filter((b) => b.section === activeSectionTab);
+  const aptById = useMemo(() => {
+    const m = new Map<string, Apartment>();
+    for (const row of matrix.grid) {
+      for (const cell of row) {
+        if (cell.apartment) m.set(cell.apartment.id, cellToApartment(cell.apartment));
+      }
     }
-    return sectionBoards;
-  }, [sectionBoards, activeSectionTab]);
+    return m;
+  }, [matrix.grid]);
 
-  useEffect(() => {
-    if (sectionBoards.length <= 1) {
-      setActiveSectionTab(null);
-      return;
-    }
-    if (activeSectionTab == null || !sectionBoards.some((b) => b.section === activeSectionTab)) {
-      setActiveSectionTab(sectionBoards[0]?.section ?? null);
-    }
-  }, [sectionBoards, activeSectionTab]);
-
-  const visibleCellCount = useMemo(
-    () => visibleBoards.reduce((s, b) => s + b.columns.reduce((cs, col) => cs + col.filter(Boolean).length, 0), 0),
-    [visibleBoards],
+  const isHidden = useCallback(
+    (apt: Apartment) =>
+      !activeStatuses.has(apt.status) ||
+      (roomFilter !== null && roomCategoryFromRooms(apt.rooms) !== roomFilter),
+    [activeStatuses, roomFilter],
   );
+
+  const visibleCellCount = useMemo(() => {
+    let n = 0;
+    for (const row of matrix.grid) {
+      for (const cell of row) {
+        if (!cell.apartment) continue;
+        const apt = cellToApartment(cell.apartment);
+        if (!isHidden(apt)) n += 1;
+      }
+    }
+    return n;
+  }, [matrix.grid, isHidden]);
 
   useEffect(() => {
     chessObsRegisterRender({
-      apartmentCount: apartments.length,
+      apartmentCount: matrix.apartmentCount,
       visibleCellCount,
-      sectionCount: sectionBoards.length,
-      floorCount: Math.max(...sectionBoards.map((b) => b.floors.length), 0),
+      sectionCount: 1,
+      floorCount: matrix.floors.length,
     });
-  }, [apartments.length, visibleCellCount, sectionBoards]);
+  }, [matrix.apartmentCount, matrix.floors.length, visibleCellCount]);
 
   const toggleStatus = (s: ChessStatusKey) => {
     setActiveStatuses((prev) => {
@@ -178,35 +177,21 @@ const Chessboard = ({
     });
   };
 
-  const aptById = useMemo(() => {
-    const m = new Map<string, Apartment>();
-    for (const a of apartments) m.set(a.id, a);
-    return m;
-  }, [apartments]);
-
-  const isHidden = useCallback(
-    (apt: Apartment) =>
-      !activeStatuses.has(apt.status) ||
-      (roomFilter !== null && roomCategoryFromRooms(apt.rooms) !== roomFilter),
-    [activeStatuses, roomFilter],
-  );
-
   const resolveCellContext = useCallback(
-    (el: HTMLElement): { apt: Apartment; section: number } | null => {
+    (el: HTMLElement): { apt: Apartment } | null => {
       const cell = el.closest('[data-apt-id]') as HTMLElement | null;
       if (!cell) return null;
       const id = cell.dataset.aptId;
       if (!id) return null;
       const apt = aptById.get(id);
       if (!apt) return null;
-      const section = Number(cell.dataset.section ?? 1) || 1;
-      return { apt, section };
+      return { apt };
     },
     [aptById],
   );
 
-  const openMobileSheet = useCallback((apt: Apartment, section: number) => {
-    setMobileSheetApt({ apt, section });
+  const openMobileSheet = useCallback((apt: Apartment) => {
+    setMobileSheetApt(apt);
     setMobileSheetOpen(true);
     setSelectedId(apt.id);
   }, []);
@@ -224,7 +209,7 @@ const Chessboard = ({
       clearHoverCloseTimer();
       hoverStartRef.current = chessObsHoverStart(ctx.apt.id);
       const rect = cell.getBoundingClientRect();
-      setHoverPreview({ apt: ctx.apt, section: ctx.section, rect });
+      setHoverPreview({ apt: ctx.apt, rect });
       requestAnimationFrame(() => {
         chessObsHoverEnd(performance.now() - hoverStartRef.current);
       });
@@ -253,7 +238,7 @@ const Chessboard = ({
     (e: React.MouseEvent<HTMLDivElement>) => {
       const ctx = resolveCellContext(e.target as HTMLElement);
       if (!ctx) return;
-      const { apt, section } = ctx;
+      const { apt } = ctx;
       if (apt.status === 'sold' || isHidden(apt)) return;
 
       const startedAt = performance.now();
@@ -262,7 +247,7 @@ const Chessboard = ({
 
       if (isMobile) {
         e.preventDefault();
-        openMobileSheet(apt, section);
+        openMobileSheet(apt);
         return;
       }
 
@@ -308,15 +293,6 @@ const Chessboard = ({
   );
 
   const selectedApt = selectedId ? aptById.get(selectedId) ?? null : null;
-  const selectedSection = useMemo(() => {
-    if (!selectedApt) return 0;
-    for (const board of sectionBoards) {
-      for (const col of board.columns) {
-        if (col.some((a) => a?.id === selectedApt.id)) return board.section;
-      }
-    }
-    return Number(selectedApt.section ?? 1) || 1;
-  }, [selectedApt, sectionBoards]);
 
   const previewPosition = useMemo(() => {
     if (!hoverPreview || isMobile) return null;
@@ -331,87 +307,6 @@ const Chessboard = ({
     if (left < 8) left = 8;
     return { left, top };
   }, [hoverPreview, isMobile]);
-
-  const renderBoard = (board: SectionBoard) => (
-    <div key={board.section} className="overflow-hidden rounded-xl border border-border bg-card">
-      {sectionBoards.length > 1 && activeSectionTab == null ? (
-        <div className="border-b border-border bg-muted/20 px-4 py-2 text-center text-xs font-medium text-muted-foreground">
-          {sectionTitle(board.section, buildingName)}
-          <span className="ml-2 text-muted-foreground/80">
-            {board.availableCount} своб. / {board.totalCount}
-          </span>
-        </div>
-      ) : null}
-
-      {board.columns.length === 0 ? (
-        <div className="p-6 text-center text-sm text-muted-foreground">
-          В этой секции нет данных о квартирах
-        </div>
-      ) : (
-        <div className="overflow-x-auto p-2 sm:p-3 max-h-[min(70vh,640px)]">
-          <div
-            className="inline-grid gap-1"
-            style={{
-              minWidth: 'min-content',
-              gridTemplateColumns: `42px repeat(${Math.max(board.columns.length, 1)}, min(118px, 28vw))`,
-            }}
-          >
-            <div className="h-6" aria-hidden="true" />
-            {board.columns.map((_, idx) => (
-              <div
-                key={`col-head-${board.section}-${idx}`}
-                className="h-6 text-center text-[11px] text-muted-foreground"
-              >
-                {idx + 1}
-              </div>
-            ))}
-
-            {board.floors.map((floor, rowIndex) => {
-              const fullySold = isFloorFullySold(board, floor);
-              return (
-                <Fragment key={`row-${board.section}-${floor}`}>
-                  <div
-                    className={cn(
-                      'flex h-[86px] items-center justify-center rounded-lg text-xs font-medium sticky left-0 z-[2]',
-                      fullySold
-                        ? 'bg-muted/40 text-muted-foreground'
-                        : 'bg-muted/20 text-muted-foreground',
-                    )}
-                    title={fullySold ? 'Этаж полностью продан' : undefined}
-                  >
-                    {floor}
-                  </div>
-                  {board.columns.map((column, colIndex) => {
-                    const apt = column[rowIndex] ?? null;
-                    if (!apt) {
-                      return (
-                        <div
-                          key={`empty-${board.section}-${floor}-${colIndex}`}
-                          className="h-[86px] rounded-lg border border-dashed border-border/50 bg-muted/10"
-                          aria-hidden="true"
-                        />
-                      );
-                    }
-                    const hidden = isHidden(apt);
-                    return (
-                      <ChessboardCell
-                        key={apt.id}
-                        apartment={apt}
-                        section={board.section}
-                        hidden={hidden}
-                        selected={selectedId === apt.id}
-                        roomLabel={roomLabel(apt.rooms)}
-                      />
-                    );
-                  })}
-                </Fragment>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 
   const showBuildingTabs =
     buildingOptions && buildingOptions.length > 1 && onBuildingChange != null;
@@ -459,6 +354,11 @@ const Chessboard = ({
           <h3 className="font-semibold text-sm">{buildingName}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             {counts.available} свободных · {counts.reserved} в брони · {counts.sold} продано
+            {matrix.shaftCount > 0 ? (
+              <span className="ml-2 text-muted-foreground/70">
+                · {matrix.shaftCount} стояков · {matrix.floors.length} этажей
+              </span>
+            ) : null}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs" role="group" aria-label="Фильтр статусов">
@@ -486,40 +386,26 @@ const Chessboard = ({
         </div>
       </div>
 
-      {sectionBoards.length > 1 ? (
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Секции">
-          {sectionBoards.map((board) => (
-            <button
-              key={board.section}
-              type="button"
-              role="tab"
-              aria-selected={activeSectionTab === board.section}
-              onClick={() => setActiveSectionTab(board.section)}
-              className={cn(
-                'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
-                activeSectionTab === board.section
-                  ? 'border-primary bg-primary/5 text-foreground'
-                  : 'border-border bg-card text-muted-foreground hover:border-primary/40',
-              )}
-            >
-              Секция {board.section}
-              <span className="ml-1.5 text-muted-foreground">{board.availableCount} св.</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-
       <div
         ref={gridRef}
         role="grid"
         aria-label={`Шахматка ${buildingName}`}
+        aria-busy={isLoading}
         onMouseOver={handleGridMouseOver}
         onMouseLeave={handleGridMouseLeave}
         onClick={handleGridClick}
         onKeyDown={handleGridKeyDown}
-        className="space-y-4"
+        className={cn(
+          'overflow-hidden rounded-xl border border-border bg-card',
+          isLoading && 'opacity-60 pointer-events-none',
+        )}
       >
-        {visibleBoards.map(renderBoard)}
+        <ChessboardMatrixGrid
+          matrix={matrix}
+          selectedId={selectedId}
+          isHidden={isHidden}
+          roomLabel={roomLabel}
+        />
       </div>
 
       {!isMobile && hoverPreview && previewPosition
@@ -541,7 +427,7 @@ const Chessboard = ({
               <ChessboardPreview
                 apartment={hoverPreview.apt}
                 buildingName={buildingName}
-                section={hoverPreview.section}
+                section={1}
                 roomLabel={roomLabel(hoverPreview.apt.rooms)}
               />
             </div>,
@@ -551,11 +437,7 @@ const Chessboard = ({
 
       {isMobile && selectedApt ? (
         <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
-          <ChessboardPreviewInline
-            apartment={selectedApt}
-            buildingName={buildingName}
-            section={selectedSection}
-          />
+          <ChessboardPreviewInline apartment={selectedApt} buildingName={buildingName} section={1} />
         </div>
       ) : null}
 
@@ -566,10 +448,10 @@ const Chessboard = ({
           </SheetHeader>
           {mobileSheetApt ? (
             <ChessboardPreview
-              apartment={mobileSheetApt.apt}
+              apartment={mobileSheetApt}
               buildingName={buildingName}
-              section={mobileSheetApt.section}
-              roomLabel={roomLabel(mobileSheetApt.apt.rooms)}
+              section={1}
+              roomLabel={roomLabel(mobileSheetApt.rooms)}
               onClose={() => setMobileSheetOpen(false)}
             />
           ) : null}

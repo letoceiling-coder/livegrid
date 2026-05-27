@@ -22,3 +22,4 @@ export * from './billing/billing-plans.js';
 export * from './billing/promotion-commerce.js';
 export * from './ecosystem/ecosystem-core.js';
 export * from './ecosystem/ecosystem-ranking.js';
+export * from './chessboard/index.js';

@@ -14,6 +14,11 @@ import { CacheService } from '../../common/cache/cache.service';
 import { GeoSpatialService } from '../geo/geo-spatial.service';
 import { CatalogMeilisearchService } from '../meilisearch/catalog-meilisearch.service';
 import { normalizeSearchQuery } from '../../common/search-query.util';
+import {
+  buildBlockChessboardResponse,
+  CHESSBOARD_LISTING_KIND,
+  CHESSBOARD_LISTING_STATUSES,
+} from './blocks-chessboard.util';
 
 function intersectBlockIdFilter(current: Prisma.BlockWhereInput['id'], ids: number[]): number[] {
   if (!current || typeof current !== 'object' || !('in' in current)) {
@@ -812,6 +817,38 @@ export class BlocksService {
     const prices = await this.listingPriceBoundsByBlockIds([block.id]);
     const p = prices.get(block.id);
     return { ...block, listingPriceMin: p?.min ?? null, listingPriceMax: p?.max ?? null };
+  }
+
+  /** Precomputed chessboard matrix per building (grid[][] source of truth for frontend). */
+  async getChessboard(idOrSlug: string) {
+    const block = /^\d+$/.test(idOrSlug)
+      ? await this.prisma.block.findUnique({
+          where: { id: Number.parseInt(idOrSlug, 10) },
+          include: { buildings: { orderBy: { name: 'asc' } } },
+        })
+      : await this.prisma.block.findUnique({
+          where: { slug: idOrSlug },
+          include: { buildings: { orderBy: { name: 'asc' } } },
+        });
+    if (!block) throw new NotFoundException('Block not found');
+
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        blockId: block.id,
+        kind: CHESSBOARD_LISTING_KIND,
+        visibility: 'PUBLIC',
+        isPublished: true,
+        status: { in: CHESSBOARD_LISTING_STATUSES },
+      },
+      include: {
+        apartment: {
+          include: { roomType: true, finishing: true },
+        },
+      },
+      orderBy: [{ apartment: { floor: 'desc' } }, { id: 'asc' }],
+    });
+
+    return buildBlockChessboardResponse(block, listings);
   }
 
   private parseBlockStatus(raw?: string): BlockStatus {

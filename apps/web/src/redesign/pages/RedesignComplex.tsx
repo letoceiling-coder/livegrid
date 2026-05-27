@@ -14,7 +14,7 @@ import ComplexInlineFilters from '@/redesign/components/ComplexInlineFilters';
 import ComplexQueueTable from '@/redesign/components/ComplexQueueTable';
 import ComplexAnchorNav, { type ComplexSection } from '@/redesign/components/ComplexAnchorNav';
 import Chessboard from '@/redesign/components/Chessboard';
-import { chessboardBuildingLabel } from '@/redesign/lib/chessboard-building-label';
+import type { ChessboardBlockResponse } from '@/redesign/lib/chessboard-api';
 import ChessDebugOverlay from '@/redesign/components/ChessDebugOverlay';
 import ConversionDebugOverlay from '@/redesign/components/ConversionDebugOverlay';
 import ConsultationFlow from '@/redesign/components/ConsultationFlow';
@@ -104,6 +104,16 @@ const RedesignComplex = () => {
         `/listings?block_id=${apiBlockQuery.data!.id}&kind=APARTMENT&statuses=ACTIVE,RESERVED,SOLD&is_published=true&per_page=500`,
       ),
     enabled: Boolean(apiBlockQuery.data?.id),
+  });
+
+  const chessboardQuery = useQuery({
+    queryKey: ['block', 'chessboard', resolvedSlug],
+    queryFn: () =>
+      apiGetOrNull<ChessboardBlockResponse>(
+        `/blocks/${encodeURIComponent(resolvedSlug || '')}/chessboard`,
+      ),
+    enabled: Boolean(resolvedSlug) && Boolean(apiBlockQuery.data?.id),
+    staleTime: 60_000,
   });
 
   const apiComplex = useMemo(() => {
@@ -217,11 +227,38 @@ const RedesignComplex = () => {
     return buildings[0];
   }, [buildings, activeBuildingId]);
 
+  const activeChessMatrix = useMemo(() => {
+    const boards = chessboardQuery.data?.buildings;
+    if (!boards?.length) return null;
+    if (activeBuildingId) {
+      return boards.find((b) => b.id === activeBuildingId) ?? boards[0];
+    }
+    return boards[0];
+  }, [chessboardQuery.data, activeBuildingId]);
+
+  const chessBuildingOptions = useMemo(
+    () =>
+      chessboardQuery.data?.buildings.map((b) => ({
+        id: b.id,
+        name: b.tabLabel,
+        apartmentCount: b.apartmentCount,
+      })),
+    [chessboardQuery.data],
+  );
+
   useEffect(() => {
     if (buildings.length && !activeBuildingId) {
       setActiveBuildingId(buildings[0].id);
     }
   }, [buildings, activeBuildingId]);
+
+  useEffect(() => {
+    const boards = chessboardQuery.data?.buildings;
+    if (!boards?.length) return;
+    if (!activeBuildingId || !boards.some((b) => b.id === activeBuildingId)) {
+      setActiveBuildingId(boards[0].id);
+    }
+  }, [chessboardQuery.data, activeBuildingId]);
 
   const scopedApartments = useMemo(() => {
     if (!complex) return [];
@@ -562,27 +599,32 @@ const RedesignComplex = () => {
             </section>
           ) : null}
 
-          {hasChess && activeBuilding ? (
+          {hasChess && fromApi && (activeChessMatrix || chessboardQuery.isLoading || chessboardQuery.isError) ? (
             <section id="chessboard" className="scroll-mt-32">
-              {sectionHeading('Шахматка', activeBuilding.name || 'Расположение квартир по этажам')}
-              <Chessboard
-                apartments={activeBuilding.apartments}
-                floors={activeBuilding.floors}
-                sections={activeBuilding.sections}
-                buildingName={activeBuilding.name}
-                roomFilter={roomFilter}
-                buildingOptions={
-                  buildings.length > 1
-                    ? buildings.map((b) => ({
-                        id: b.id,
-                        name: chessboardBuildingLabel(b.name, b.id),
-                        apartmentCount: b.apartments.length,
-                      }))
-                    : undefined
-                }
-                activeBuildingId={activeBuildingId}
-                onBuildingChange={setActiveBuildingId}
-              />
+              {sectionHeading('Шахматка', activeBuilding?.name || 'Расположение квартир по этажам')}
+              {chessboardQuery.isError ? (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center text-sm text-muted-foreground">
+                  Не удалось загрузить шахматку. Обновите страницу.
+                </div>
+              ) : activeChessMatrix ? (
+                <Chessboard
+                  matrix={activeChessMatrix}
+                  buildingName={activeChessMatrix.name}
+                  roomFilter={roomFilter}
+                  buildingOptions={
+                    chessBuildingOptions && chessBuildingOptions.length > 1
+                      ? chessBuildingOptions
+                      : undefined
+                  }
+                  activeBuildingId={activeBuildingId}
+                  onBuildingChange={setActiveBuildingId}
+                  isLoading={chessboardQuery.isFetching}
+                />
+              ) : chessboardQuery.isLoading ? (
+                <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground animate-pulse">
+                  Загрузка шахматки…
+                </div>
+              ) : null}
             </section>
           ) : null}
 
