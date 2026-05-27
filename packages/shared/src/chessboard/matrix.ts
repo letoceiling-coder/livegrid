@@ -2,8 +2,6 @@ import type { ChessboardApartmentInput } from './types.js';
 
 const AREA_MATCH_TOLERANCE = 4;
 const ROOM_MISMATCH_PENALTY = 1000;
-/** Max score to accept vertical stack pairing (same shaft). */
-const STACK_MATCH_THRESHOLD = ROOM_MISMATCH_PENALTY + 50;
 
 export function apartmentNumber(apt: ChessboardApartmentInput): number {
   const n = Number(apt.number ?? 0);
@@ -15,12 +13,18 @@ export function layoutFingerprint(apt: ChessboardApartmentInput): string {
   return `${apt.rooms}|${area}`;
 }
 
+/** Kept for test compatibility and external callers. Not used for placement. */
 export function matchScore(a: ChessboardApartmentInput, b: ChessboardApartmentInput): number {
   const roomPenalty = a.rooms !== b.rooms ? ROOM_MISMATCH_PENALTY : 0;
   const areaDiff = Math.abs(a.area - b.area);
   return roomPenalty + (areaDiff > AREA_MATCH_TOLERANCE ? areaDiff : 0);
 }
 
+/**
+ * Sort apartments within a floor deterministically.
+ * Primary: apartment number (ascending) — architectural left-to-right position.
+ * Fallback: area asc, then id (stable tie-break for identical numbers).
+ */
 function sortOnFloor(apartments: ChessboardApartmentInput[]): ChessboardApartmentInput[] {
   return [...apartments].sort(
     (a, b) =>
@@ -33,19 +37,42 @@ function sortOnFloor(apartments: ChessboardApartmentInput[]): ChessboardApartmen
 export type ShaftMatrix = {
   /** Floors descending (top → bottom). */
   floors: number[];
-  /** columns[shaftIndex][floorRowIndex] */
+  /** columns[shaftIndex][floorRowIndex] — null = architectural placeholder (empty slot). */
   columns: Array<Array<ChessboardApartmentInput | null>>;
 };
 
 /**
- * Shaft-aligned matrix: columns = architectural stacks, null = empty slot preserved.
- * Column count = max apartments on any floor (TrendAgent-style fixed width).
+ * ARCHITECTURAL MATRIX ENGINE v2
+ *
+ * Builds a fixed-column matrix where each column = one architectural shaft.
+ *
+ * Algorithm:
+ *   1. Group apartments by floor.
+ *   2. Sort apartments within each floor by apartment number ascending.
+ *      → rank 0 = leftmost position, rank 1 = next, etc.
+ *   3. columnCount = max apartments on any floor (fixed width, never changes).
+ *   4. Place apartments deterministically: rank within floor → column index.
+ *   5. Missing slots → null (architectural placeholder, never shifted).
+ *
+ * Guarantees:
+ *   - Same input always produces identical output (deterministic).
+ *   - Column count is fixed; columns are never deleted or reordered.
+ *   - Empty cells are preserved as null, not compacted.
+ *   - Frontend receives a complete, ready-to-render matrix.
+ *
+ * Why number-rank over plan-image clustering:
+ *   - Luxury buildings (e.g. Shelepiha) have unique plans per floor; clustering
+ *     produces one column per unique plan (~20+), which is nonsensical visually.
+ *   - Standard mass-market buildings have sequential apartment numbering;
+ *     rank-within-floor naturally maps to architectural shaft position.
+ *   - Both cases produce the correct column count (max per floor) and stable columns.
  */
 export function buildShaftMatrix(apartments: ChessboardApartmentInput[]): ShaftMatrix {
   if (!apartments.length) {
     return { floors: [], columns: [] };
   }
 
+  // Step 1: group by floor, sort each floor by apartment number.
   const byFloor = new Map<number, ChessboardApartmentInput[]>();
   for (const apt of apartments) {
     const floor = apt.floor || 1;
@@ -53,123 +80,44 @@ export function buildShaftMatrix(apartments: ChessboardApartmentInput[]): ShaftM
     list.push(apt);
     byFloor.set(floor, list);
   }
+  for (const [floor, list] of byFloor) {
+    byFloor.set(floor, sortOnFloor(list));
+  }
 
-  const minFloor = Math.min(...byFloor.keys());
-  const maxFloor = Math.max(...byFloor.keys());
+  // Step 2: build floor range (descending: top → bottom).
+  const allFloors = [...byFloor.keys()].sort((a, b) => a - b);
+  const minFloor = allFloors[0];
+  const maxFloor = allFloors[allFloors.length - 1];
   const floors: number[] = [];
   for (let f = maxFloor; f >= minFloor; f -= 1) {
     floors.push(f);
   }
 
+  // Step 3: column count = max apartments on any floor (immutable after this).
   let columnCount = 0;
-  for (const floor of floors) {
-    columnCount = Math.max(columnCount, (byFloor.get(floor)?.length ?? 0));
+  for (const list of byFloor.values()) {
+    if (list.length > columnCount) columnCount = list.length;
   }
   if (columnCount === 0) {
     return { floors, columns: [] };
   }
 
+  // Step 4: allocate grid (columns × rows), all null = architectural placeholder.
   const floorIndex = new Map(floors.map((f, i) => [f, i]));
-  const cells: Array<Array<ChessboardApartmentInput | null>> = Array.from(
+  const columns: Array<Array<ChessboardApartmentInput | null>> = Array.from(
     { length: columnCount },
-    () => floors.map(() => null),
+    () => new Array<ChessboardApartmentInput | null>(floors.length).fill(null),
   );
 
-  const columnSeed = (col: number): ChessboardApartmentInput | null => {
-    for (const row of cells[col]) {
-      if (row) return row;
+  // Step 5: deterministic placement — rank within sorted floor → column index.
+  for (const [floor, sortedApts] of byFloor) {
+    const rowIdx = floorIndex.get(floor);
+    if (rowIdx == null) continue;
+    for (let colIdx = 0; colIdx < sortedApts.length; colIdx += 1) {
+      columns[colIdx][rowIdx] = sortedApts[colIdx];
     }
-    return null;
-  };
-
-  for (const floor of floors) {
-    const apts = sortOnFloor(byFloor.get(floor) ?? []);
-    const rowIdx = floorIndex.get(floor)!;
-    const placed = new Set<ChessboardApartmentInput>();
-
-    const tryAssign = (apt: ChessboardApartmentInput, col: number) => {
-      if (cells[col][rowIdx]) return false;
-      cells[col][rowIdx] = apt;
-      placed.add(apt);
-      return true;
-    };
-
-    // Pass 1: stack with apartment on floor above (higher floor number).
-    for (const apt of apts) {
-      const aboveIdx = floorIndex.get(floor + 1);
-      if (aboveIdx == null) continue;
-      let bestCol = -1;
-      let bestScore = Infinity;
-      for (let c = 0; c < columnCount; c += 1) {
-        if (cells[c][rowIdx]) continue;
-        const above = cells[c][aboveIdx];
-        if (!above) continue;
-        const score = matchScore(apt, above);
-        if (score < bestScore) {
-          bestScore = score;
-          bestCol = c;
-        }
-      }
-      if (bestCol >= 0 && bestScore <= STACK_MATCH_THRESHOLD) {
-        tryAssign(apt, bestCol);
-      }
-    }
-
-    // Pass 2: match column seed fingerprint (any cell in column).
-    for (const apt of apts) {
-      if (placed.has(apt)) continue;
-      let bestCol = -1;
-      let bestScore = Infinity;
-      for (let c = 0; c < columnCount; c += 1) {
-        if (cells[c][rowIdx]) continue;
-        const seed = columnSeed(c);
-        if (!seed) continue;
-        const score = matchScore(apt, seed);
-        if (score < bestScore) {
-          bestScore = score;
-          bestCol = c;
-        }
-      }
-      if (bestCol >= 0 && bestScore <= STACK_MATCH_THRESHOLD) {
-        tryAssign(apt, bestCol);
-      }
-    }
-
-    // Pass 3: leftmost free column (preserves order on floor).
-    for (const apt of apts) {
-      if (placed.has(apt)) continue;
-      for (let c = 0; c < columnCount; c += 1) {
-        if (!cells[c][rowIdx]) {
-          tryAssign(apt, c);
-          break;
-        }
-      }
-    }
+    // Columns beyond sortedApts.length remain null → preserved placeholder.
   }
-
-  const topRow = 0;
-  const colOrder = Array.from({ length: columnCount }, (_, c) => c);
-  colOrder.sort((a, b) => {
-    const aptA = cells[a][topRow];
-    const aptB = cells[b][topRow];
-    if (aptA && aptB) {
-      return (
-        apartmentNumber(aptA) - apartmentNumber(aptB) ||
-        aptA.area - aptB.area ||
-        aptA.id.localeCompare(aptB.id)
-      );
-    }
-    if (aptA) return -1;
-    if (aptB) return 1;
-    const seedA = columnSeed(a);
-    const seedB = columnSeed(b);
-    if (seedA && seedB) {
-      return apartmentNumber(seedA) - apartmentNumber(seedB);
-    }
-    return a - b;
-  });
-
-  const columns = colOrder.map((colIdx) => cells[colIdx].map((cell) => cell ?? null));
 
   return { floors, columns };
 }

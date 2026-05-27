@@ -70,14 +70,19 @@ const ChessboardMatrixGrid = memo(function ChessboardMatrixGrid({
         role="presentation"
       >
         <div className="h-6" aria-hidden="true" />
-        {Array.from({ length: shaftCount }, (_, i) => (
-          <div
-            key={`shaft-head-${i + 1}`}
-            className="flex h-6 items-center justify-center text-[11px] font-medium text-muted-foreground tabular-nums"
-          >
-            {i + 1}
-          </div>
-        ))}
+        {Array.from({ length: shaftCount }, (_, i) => {
+          const colDto = matrix.columns[i];
+          const label = colDto?.shaftLabel ?? String(i + 1);
+          return (
+            <div
+              key={`shaft-head-${i + 1}`}
+              className="flex h-6 items-center justify-center text-[10px] font-medium text-muted-foreground truncate px-1"
+              title={label}
+            >
+              {label}
+            </div>
+          );
+        })}
 
         {floors.map((floor, rowIndex) => {
           const row = grid[rowIndex] ?? [];

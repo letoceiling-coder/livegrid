@@ -47,6 +47,10 @@ Thumbs.db
 # Local infra/build artifacts (not for git)
 .local/
 
+# Large TrendAgent feed dumps (local copies under docs/feed/)
+docs/feed/**/*
+!docs/feed/README.md
+
 # Scratch / temp files
 .phpunit.result.cache
 tmp_*.remote.tsx

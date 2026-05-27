@@ -38,7 +38,35 @@ function toCellApartment(apt: ChessboardApartmentInput): ChessboardApartmentCell
   };
 }
 
-/** Builds API contract: floors, columns, grid[][] — single source of truth. */
+/**
+ * Derives a human-readable diagnostic label for a shaft column.
+ * Uses the most common layout fingerprint from all non-null cells.
+ * Example: "2|45.1" → "2-к|45.1"  "0|24.3" → "Студия|24.3"
+ */
+function deriveShaftLabel(col: Array<ChessboardApartmentInput | null>): string {
+  const counts = new Map<string, number>();
+  for (const apt of col) {
+    if (!apt) continue;
+    const key = `${apt.rooms}|${Math.round(apt.area * 10) / 10}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  if (!counts.size) return '—';
+  const [top] = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  const [rooms, area] = top[0].split('|');
+  const r = Number(rooms);
+  const prefix = r === 0 ? 'Студия' : `${r}-к.кв`;
+  return `${prefix} ${area}м²`;
+}
+
+/**
+ * Builds the full API contract: floors, columns, grid[][] — single source of truth.
+ *
+ * Uses the deterministic Architectural Matrix Engine (buildShaftMatrix v2):
+ *   - Apartments ranked by number within each floor → fixed column assignment.
+ *   - Column count = max apartments per floor (immutable after build).
+ *   - Null cells = architectural placeholders, never shifted.
+ *   - Frontend receives a complete, ready-to-render matrix.
+ */
 export function buildChessboardBuildingMatrix(
   buildingId: string,
   buildingName: string,
@@ -54,6 +82,7 @@ export function buildChessboardBuildingMatrix(
 
   const columnDtos = columns.map((col, idx) => ({
     shaftIndex: idx + 1,
+    shaftLabel: deriveShaftLabel(col),
     cells: floors.map((floor, rowIndex) => ({
       floor,
       apartment: col[rowIndex] ? toCellApartment(col[rowIndex]!) : null,

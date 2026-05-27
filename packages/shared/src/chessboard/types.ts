@@ -37,6 +37,12 @@ export type ChessboardGridCell = {
 
 export type ChessboardColumnDto = {
   shaftIndex: number;
+  /**
+   * Diagnostic key describing this shaft's dominant layout.
+   * Format: "N-к|{area}" or "Студия|{area}" — derived from the most common
+   * apartment fingerprint in this column. Useful for debug overlays.
+   */
+  shaftLabel: string;
   cells: Array<{ floor: number; apartment: ChessboardApartmentCell | null }>;
 };
 
