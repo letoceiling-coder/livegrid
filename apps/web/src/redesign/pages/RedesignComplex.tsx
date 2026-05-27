@@ -19,7 +19,6 @@ import ConversionDebugOverlay from '@/redesign/components/ConversionDebugOverlay
 import ConsultationFlow from '@/redesign/components/ConsultationFlow';
 import { CONVERSION_CTA, type ConsultationContext } from '@/redesign/lib/conversion-cta';
 import LayoutGrid from '@/redesign/components/LayoutGrid';
-import StableMediaFrame from '@/redesign/components/StableMediaFrame';
 import LeadForm from '@/shared/components/LeadForm';
 import RelatedListingsCarousel from '@/discovery/components/RelatedListingsCarousel';
 import { apiGet, apiGetOrNull } from '@/lib/api';
@@ -67,9 +66,11 @@ const COMPLEX_SLUG_ALIASES: Record<string, string> = {
 
 function sectionHeading(title: string, subtitle?: string) {
   return (
-    <div className="mb-4">
-      <h2 className="text-lg sm:text-xl font-bold">{title}</h2>
-      {subtitle ? <p className="text-sm text-muted-foreground mt-1">{subtitle}</p> : null}
+    <div className="mb-4 flex items-baseline gap-3">
+      <h2 className="text-base sm:text-lg font-semibold tracking-tight">{title}</h2>
+      {subtitle ? (
+        <span className="text-xs text-muted-foreground font-normal">{subtitle}</span>
+      ) : null}
     </div>
   );
 }
@@ -371,34 +372,7 @@ const RedesignComplex = () => {
     }));
   };
 
-  const handleComplexFavorite = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (blockNum == null) return;
-    if (!isAuthenticated) {
-      navigate('/login', { state: { from: location } });
-      return;
-    }
-    void toggleBlock(blockNum);
-  };
-
   const inCompare = complex ? isCompared(complex.slug) : false;
-  const handleCompare = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!complex) return;
-    if (!inCompare && compareCount >= 3) {
-      toast.error('В сравнении не более 3 ЖК');
-      return;
-    }
-    toggleCompare(complex.slug);
-  };
-
-  const handleShare = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!complex) return;
-    void shareCurrentPage({ title: complex.name });
-  };
 
   const openComplexConsult = useCallback(
     (source: string) => {
@@ -455,7 +429,7 @@ const RedesignComplex = () => {
     <div className="min-h-screen bg-background pb-24 lg:pb-8">
       <RedesignHeader />
 
-      <div className="max-w-[1400px] mx-auto px-4 py-4 sm:py-6">
+      <div className="max-w-[1280px] mx-auto px-4 py-4 sm:py-6">
         <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3 min-w-0 flex-wrap">
             <Link to="/" className="hover:text-foreground shrink-0">Главная</Link>
             <span>/</span>
@@ -528,7 +502,7 @@ const RedesignComplex = () => {
           onNavigate={scrollToSection}
         />
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-6 lg:items-start">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-8 lg:items-start">
           <div className="min-w-0">
             <ComplexPremiumGallery images={complex.images} title={complex.name} />
             <ComplexQuickMeta complex={complex} districtCatalogUrl={districtCatalogUrl} subwayCatalogUrl={subwayCatalogUrl} />
@@ -541,19 +515,6 @@ const RedesignComplex = () => {
             </div>
 
         <div className="space-y-8 sm:space-y-10 mt-6">
-          {hasChess && activeBuilding ? (
-            <section id="chessboard" className="scroll-mt-32">
-              {sectionHeading('Шахматка', activeBuilding.name || 'Расположение квартир по этажам')}
-              <Chessboard
-                apartments={activeBuilding.apartments}
-                floors={activeBuilding.floors}
-                sections={activeBuilding.sections}
-                buildingName={activeBuilding.name}
-                roomFilter={roomFilter}
-              />
-            </section>
-          ) : null}
-
           {hasBuildings || hasApartments || hasLayouts ? (
             <section id="layouts" className="scroll-mt-28">
               {sectionHeading('Квартиры', hasApartments ? `${scopedApartments.length} предложений` : undefined)}
@@ -589,6 +550,7 @@ const RedesignComplex = () => {
                       sort={sort}
                       onSort={handleSort}
                       filterApartments={filterApartments}
+                      activeBuildingId={buildings.length > 1 ? activeBuildingId : null}
                     />
                 </div>
               ) : (
@@ -596,6 +558,19 @@ const RedesignComplex = () => {
                   Свободных квартир пока нет
                 </div>
               )}
+            </section>
+          ) : null}
+
+          {hasChess && activeBuilding ? (
+            <section id="chessboard" className="scroll-mt-32">
+              {sectionHeading('Шахматка', activeBuilding.name || 'Расположение квартир по этажам')}
+              <Chessboard
+                apartments={activeBuilding.apartments}
+                floors={activeBuilding.floors}
+                sections={activeBuilding.sections}
+                buildingName={activeBuilding.name}
+                roomFilter={roomFilter}
+              />
             </section>
           ) : null}
 
@@ -790,7 +765,7 @@ const RedesignComplex = () => {
           ) : null}
         </div>
           </div>
-          <aside className="hidden lg:block sticky top-28 self-start">
+          <aside className="hidden lg:block sticky top-20 self-start">
             <ComplexStickySidebar
               complex={complex}
               availableCount={availableCount}

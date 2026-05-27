@@ -34,14 +34,14 @@ export default function ComplexStickySidebar({ complex, availableCount, onConsul
   return (
     <aside
       className={cn(
-        'rounded-xl border border-border/80 bg-card p-4 shadow-sm space-y-3',
+        'rounded-2xl border border-border/60 bg-card p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] space-y-4',
         className,
       )}
     >
       <div>
-        <p className="text-[11px] text-muted-foreground mb-0.5">Цена от</p>
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1 font-medium">Цена от</p>
         <p
-          className={cn('text-xl font-bold tabular-nums leading-tight', isPriceFallbackText(priceText) && PRICE_ON_REQUEST_CLASS)}
+          className={cn('text-2xl font-bold tabular-nums leading-tight', isPriceFallbackText(priceText) && PRICE_ON_REQUEST_CLASS)}
           aria-label={priceAriaLabel(priceText)}
         >
           {priceText}
@@ -51,7 +51,7 @@ export default function ComplexStickySidebar({ complex, availableCount, onConsul
         ) : null}
       </div>
 
-      <dl className="space-y-2 text-sm border-t border-border/60 pt-3">
+      <dl className="space-y-2.5 text-sm border-t border-border/50 pt-4">
         {st ? (
           <div className="flex justify-between gap-2">
             <dt className="text-muted-foreground">Статус</dt>
@@ -59,28 +59,30 @@ export default function ComplexStickySidebar({ complex, availableCount, onConsul
           </div>
         ) : null}
         <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground flex items-center gap-1">
-            <CalendarDays className="w-3.5 h-3.5" /> Сдача
+          <dt className="text-muted-foreground flex items-center gap-1.5">
+            <CalendarDays className="w-3.5 h-3.5 shrink-0" /> Сдача
           </dt>
           <dd className="font-medium text-right">{complex.deadline || '—'}</dd>
         </div>
         <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground flex items-center gap-1">
-            <Building2 className="w-3.5 h-3.5" /> Застройщик
+          <dt className="text-muted-foreground flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5 shrink-0" /> Застройщик
           </dt>
           <dd className="font-medium text-right truncate max-w-[55%]">{complex.builder || '—'}</dd>
         </div>
-        <div className="flex justify-between gap-2">
-          <dt className="text-muted-foreground">Квартир</dt>
-          <dd className="font-medium tabular-nums">{availableCount > 0 ? availableCount : '—'}</dd>
-        </div>
+        {availableCount > 0 ? (
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Свободных кв.</dt>
+            <dd className="font-semibold tabular-nums text-emerald-600">{availableCount}</dd>
+          </div>
+        ) : null}
       </dl>
 
-      <div className="space-y-2 pt-1">
-        <Button className="w-full h-10 text-sm font-semibold" type="button" onClick={onConsultation}>
+      <div className="space-y-2 pt-0.5">
+        <Button className="w-full h-11 text-sm font-semibold" type="button" onClick={onConsultation}>
           {CONVERSION_CTA.viewing}
         </Button>
-        <Button variant="outline" className="w-full h-9 text-xs" asChild>
+        <Button variant="outline" className="w-full h-9 text-xs gap-1.5" asChild>
           <Link to={`/presentation/${complex.slug}`}>Презентация PDF</Link>
         </Button>
       </div>

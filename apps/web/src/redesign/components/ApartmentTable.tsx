@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Eye, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Eye, ArrowUpDown } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import type { Apartment, SortField, SortDir } from '@/redesign/data/types';
@@ -10,6 +10,7 @@ import {
   isPriceFallbackText,
   PRICE_ON_REQUEST_CLASS,
   normalizePriceValue,
+  compareByPrice,
 } from '@/redesign/lib/display-price';
 import MissingPhotoPlaceholder from '@/redesign/components/MissingPhotoPlaceholder';
 
@@ -28,9 +29,9 @@ const STATUS_LABEL: Record<AptStatus, string> = {
 };
 
 const STATUS_CLASS: Record<AptStatus, string> = {
-  available: 'text-green-700',
+  available: 'text-emerald-600',
   reserved: 'text-amber-600',
-  sold: 'text-muted-foreground',
+  sold: 'text-muted-foreground line-through',
 };
 
 type GroupRow = {
@@ -47,16 +48,12 @@ type GroupRow = {
 
 function roomLabel(roomCategory: number): string {
   if (roomCategory === 0) return 'Студия';
-  return `${roomCategory}-к.кв`;
+  return `${roomCategory}-к. кв.`;
 }
 
 function formatAreaRange(min: number, max: number): string {
   if (Math.abs(min - max) < 0.001) return `${min.toLocaleString('ru-RU')} м²`;
-  return `${min.toLocaleString('ru-RU')} м² - ${max.toLocaleString('ru-RU')} м²`;
-}
-
-function formatPriceRange(min: number, max: number): string {
-  return formatPriceRangeDisplay(min, max);
+  return `${min.toLocaleString('ru-RU')}–${max.toLocaleString('ru-RU')} м²`;
 }
 
 function buildingCaption(a: Apartment): string {
@@ -73,34 +70,78 @@ function hasPlanPreview(url: string | undefined): boolean {
   return !url.endsWith('/placeholder.svg');
 }
 
-type PreviewState = {
-  url: string;
-  x: number;
-  y: number;
-};
+type PreviewState = { url: string; x: number; y: number };
 
 function getPreviewPosition(rect: DOMRect): { x: number; y: number } {
-  const previewWidth = 220;
-  const previewHeight = 300;
-  const gap = 14;
-  const pad = 10;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-
+  const pw = 220, ph = 280, gap = 12, pad = 10;
+  const vw = window.innerWidth, vh = window.innerHeight;
   let x = rect.right + gap;
-  if (x + previewWidth > vw - pad) x = rect.left - previewWidth - gap;
-  if (x < pad) x = Math.max(pad, vw - previewWidth - pad);
-
+  if (x + pw > vw - pad) x = rect.left - pw - gap;
+  if (x < pad) x = Math.max(pad, vw - pw - pad);
   let y = rect.top - 8;
-  if (y + previewHeight > vh - pad) y = vh - previewHeight - pad;
+  if (y + ph > vh - pad) y = vh - ph - pad;
   if (y < pad) y = pad;
-
   return { x, y };
 }
 
-const ApartmentTable = ({ apartments }: Props) => {
+function sortApartments(apts: Apartment[], sort: { field: SortField; dir: SortDir }): Apartment[] {
+  return [...apts].sort((a, b) => {
+    const m = sort.dir === 'asc' ? 1 : -1;
+    if (sort.field === 'price') return compareByPrice(a.price, b.price, sort.dir);
+    if (sort.field === 'area') return (a.area - b.area) * m;
+    if (sort.field === 'floor') return (a.floor - b.floor) * m;
+    if (sort.field === 'rooms') return (a.rooms - b.rooms) * m;
+    if (a.section !== b.section) return (a.section - b.section) * m;
+    if (a.floor !== b.floor) return (a.floor - b.floor) * m;
+    return ((Number(a.number ?? 0) || 0) - (Number(b.number ?? 0) || 0)) * m;
+  });
+}
+
+const SortTh = ({
+  field,
+  label,
+  sort,
+  onSort,
+  className,
+}: {
+  field: SortField;
+  label: string;
+  sort: { field: SortField; dir: SortDir };
+  onSort: (f: SortField) => void;
+  className?: string;
+}) => {
+  const active = sort.field === field;
+  return (
+    <th
+      className={cn(
+        'px-3 py-2.5 text-left cursor-pointer select-none whitespace-nowrap group',
+        active && 'text-foreground',
+        className,
+      )}
+      onClick={() => onSort(field)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        <ArrowUpDown
+          className={cn(
+            'w-3 h-3 transition-opacity',
+            active ? 'opacity-100 text-primary' : 'opacity-0 group-hover:opacity-60',
+          )}
+        />
+        {active && (
+          <span className="text-[10px] text-primary">
+            {sort.dir === 'asc' ? '↑' : '↓'}
+          </span>
+        )}
+      </span>
+    </th>
+  );
+};
+
+const ApartmentTable = ({ apartments, sort, onSort }: Props) => {
   const navigate = useNavigate();
   const [preview, setPreview] = useState<PreviewState | null>(null);
+
   const grouped = useMemo<GroupRow[]>(() => {
     const groups = new Map<string, GroupRow>();
     for (const a of apartments) {
@@ -132,13 +173,6 @@ const ApartmentTable = ({ apartments }: Props) => {
       }
     }
     const rows = Array.from(groups.values());
-    rows.forEach((g) => {
-      g.apartments.sort((x, y) => {
-        if (x.section !== y.section) return x.section - y.section;
-        if (x.floor !== y.floor) return x.floor - y.floor;
-        return (Number(x.number ?? 0) || 0) - (Number(y.number ?? 0) || 0);
-      });
-    });
     rows.sort((x, y) => {
       if (x.buildingLabel !== y.buildingLabel) return x.buildingLabel.localeCompare(y.buildingLabel, 'ru');
       return x.roomCategory - y.roomCategory;
@@ -158,131 +192,180 @@ const ApartmentTable = ({ apartments }: Props) => {
   };
 
   if (!grouped.length) {
-    return <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">Квартиры не найдены</div>;
+    return (
+      <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground text-center">
+        Квартиры не найдены
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {grouped.map((g) => {
         const isOpen = openKeys.has(g.key);
+        const sortedApts = isOpen ? sortApartments(g.apartments, sort) : g.apartments;
         return (
           <div key={g.key} className="rounded-xl border border-border bg-card overflow-hidden">
             <button
               type="button"
               onClick={() => toggle(g.key)}
-              className="w-full grid grid-cols-[1.3fr_1.2fr_1.6fr_auto] gap-3 px-4 py-3 text-left items-center hover:bg-muted/30 transition-colors"
+              className="w-full grid grid-cols-[1fr_auto] sm:grid-cols-[1.4fr_1.2fr_1.4fr_auto] gap-2 sm:gap-4 px-4 py-3 text-left items-center hover:bg-muted/20 transition-colors"
+              aria-expanded={isOpen}
             >
-              <div className="font-medium text-sm">
-                <div>{g.buildingLabel}</div>
-                <div className="text-xs text-muted-foreground">{roomLabel(g.roomCategory)}</div>
+              <div className="min-w-0">
+                <div className="font-semibold text-sm">{roomLabel(g.roomCategory)}</div>
+                <div className="text-xs text-muted-foreground truncate mt-0.5">{g.buildingLabel}</div>
               </div>
-              <div className="text-sm">{formatAreaRange(g.areaMin, g.areaMax)}</div>
-              <div className="text-sm font-medium">{formatPriceRange(g.priceMin, g.priceMax)}</div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>{g.apartments.length} квартир</span>
-                {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <div className="hidden sm:block text-sm text-muted-foreground">
+                {formatAreaRange(g.areaMin, g.areaMax)}
+              </div>
+              <div className="hidden sm:block text-sm font-medium">
+                {formatPriceRangeDisplay(g.priceMin, g.priceMax)}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap">
+                <span>{g.apartments.length} кв.</span>
+                {isOpen ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
               </div>
             </button>
 
             {isOpen ? (
-              <div className="border-t border-border overflow-x-auto">
-                <table className="min-w-[1180px] w-full text-sm">
-                  <thead className="bg-muted/40 text-muted-foreground text-xs">
-                    <tr>
-                      <th className="px-2 py-2 text-left w-20">План</th>
-                      <th className="px-2 py-2 text-left">Корп.</th>
-                      <th className="px-2 py-2 text-left">Секц.</th>
-                      <th className="px-2 py-2 text-left">Эт.</th>
-                      <th className="px-2 py-2 text-left">№ кв.</th>
-                      <th className="px-2 py-2 text-left">S прив.</th>
-                      <th className="px-2 py-2 text-left">S кухни</th>
-                      <th className="px-2 py-2 text-left">Отделка</th>
-                      <th className="px-2 py-2 text-left">Базовая</th>
-                      <th className="px-2 py-2 text-left">При 100%</th>
-                      <th className="px-2 py-2 text-left">За м²</th>
-                      <th className="px-2 py-2 text-left">Экскл.</th>
-                      <th className="px-2 py-2 text-left">Статус</th>
-                      <th className="px-2 py-2 text-left">Вид</th>
-                      <th className="px-2 py-2 text-left w-14"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.apartments.map((a) => {
-                      const canOpen = a.status !== 'sold';
-                      return (
-                        <tr
-                          key={a.id}
-                          className={cn('border-t border-border/70 hover:bg-muted/20', canOpen && 'cursor-pointer')}
-                          onClick={() => {
-                            if (canOpen) navigate(`/apartment/${a.id}`);
-                          }}
-                        >
-                          <td className="px-2 py-2">
-                            {hasPlanPreview(a.planImage) ? (
-                              <button
-                                type="button"
-                                className="w-14 h-14 rounded border bg-background hover:border-primary/40 transition-colors overflow-hidden"
-                                onMouseEnter={(e) => {
-                                  const pos = getPreviewPosition(e.currentTarget.getBoundingClientRect());
-                                  setPreview({ url: a.planImage!, x: pos.x, y: pos.y });
-                                }}
-                                onMouseLeave={() => setPreview((prev) => (prev?.url === a.planImage ? null : prev))}
-                                onFocus={(e) => {
-                                  const pos = getPreviewPosition(e.currentTarget.getBoundingClientRect());
-                                  setPreview({ url: a.planImage!, x: pos.x, y: pos.y });
-                                }}
-                                onBlur={() => setPreview((prev) => (prev?.url === a.planImage ? null : prev))}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <img src={a.planImage} alt="Планировка" className="w-full h-full object-contain" loading="lazy" />
-                              </button>
-                            ) : (
-                              <MissingPhotoPlaceholder className="h-14 w-14 rounded border text-[9px]" />
+              <div className="border-t border-border">
+                {/* Desktop table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="min-w-[760px] w-full text-xs">
+                    <thead className="bg-muted/30 text-muted-foreground border-b border-border">
+                      <tr>
+                        <th className="px-3 py-2.5 text-left w-16">План</th>
+                        <th className="px-3 py-2.5 text-left">Корп.</th>
+                        <th className="px-3 py-2.5 text-left">Секц.</th>
+                        <SortTh field="floor" label="Эт." sort={sort} onSort={onSort} />
+                        <th className="px-3 py-2.5 text-left">№ кв.</th>
+                        <SortTh field="area" label="Площадь" sort={sort} onSort={onSort} />
+                        <th className="px-3 py-2.5 text-left">Кухня</th>
+                        <th className="px-3 py-2.5 text-left">Отделка</th>
+                        <SortTh field="price" label="Цена" sort={sort} onSort={onSort} />
+                        <th className="px-3 py-2.5 text-left">За м²</th>
+                        <th className="px-3 py-2.5 text-left">Статус</th>
+                        <th className="px-3 py-2.5 text-left w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedApts.map((a, idx) => {
+                        const canOpen = a.status !== 'sold';
+                        return (
+                          <tr
+                            key={a.id}
+                            className={cn(
+                              'border-t border-border/50 transition-colors',
+                              idx % 2 === 1 && 'bg-muted/10',
+                              canOpen && 'cursor-pointer hover:bg-primary/5',
+                              !canOpen && 'opacity-50',
                             )}
-                          </td>
-                          <td className="px-2 py-2">{a.buildingName || a.buildingId}</td>
-                          <td className="px-2 py-2">{a.section}</td>
-                          <td className="px-2 py-2">{a.floor}</td>
-                          <td className="px-2 py-2">{a.number || '—'}</td>
-                          <td className="px-2 py-2">{a.area} м²</td>
-                          <td className="px-2 py-2">{a.kitchenArea} м²</td>
-                          <td className="px-2 py-2 capitalize">{a.finishing}</td>
-                          <td className={cn('px-2 py-2', isPriceFallbackText(formatDisplayPrice(a.price)) && PRICE_ON_REQUEST_CLASS)}>
+                            onClick={() => { if (canOpen) navigate(`/apartment/${a.id}`); }}
+                          >
+                            <td className="px-3 py-2">
+                              {hasPlanPreview(a.planImage) ? (
+                                <div
+                                  className="w-12 h-12 rounded-md border bg-background overflow-hidden"
+                                  onMouseEnter={(e) => {
+                                    const pos = getPreviewPosition(e.currentTarget.getBoundingClientRect());
+                                    setPreview({ url: a.planImage!, x: pos.x, y: pos.y });
+                                  }}
+                                  onMouseLeave={() => setPreview((p) => (p?.url === a.planImage ? null : p))}
+                                >
+                                  <img src={a.planImage} alt="Планировка" className="w-full h-full object-contain" loading="lazy" />
+                                </div>
+                              ) : (
+                                <MissingPhotoPlaceholder className="h-12 w-12 rounded-md border text-[9px]" />
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">{a.buildingName || a.buildingId || '—'}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{a.section}</td>
+                            <td className="px-3 py-2">{a.floor}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{a.number || '—'}</td>
+                            <td className="px-3 py-2 font-medium">{a.area} м²</td>
+                            <td className="px-3 py-2 text-muted-foreground">{a.kitchenArea ? `${a.kitchenArea} м²` : '—'}</td>
+                            <td className="px-3 py-2 capitalize text-muted-foreground">{a.finishing || '—'}</td>
+                            <td className={cn('px-3 py-2 font-semibold', isPriceFallbackText(formatDisplayPrice(a.price)) && PRICE_ON_REQUEST_CLASS)}>
+                              {formatDisplayPrice(a.price)}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {formatPricePerMeterSafe(a.price, a.area)}
+                            </td>
+                            <td className={cn('px-3 py-2 text-xs font-medium', STATUS_CLASS[a.status])}>
+                              {STATUS_LABEL[a.status]}
+                            </td>
+                            <td className="px-3 py-2">
+                              {canOpen ? (
+                                <Link
+                                  to={`/apartment/${a.id}`}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-md hover:bg-muted text-primary"
+                                  onClick={(e) => e.stopPropagation()}
+                                  aria-label="Открыть квартиру"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </Link>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile card list */}
+                <div className="sm:hidden divide-y divide-border/60">
+                  {sortedApts.map((a) => {
+                    const canOpen = a.status !== 'sold';
+                    return (
+                      <div
+                        key={a.id}
+                        className={cn(
+                          'flex gap-3 p-3',
+                          canOpen && 'cursor-pointer active:bg-muted/20',
+                          !canOpen && 'opacity-50',
+                        )}
+                        onClick={() => { if (canOpen) navigate(`/apartment/${a.id}`); }}
+                      >
+                        <div className="shrink-0">
+                          {hasPlanPreview(a.planImage) ? (
+                            <img src={a.planImage} alt="Планировка" className="w-16 h-16 rounded-lg border object-contain bg-background" loading="lazy" />
+                          ) : (
+                            <MissingPhotoPlaceholder className="w-16 h-16 rounded-lg border text-[9px]" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-semibold text-sm">{a.area} м² · {a.floor} эт.</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {a.kitchenArea ? `Кухня ${a.kitchenArea} м² · ` : ''}{a.finishing || ''}
+                              </div>
+                            </div>
+                            <div className={cn('text-xs font-medium shrink-0', STATUS_CLASS[a.status])}>
+                              {STATUS_LABEL[a.status]}
+                            </div>
+                          </div>
+                          <div className={cn('text-sm font-bold mt-1', isPriceFallbackText(formatDisplayPrice(a.price)) && PRICE_ON_REQUEST_CLASS)}>
                             {formatDisplayPrice(a.price)}
-                          </td>
-                          <td className={cn('px-2 py-2 font-medium', isPriceFallbackText(formatDisplayPrice(a.price)) && PRICE_ON_REQUEST_CLASS)}>
-                            {formatDisplayPrice(a.price)}
-                          </td>
-                          <td className="px-2 py-2">
-                            {formatPricePerMeterSafe(a.price, a.area)}
-                          </td>
-                          <td className="px-2 py-2">—</td>
-                          <td className={cn('px-2 py-2', STATUS_CLASS[a.status])}>{STATUS_LABEL[a.status]}</td>
-                          <td className="px-2 py-2">
-                            {canOpen ? (
-                              <Link
-                                to={`/apartment/${a.id}`}
-                                className="inline-flex items-center gap-1 text-primary hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Link>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="px-2 py-2 text-muted-foreground">
-                            <button type="button" onClick={(e) => e.stopPropagation()} className="inline-flex items-center justify-center w-7 h-7 rounded hover:bg-muted">
-                              <Plus className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                <div className="p-3 border-t border-border">
-                  <button type="button" className="w-full rounded-lg border border-border py-2 text-sm hover:bg-muted/30" onClick={() => toggle(g.key)}>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {formatPricePerMeterSafe(a.price, a.area)} за м²
+                            {a.buildingName ? ` · ${a.buildingName}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="px-4 py-2.5 border-t border-border/60 bg-muted/10">
+                  <button
+                    type="button"
+                    className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => toggle(g.key)}
+                  >
                     Свернуть
                   </button>
                 </div>
@@ -294,11 +377,11 @@ const ApartmentTable = ({ apartments }: Props) => {
 
       {preview ? (
         <div
-          className="fixed z-50 pointer-events-none transition-all duration-150 ease-out"
+          className="fixed z-50 pointer-events-none"
           style={{ left: `${preview.x}px`, top: `${preview.y}px` }}
         >
-          <div className="w-[220px] h-[300px] rounded-2xl border border-border/80 bg-background/95 shadow-[0_16px_44px_rgba(0,0,0,0.22)] p-2 backdrop-blur-[1px]">
-            <img src={preview.url} alt="Увеличенная планировка" className="w-full h-full object-contain" />
+          <div className="w-[220px] h-[280px] rounded-2xl border border-border/70 bg-background/95 shadow-[0_12px_40px_rgba(0,0,0,0.18)] p-2 backdrop-blur-sm">
+            <img src={preview.url} alt="Планировка" className="w-full h-full object-contain" />
           </div>
         </div>
       ) : null}

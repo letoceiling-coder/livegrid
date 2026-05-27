@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Apartment, SortDir, SortField } from '@/redesign/data/types';
@@ -19,6 +19,16 @@ type Props = {
 const ApartmentTypeGroups = ({ apartments, sort, onSort }: Props) => {
   const groups = useMemo(() => buildRoomCategoryGroups(apartments), [apartments]);
   const [openKeys, setOpenKeys] = useState<Set<RoomCategoryKey>>(() => new Set());
+
+  // Auto-open first room category group
+  const firstKey = groups[0]?.key ?? null;
+  useEffect(() => {
+    if (firstKey == null) return;
+    setOpenKeys((prev) => {
+      if (prev.size > 0) return prev;
+      return new Set([firstKey]);
+    });
+  }, [firstKey]);
 
   const toggle = (key: RoomCategoryKey) => {
     setOpenKeys((prev) => {

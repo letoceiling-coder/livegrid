@@ -13,34 +13,38 @@ const ComplexAnchorNav = ({ sections, activeId, onNavigate }: Props) => {
 
   return (
     <nav
-      className="sticky top-14 z-30 -mx-4 px-4 mb-4 border-b border-border/80 bg-background/95 backdrop-blur-md"
+      className="sticky top-14 z-30 -mx-4 px-4 mb-5 border-b border-border/60 bg-background/95 backdrop-blur-md"
       aria-label="Разделы комплекса"
     >
       <div className="flex gap-0 overflow-x-auto scrollbar-hide">
-        {sections.map(({ id, label }) => (
-          <a
-            key={id}
-            href={`#${id}`}
-            onClick={(e) => {
-              e.preventDefault();
-              onNavigate(id);
-            }}
-            className={cn(
-              'relative shrink-0 px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap',
-              'text-muted-foreground hover:text-foreground',
-              activeId === id && 'text-primary',
-            )}
-          >
-            {label}
-            <span
+        {sections.map(({ id, label }) => {
+          const active = activeId === id;
+          return (
+            <a
+              key={id}
+              href={`#${id}`}
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate(id);
+              }}
               className={cn(
-                'absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-primary transition-transform duration-200 origin-center',
-                activeId === id ? 'scale-x-100' : 'scale-x-0',
+                'relative shrink-0 px-3.5 py-3 text-xs font-medium transition-colors whitespace-nowrap select-none',
+                active
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground/80',
               )}
-              aria-hidden
-            />
-          </a>
-        ))}
+            >
+              {label}
+              <span
+                className={cn(
+                  'absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-primary transition-all duration-200 origin-center',
+                  active ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0',
+                )}
+                aria-hidden
+              />
+            </a>
+          );
+        })}
       </div>
     </nav>
   );

@@ -35,13 +35,15 @@ function statusBadge(status: ResidentialComplex['status']) {
 
 export default function ComplexPageHeader({ complex, actions, className }: Props) {
   return (
-    <header className={cn('mb-3', className)}>
+    <header className={cn('mb-4', className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 mb-1.5">{statusBadge(complex.status)}</div>
-          <h1 className="text-xl sm:text-2xl lg:text-[1.65rem] font-bold tracking-tight leading-tight">{complex.name}</h1>
+          {statusBadge(complex.status) ? (
+            <div className="mb-2">{statusBadge(complex.status)}</div>
+          ) : null}
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight">{complex.name}</h1>
           {complex.deadline && complex.deadline !== '—' ? (
-            <p className="text-xs text-muted-foreground mt-1">Сдача · {complex.deadline}</p>
+            <p className="text-sm text-muted-foreground mt-1.5 font-medium">Сдача · {complex.deadline}</p>
           ) : null}
         </div>
         <ObjectPageActionBar actions={actions} />

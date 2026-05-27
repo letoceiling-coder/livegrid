@@ -29,6 +29,7 @@ import {
   chessObsRegisterRender,
   chessObsSelection,
 } from '@/redesign/lib/chessboard-observability';
+import { roomCategoryFromRooms } from '@/redesign/lib/complex-room-groups';
 
 interface Props {
   apartments: Apartment[];
@@ -147,7 +148,8 @@ const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = n
 
   const isHidden = useCallback(
     (apt: Apartment) =>
-      !activeStatuses.has(apt.status) || (roomFilter !== null && apt.rooms !== roomFilter),
+      !activeStatuses.has(apt.status) ||
+      (roomFilter !== null && roomCategoryFromRooms(apt.rooms) !== roomFilter),
     [activeStatuses, roomFilter],
   );
 
@@ -297,8 +299,8 @@ const Chessboard = ({ apartments, floors, sections, buildingName, roomFilter = n
         <div className="overflow-x-auto p-2 sm:p-3 max-h-[min(70vh,640px)]">
           <div
             className="inline-grid gap-1"
-            style={{ minWidth: 'min-content' }}
             style={{
+              minWidth: 'min-content',
               gridTemplateColumns: `42px repeat(${Math.max(board.columns.length, 1)}, min(118px, 28vw))`,
             }}
           >
