@@ -10,7 +10,12 @@ import { existsSync, readFileSync, mkdirSync, statSync, writeFileSync } from 'no
 import { randomUUID } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { PrismaClient } from '@prisma/client';
+
+const require = createRequire(import.meta.url);
+const { TelegramClient } = require('telegram');
+const { StringSession } = require('telegram/sessions');
 
 const PREFIX = '/uploads/media/';
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -165,9 +170,6 @@ async function main() {
     await prisma.$disconnect();
     return;
   }
-
-  const { TelegramClient } = await import('telegram');
-  const { StringSession } = await import('telegram/sessions');
 
   const client = new TelegramClient(new StringSession(sessionString), apiId, apiHash, { connectionRetries: 5 });
   let updated = 0;
