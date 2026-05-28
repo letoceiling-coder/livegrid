@@ -81,6 +81,7 @@ module.exports = {
           'https://lg.pfrpro.com,https://livegrid.ru,http://localhost:5173',
         ),
         MEDIA_ROOT: pick('MEDIA_ROOT', '/srv/livegrid/uploads'),
+        AI_SETTINGS_ENCRYPTION_KEY: pick('AI_SETTINGS_ENCRYPTION_KEY'),
       },
       max_memory_restart: '1G',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',

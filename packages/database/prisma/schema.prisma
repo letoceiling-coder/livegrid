@@ -309,6 +309,25 @@ enum SiteSettingFieldType {
   SECRET
 }
 
+enum NewsWorkflowStatus {
+  NEW
+  REWRITTEN
+  DRAFT
+  PUBLISHED
+  ERROR
+
+  @@map("news_workflow_status")
+}
+
+enum AiProviderKind {
+  OPENAI
+  OPENROUTER
+  GEMINI
+  CLAUDE
+
+  @@map("ai_provider_kind")
+}
+
 enum ContentFieldType {
   TEXT
   TEXTAREA
@@ -1838,41 +1857,125 @@ model UserBrowseHistory {
 // ============================================================
 
 model News {
-  id          Int      @id @default(autoincrement())
-  slug        String   @unique
-  regionId    Int?     @map("region_id")
-  title       String
-  body        String?  @db.Text
-  imageUrl    String?  @map("image_url")
-  source      String?
-  sourceUrl   String?  @map("source_url")
-  publishedAt DateTime? @map("published_at")
-  isPublished Boolean  @default(false) @map("is_published")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  region      FeedRegion? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  id                Int                 @id @default(autoincrement())
+  slug              String              @unique
+  regionId          Int?                @map("region_id")
+  title             String
+  body              String?             @db.Text
+  imageUrl          String?             @map("image_url")
+  source            String?
+  sourceUrl         String?             @map("source_url")
+  publishedAt       DateTime?           @map("published_at")
+  isPublished       Boolean             @default(false) @map("is_published")
+  workflowStatus    NewsWorkflowStatus  @default(NEW) @map("workflow_status")
+  originalText      String?             @map("original_text") @db.Text
+  rewrittenText     String?             @map("rewritten_text") @db.Text
+  telegramPostId    String?             @map("telegram_post_id") @db.VarChar(64)
+  telegramChannelId Int?                @map("telegram_channel_id")
+  aiProvider        String?             @map("ai_provider") @db.VarChar(32)
+  aiModel           String?             @map("ai_model") @db.VarChar(128)
+  rewriteTokens     Int?                @map("rewrite_tokens")
+  rewriteCostUsd    Decimal?            @map("rewrite_cost_usd") @db.Decimal(12, 6)
+  rewriteDurationMs Int?                @map("rewrite_duration_ms")
+  errorMessage      String?             @map("error_message") @db.Text
+  tags              String[]            @default([])
+  seoTitle          String?             @map("seo_title") @db.VarChar(512)
+  seoDescription    String?             @map("seo_description") @db.Text
+  deletedAt         DateTime?           @map("deleted_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  region            FeedRegion?         @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  telegramChannel   NewsTelegramChannel? @relation(fields: [telegramChannelId], references: [id], onDelete: SetNull)
+  rewriteLogs       NewsRewriteLog[]
+  publishLogs       NewsPublishLog[]
 
+  @@unique([telegramChannelId, telegramPostId])
   @@index([regionId])
+  @@index([workflowStatus])
+  @@index([deletedAt])
   @@map("news")
 }
 
 /// Каналы Telegram для импорта новостей (MTProto). Секреты — только в env сервера.
 model NewsTelegramChannel {
-  id               Int      @id @default(autoincrement())
-  regionId         Int      @map("region_id")
-  channelRef       String   @map("channel_ref") @db.VarChar(255)
-  label            String?  @db.VarChar(255)
-  isEnabled        Boolean  @default(true) @map("is_enabled")
-  limitPerRun      Int      @default(20) @map("limit_per_run")
-  publishOnImport  Boolean  @default(true) @map("publish_on_import")
-  sortOrder        Int      @default(0) @map("sort_order")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-  region           FeedRegion @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  id                Int      @id @default(autoincrement())
+  regionId          Int      @map("region_id")
+  channelRef        String   @map("channel_ref") @db.VarChar(255)
+  label             String?  @db.VarChar(255)
+  avatarUrl         String?  @map("avatar_url") @db.VarChar(512)
+  isEnabled         Boolean  @default(true) @map("is_enabled")
+  limitPerRun       Int      @default(20) @map("limit_per_run")
+  publishOnImport   Boolean  @default(false) @map("publish_on_import")
+  sortOrder         Int      @default(0) @map("sort_order")
+  lastSyncAt        DateTime? @map("last_sync_at")
+  postsImportedCount Int     @default(0) @map("posts_imported_count")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  region            FeedRegion @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  newsPosts         News[]
 
   @@unique([regionId, channelRef])
   @@index([regionId])
   @@map("news_telegram_channels")
+}
+
+model AiProviderSetting {
+  id           Int            @id @default(autoincrement())
+  provider     AiProviderKind @unique
+  isEnabled    Boolean        @default(false) @map("is_enabled")
+  apiKeyEnc    String?        @map("api_key_enc") @db.Text
+  defaultModel String?        @map("default_model") @db.VarChar(128)
+  temperature  Float          @default(0.7)
+  maxTokens    Int            @default(2048) @map("max_tokens")
+  timeoutMs    Int            @default(60000) @map("timeout_ms")
+  retryCount   Int            @default(2) @map("retry_count")
+  systemPrompt String         @map("system_prompt") @db.Text
+  totalCostUsd Decimal        @default(0) @map("total_cost_usd") @db.Decimal(12, 6)
+  totalTokens  Int            @default(0) @map("total_tokens")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@map("ai_provider_settings")
+}
+
+model NewsAiGlobalSetting {
+  id             Int             @id @default(1)
+  activeProvider AiProviderKind? @map("active_provider")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  @@map("news_ai_global_settings")
+}
+
+model NewsRewriteLog {
+  id           Int      @id @default(autoincrement())
+  newsId       Int      @map("news_id")
+  provider     String   @db.VarChar(32)
+  model        String   @db.VarChar(128)
+  inputTokens  Int?     @map("input_tokens")
+  outputTokens Int?     @map("output_tokens")
+  totalTokens  Int?     @map("total_tokens")
+  costUsd      Decimal? @map("cost_usd") @db.Decimal(12, 6)
+  durationMs   Int?     @map("duration_ms")
+  success      Boolean  @default(true)
+  errorMessage String?  @map("error_message") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  news         News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+
+  @@index([newsId])
+  @@map("news_rewrite_logs")
+}
+
+model NewsPublishLog {
+  id           Int      @id @default(autoincrement())
+  newsId       Int      @map("news_id")
+  target       String   @db.VarChar(32)
+  success      Boolean  @default(true)
+  errorMessage String?  @map("error_message") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  news         News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+
+  @@index([newsId])
+  @@map("news_publish_logs")
 }
 
 // ============================================================

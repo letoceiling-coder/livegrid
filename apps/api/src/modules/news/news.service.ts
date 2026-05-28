@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { NewsWorkflowStatus, Prisma } from '@prisma/client';
 import { existsSync } from 'node:fs';
 import { resolveMediaRoot } from '../../common/media-storage.util';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -79,8 +79,38 @@ export class NewsService implements OnModuleInit {
     }
   }
 
-  async findAll(page = 1, perPage = 20, publishedOnly = false, regionId?: number | null) {
-    const where: Prisma.NewsWhereInput = publishedOnly ? { isPublished: true } : {};
+  async findAll(
+    page = 1,
+    perPage = 20,
+    publishedOnly = false,
+    regionId?: number | null,
+    opts?: {
+      workflowStatus?: NewsWorkflowStatus | null;
+      search?: string | null;
+      includeDeleted?: boolean;
+      telegramChannelId?: number | null;
+    },
+  ) {
+    const where: Prisma.NewsWhereInput = publishedOnly
+      ? { isPublished: true, deletedAt: null }
+      : {};
+    if (!opts?.includeDeleted) {
+      where.deletedAt = null;
+    }
+    if (opts?.workflowStatus) {
+      where.workflowStatus = opts.workflowStatus;
+    }
+    if (opts?.telegramChannelId) {
+      where.telegramChannelId = opts.telegramChannelId;
+    }
+    const q = (opts?.search ?? '').trim();
+    if (q) {
+      where.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        { body: { contains: q, mode: 'insensitive' } },
+        { source: { contains: q, mode: 'insensitive' } },
+      ];
+    }
     const regionFilter = this.normalizeRegionId(regionId);
     if (regionFilter != null) {
       if (publishedOnly) {
@@ -104,8 +134,19 @@ export class NewsService implements OnModuleInit {
     };
   }
 
+  async findByIdAdmin(id: number) {
+    const row = await this.prisma.news.findFirst({
+      where: { id, deletedAt: null },
+    });
+    if (!row) throw new NotFoundException(`News ${id} not found`);
+    const [mapped] = await this.attachMediaToNewsRows([row]);
+    return mapped ?? row;
+  }
+
   async findBySlug(slug: string) {
-    const row = await this.prisma.news.findUnique({ where: { slug } });
+    const row = await this.prisma.news.findFirst({
+      where: { slug, isPublished: true, deletedAt: null },
+    });
     if (!row) throw new NotFoundException(`News "${slug}" not found`);
     const [mapped] = await this.attachMediaToNewsRows([row]);
     return mapped ?? row;
@@ -160,6 +201,12 @@ export class NewsService implements OnModuleInit {
       isPublished?: boolean;
       regionId?: number | null;
       mediaFileIds?: number[] | null;
+      rewrittenText?: string;
+      originalText?: string;
+      workflowStatus?: NewsWorkflowStatus;
+      tags?: string[];
+      seoTitle?: string | null;
+      seoDescription?: string | null;
     },
   ) {
     const existing = await this.prisma.news.findUnique({ where: { id } });
@@ -184,7 +231,16 @@ export class NewsService implements OnModuleInit {
       if (dto.isPublished && !existing.publishedAt) {
         data.publishedAt = new Date();
       }
+      if (dto.isPublished) {
+        data.workflowStatus = 'PUBLISHED';
+      }
     }
+    if (dto.rewrittenText !== undefined) data.rewrittenText = dto.rewrittenText;
+    if (dto.originalText !== undefined) data.originalText = dto.originalText;
+    if (dto.workflowStatus !== undefined) data.workflowStatus = dto.workflowStatus;
+    if (dto.tags !== undefined) data.tags = dto.tags;
+    if (dto.seoTitle !== undefined) data.seoTitle = dto.seoTitle;
+    if (dto.seoDescription !== undefined) data.seoDescription = dto.seoDescription;
     const mediaFileIds = dto.mediaFileIds !== undefined ? this.normalizeMediaFileIds(dto.mediaFileIds) : null;
 
     const updated = await this.prisma.news.update({ where: { id }, data });
@@ -196,9 +252,16 @@ export class NewsService implements OnModuleInit {
     return mapped ?? updated;
   }
 
-  async remove(id: number) {
+  async remove(id: number, soft = true) {
     const existing = await this.prisma.news.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new NotFoundException(`News ${id} not found`);
+    if (soft) {
+      await this.prisma.news.update({
+        where: { id },
+        data: { deletedAt: new Date(), isPublished: false, workflowStatus: 'DRAFT' },
+      });
+      return;
+    }
     await this.prisma.news.delete({ where: { id } });
   }
 
@@ -538,6 +601,21 @@ export class NewsService implements OnModuleInit {
               continue;
             }
             const slug = this.telegramSlug(item.ref, messageId);
+            const dupByTelegram =
+              item.channelId && messageId
+                ? await this.prisma.news.findFirst({
+                    where: {
+                      telegramChannelId: item.channelId,
+                      telegramPostId: String(messageId),
+                    },
+                    select: { id: true },
+                  })
+                : null;
+            if (dupByTelegram) {
+              channelSkipped += 1;
+              skipped += 1;
+              continue;
+            }
             const dupBySource = await this.prisma.news.findFirst({
               where: { sourceUrl },
               select: { id: true },
@@ -585,10 +663,14 @@ export class NewsService implements OnModuleInit {
                 slug,
                 title,
                 body: text,
+                originalText: text,
                 imageUrl: firstPhoto?.url ?? null,
                 regionId: item.regionId ?? null,
                 source: 'TELEGRAM_CHANNEL',
                 sourceUrl,
+                telegramPostId: messageId ? String(messageId) : null,
+                telegramChannelId: item.channelId ?? null,
+                workflowStatus: item.publishOnImport ? 'PUBLISHED' : 'NEW',
                 isPublished: item.publishOnImport,
                 publishedAt: item.publishOnImport ? publishedAt : null,
               },
@@ -616,6 +698,15 @@ export class NewsService implements OnModuleInit {
           );
         }
         byChannel.push({ channel: item.ref, imported: channelImported, skipped: channelSkipped });
+        if (item.channelId) {
+          await this.prisma.newsTelegramChannel.update({
+            where: { id: item.channelId },
+            data: {
+              lastSyncAt: new Date(),
+              postsImportedCount: { increment: channelImported },
+            },
+          });
+        }
       }
     } catch (e) {
       this.log.warn(`Telegram sync failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -839,12 +930,26 @@ export class NewsService implements OnModuleInit {
   private async resolveTelegramSyncTargets(
     input: { channels?: string[] | null; onlyChannelIds?: number[] | null } | undefined,
     defaultLimit: number,
-  ): Promise<Array<{ ref: string; limit: number; publishOnImport: boolean; regionId: number | null }>> {
+  ): Promise<
+    Array<{
+      ref: string;
+      limit: number;
+      publishOnImport: boolean;
+      regionId: number | null;
+      channelId: number | null;
+    }>
+  > {
     const fromBody = (input?.channels ?? [])
       .map((c) => this.normalizeTelegramChannelRef(c))
       .filter(Boolean);
     if (fromBody.length > 0) {
-      return fromBody.map((ref) => ({ ref, limit: defaultLimit, publishOnImport: false, regionId: null }));
+      return fromBody.map((ref) => ({
+        ref,
+        limit: defaultLimit,
+        publishOnImport: false,
+        regionId: null,
+        channelId: null,
+      }));
     }
 
     const where: Prisma.NewsTelegramChannelWhereInput = { isEnabled: true };
@@ -861,6 +966,7 @@ export class NewsService implements OnModuleInit {
         limit: this.clampTelegramLimit(r.limitPerRun ?? defaultLimit),
         publishOnImport: r.publishOnImport,
         regionId: r.regionId,
+        channelId: r.id,
       }));
     }
 
@@ -868,7 +974,13 @@ export class NewsService implements OnModuleInit {
       .split(',')
       .map((v) => this.normalizeTelegramChannelRef(v))
       .filter(Boolean);
-    return envList.map((ref) => ({ ref, limit: defaultLimit, publishOnImport: false, regionId: null }));
+    return envList.map((ref) => ({
+      ref,
+      limit: defaultLimit,
+      publishOnImport: false,
+      regionId: null,
+      channelId: null,
+    }));
   }
 
   private telegramMessageText(msg: unknown): string | null {

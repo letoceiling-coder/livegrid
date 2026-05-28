@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { NewsWorkflowStatus } from '@prisma/client';
 import { Public, Roles } from '../../auth/decorators';
 import { NewsService } from './news.service';
+import { NewsPipelineService } from './news-pipeline.service';
 import { TelegramNewsQrAuthService } from './telegram-news-qr.service';
 
 @ApiTags('News')
@@ -36,8 +38,60 @@ export class NewsController {
 export class NewsAdminController {
   constructor(
     private readonly service: NewsService,
+    private readonly pipeline: NewsPipelineService,
     private readonly telegramQr: TelegramNewsQrAuthService,
   ) {}
+
+  @Post('import')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Admin: queue Telegram news import' })
+  importNews(
+    @Body() body?: { onlyChannelIds?: number[] | null; limitPerChannel?: number | null },
+  ) {
+    return this.pipeline.enqueueImport(body);
+  }
+
+  @Post('rewrite')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Admin: queue AI rewrite for one news item' })
+  rewriteNews(@Body() body: { newsId: number }) {
+    return this.pipeline.enqueueRewrite(body.newsId);
+  }
+
+  @Post('rewrite-all')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Admin: queue AI rewrite for selected or all NEW items' })
+  rewriteAll(@Body() body?: { newsIds?: number[] | null; allNew?: boolean }) {
+    return this.pipeline.enqueueRewriteBulk(body);
+  }
+
+  @Post('publish')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Admin: queue publish for one news item' })
+  publishNews(@Body() body: { newsId: number }) {
+    return this.pipeline.enqueuePublish(body.newsId);
+  }
+
+  @Post('publish-all')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Admin: queue bulk publish' })
+  publishAll(@Body() body?: { newsIds?: number[] | null; allReady?: boolean }) {
+    return this.pipeline.enqueuePublishBulk(body);
+  }
+
+  @Post('bulk-delete')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Admin: soft-delete selected news' })
+  bulkDelete(@Body() body: { ids: number[] }) {
+    return this.pipeline.bulkSoftDelete(body.ids ?? []);
+  }
+
+  @Post('bulk-restore')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Admin: restore soft-deleted news' })
+  bulkRestore(@Body() body: { ids: number[] }) {
+    return this.pipeline.bulkRestore(body.ids ?? []);
+  }
 
   @Get('telegram-parser/status')
   @Roles('editor')
@@ -189,12 +243,29 @@ export class NewsAdminController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'per_page', required: false })
   @ApiQuery({ name: 'region_id', required: false, description: 'ID города (feed_regions.id)' })
+  @ApiQuery({ name: 'status', required: false, description: 'Workflow status filter' })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'telegram_channel_id', required: false })
   findAll(
     @Query('page') page?: number,
     @Query('per_page') perPage?: number,
     @Query('region_id') regionId?: number,
+    @Query('status') status?: NewsWorkflowStatus,
+    @Query('search') search?: string,
+    @Query('telegram_channel_id') telegramChannelId?: number,
   ) {
-    return this.service.findAll(page, perPage, false, regionId);
+    return this.service.findAll(page, perPage, false, regionId, {
+      workflowStatus: status ?? null,
+      search: search ?? null,
+      telegramChannelId: telegramChannelId ?? null,
+    });
+  }
+
+  @Get(':id')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Admin: get news by id' })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.service.findByIdAdmin(id);
   }
 
   @Post()
@@ -217,6 +288,33 @@ export class NewsAdminController {
     return this.service.create(dto);
   }
 
+  @Patch(':id')
+  @Roles('editor')
+  @ApiOperation({ summary: 'Admin: partial update news article' })
+  patch(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    dto: {
+      title?: string;
+      slug?: string;
+      body?: string;
+      imageUrl?: string;
+      source?: string;
+      sourceUrl?: string;
+      isPublished?: boolean;
+      regionId?: number | null;
+      mediaFileIds?: number[] | null;
+      rewrittenText?: string;
+      originalText?: string;
+      workflowStatus?: NewsWorkflowStatus;
+      tags?: string[];
+      seoTitle?: string | null;
+      seoDescription?: string | null;
+    },
+  ) {
+    return this.service.update(id, dto);
+  }
+
   @Put(':id')
   @Roles('editor')
   @ApiOperation({ summary: 'Admin: update news article' })
@@ -233,6 +331,12 @@ export class NewsAdminController {
       isPublished?: boolean;
       regionId?: number | null;
       mediaFileIds?: number[] | null;
+      rewrittenText?: string;
+      originalText?: string;
+      workflowStatus?: NewsWorkflowStatus;
+      tags?: string[];
+      seoTitle?: string | null;
+      seoDescription?: string | null;
     },
   ) {
     return this.service.update(id, dto);
@@ -240,8 +344,8 @@ export class NewsAdminController {
 
   @Delete(':id')
   @Roles('editor')
-  @ApiOperation({ summary: 'Admin: delete news article' })
+  @ApiOperation({ summary: 'Admin: soft-delete news article' })
   remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.remove(id);
+    return this.service.remove(id, true);
   }
 }

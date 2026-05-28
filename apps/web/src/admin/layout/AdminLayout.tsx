@@ -3,7 +3,7 @@ import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, Image, Users, Settings, ChevronLeft,
   ChevronRight, Palette, BookOpen, ClipboardList, ClipboardCheck, Crown, Building2, Building, Download, Newspaper, Home, History, HardHat,
-  Globe, LayoutTemplate, BellRing, ExternalLink, LogOut, Contact, Radar, Menu, X, MessageSquare, ListTodo, Shield, Activity, CreditCard,
+  Globe, LayoutTemplate, BellRing, ExternalLink, LogOut, Contact, Radar, Menu, X, MessageSquare, ListTodo, Shield, Activity, CreditCard, Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -51,6 +51,7 @@ const navItems = [
   { to: '/admin/tokens', icon: Palette, label: 'Токены', roles: ['admin'] },
   { to: '/admin/docs', icon: BookOpen, label: 'Документация' },
   { to: '/admin/settings', icon: Settings, label: 'Настройки', roles: ['admin', 'editor'] },
+  { to: '/admin/settings/ai', icon: Sparkles, label: 'AI интеграции', roles: ['admin'] },
 ];
 
 export default function AdminLayout() {

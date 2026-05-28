@@ -70,6 +70,7 @@ const AdminPageEditor = lazyWithReload('AdminPageEditor', () => import("./admin/
 const AdminMedia = lazyWithReload('AdminMedia', () => import("./admin/pages/AdminMedia"));
 const AdminUsers = lazyWithReload('AdminUsers', () => import("./admin/pages/AdminUsers"));
 const AdminSettings = lazyWithReload('AdminSettings', () => import("./admin/pages/AdminSettings"));
+const AdminAiSettings = lazyWithReload('AdminAiSettings', () => import("./admin/pages/AdminAiSettings"));
 const AdminTokens = lazyWithReload('AdminTokens', () => import("./admin/pages/AdminTokens"));
 const AdminDocs = lazyWithReload('AdminDocs', () => import("./admin/pages/AdminDocs"));
 const AdminAudit = lazyWithReload('AdminAudit', () => import("./admin/pages/AdminAudit"));
@@ -230,6 +231,7 @@ const AppRoutes = () => (
       <Route path="media" element={<RequireAuth roles={['admin', 'editor']}><AdminMedia /></RequireAuth>} />
       <Route path="users" element={<RequireAuth roles={['admin']}><AdminUsers /></RequireAuth>} />
       <Route path="settings" element={<RequireAuth roles={['admin', 'editor']}><AdminSettings /></RequireAuth>} />
+      <Route path="settings/ai" element={<RequireAuth roles={['admin']}><AdminAiSettings /></RequireAuth>} />
       <Route path="tokens" element={<RequireAuth roles={['admin']}><AdminTokens /></RequireAuth>} />
       <Route path="docs" element={<AdminDocs />} />
     </Route>
