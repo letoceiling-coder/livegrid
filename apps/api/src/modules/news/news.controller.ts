@@ -129,10 +129,19 @@ export class NewsAdminController {
   @Post('backfill-telegram-photos')
   @Roles('editor')
   @ApiOperation({
-    summary: 'Admin: дозагрузить фото для Telegram-новостей без imageUrl',
+    summary: 'Admin: дозагрузить / восстановить фото Telegram-новостей (пустой imageUrl или файл отсутствует на диске)',
   })
   backfillTelegramPhotos(@Body() body?: { limit?: number | null }) {
-    return this.service.backfillTelegramNewsPhotos(body?.limit ?? null);
+    return this.service.repairTelegramNewsPhotos(body?.limit ?? null);
+  }
+
+  @Post('repair-telegram-photos')
+  @Roles('editor')
+  @ApiOperation({
+    summary: 'Admin: восстановить отсутствующие на диске фото Telegram-новостей',
+  })
+  repairTelegramPhotos(@Body() body?: { limit?: number | null }) {
+    return this.service.repairTelegramNewsPhotos(body?.limit ?? null);
   }
 
   @Post('telegram-qr/start')

@@ -8,16 +8,21 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
-import { mkdirSync, promises as fs } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { resolveMediaRoot } from '../../common/media-storage.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { parseFeedXml, slugFromSourceUrl } from './news-rss.parser';
+import {
+  detectImageExtension,
+  diskPathFromPublicUrl,
+  downloadTelegramMessagePhoto,
+  MEDIA_PUBLIC_PREFIX,
+  saveLocalMediaFile,
+  verifyFileOnDisk,
+} from './telegram-media-downloader';
 
 const RSS_SETTING_KEY = 'home_news_rss_url';
 const DEFAULT_TELEGRAM_LIMIT_PER_CHANNEL = 20;
-const MEDIA_PUBLIC_PREFIX = '/uploads/media/';
 
 @Injectable()
 export class NewsService implements OnModuleInit {
@@ -630,10 +635,16 @@ export class NewsService implements OnModuleInit {
   }
 
   /**
-   * Дозагрузка фото для ранее импортированных Telegram-новостей, где imageUrl пустой.
-   * Берём sourceUrl вида https://t.me/<channel>/<messageId>, читаем сообщение и пробуем скачать медиа.
+   * Дозагрузка / восстановление фото Telegram-новостей:
+   * — imageUrl пустой;
+   * — imageUrl указывает на отсутствующий файл;
+   * — связанные media_files без файла на диске.
    */
   async backfillTelegramNewsPhotos(limitRaw?: number | null) {
+    return this.repairTelegramNewsPhotos(limitRaw);
+  }
+
+  async repairTelegramNewsPhotos(limitRaw?: number | null) {
     const apiIdRaw = (process.env.TG_API_ID ?? '').trim();
     const apiHash = (process.env.TG_API_HASH ?? '').trim();
     const sessionString = await this.getTgSessionStringForParser();
@@ -646,34 +657,22 @@ export class NewsService implements OnModuleInit {
     }
 
     const limit = Math.max(1, Math.min(200, Math.trunc(Number(limitRaw) || 30)));
-    const candidates = await this.prisma.news.findMany({
-      where: {
-        source: 'TELEGRAM_CHANNEL',
-        OR: [{ imageUrl: null }, { imageUrl: '' }],
-        sourceUrl: { not: null },
-      },
-      orderBy: [{ id: 'desc' }],
-      take: limit,
-      select: {
-        id: true,
-        slug: true,
-        sourceUrl: true,
-      },
-    });
+    const candidates = await this.findTelegramNewsNeedingPhotoRepair(limit);
     if (candidates.length === 0) {
-      return { scanned: 0, updated: 0, skipped: 0, failed: 0 };
+      return { scanned: 0, updated: 0, skipped: 0, failed: 0, filesRestored: 0 };
     }
 
     const { TelegramClient } = await import('telegram');
     const { StringSession } = await import('telegram/sessions');
     const session = new StringSession(sessionString);
     const client = new TelegramClient(session, apiId, apiHash, {
-      connectionRetries: 3,
+      connectionRetries: 5,
     });
 
     let updated = 0;
     let skipped = 0;
     let failed = 0;
+    let filesRestored = 0;
     const folderByChannel = new Map<string, number>();
 
     try {
@@ -697,31 +696,50 @@ export class NewsService implements OnModuleInit {
             skipped += 1;
             continue;
           }
+
+          const groupKey = this.telegramMessageGroupKey(msg);
+          let mediaMessages: unknown[] = [msg];
+          if (groupKey) {
+            const bucket = await client.getMessages(entity, { limit: 20 });
+            mediaMessages = bucket.filter((m) => this.telegramMessageGroupKey(m) === groupKey);
+            if (mediaMessages.length === 0) mediaMessages = [msg];
+          }
+
           const knownFolderId = folderByChannel.get(parsed.channelRef) ?? null;
-          const saved = await this.trySaveTelegramPhoto(
+          const savedPhotos = await this.trySaveTelegramPhotos(
             client,
-            msg,
+            mediaMessages,
             parsed.channelRef,
-            parsed.messageId,
             knownFolderId,
+            row.missingMedia.map((m) => m.url),
           );
-          if (!saved) {
+          if (savedPhotos.length === 0) {
             skipped += 1;
             continue;
           }
-          folderByChannel.set(parsed.channelRef, saved.folderId);
+          folderByChannel.set(parsed.channelRef, savedPhotos[0]!.folderId);
+
+          for (const photo of savedPhotos) {
+            await this.prisma.mediaFile.update({
+              where: { id: photo.mediaFileId },
+              data: {
+                entityType: 'NEWS',
+                entityId: row.id,
+                url: photo.url,
+                sizeBytes: BigInt(photo.sizeBytes),
+              },
+            });
+            filesRestored += 1;
+          }
+
           await this.prisma.news.update({
             where: { id: row.id },
-            data: { imageUrl: saved.url },
-          });
-          await this.prisma.mediaFile.update({
-            where: { id: saved.mediaFileId },
-            data: { entityType: 'NEWS', entityId: row.id },
+            data: { imageUrl: savedPhotos[0]!.url },
           });
           updated += 1;
         } catch (e) {
           this.log.warn(
-            `Telegram photo backfill failed for news ${row.id} (${row.slug}): ${
+            `Telegram photo repair failed for news ${row.id} (${row.slug}): ${
               e instanceof Error ? e.message : String(e)
             }`,
           );
@@ -737,7 +755,63 @@ export class NewsService implements OnModuleInit {
       updated,
       skipped,
       failed,
+      filesRestored,
     };
+  }
+
+  private localMediaFileMissing(url: string | null | undefined): boolean {
+    if (!url || !url.startsWith(MEDIA_PUBLIC_PREFIX)) return false;
+    try {
+      const disk = diskPathFromPublicUrl(this.mediaRoot, url);
+      return !verifyFileOnDisk(disk, 64);
+    } catch {
+      return true;
+    }
+  }
+
+  private async findTelegramNewsNeedingPhotoRepair(limit: number) {
+    const rows = await this.prisma.news.findMany({
+      where: {
+        source: 'TELEGRAM_CHANNEL',
+        sourceUrl: { not: null },
+      },
+      orderBy: [{ id: 'desc' }],
+      take: Math.min(limit * 4, 400),
+      select: {
+        id: true,
+        slug: true,
+        sourceUrl: true,
+        imageUrl: true,
+      },
+    });
+
+    const out: Array<{
+      id: number;
+      slug: string;
+      sourceUrl: string;
+      missingMedia: Array<{ id: number; url: string }>;
+    }> = [];
+
+    for (const row of rows) {
+      if (!row.sourceUrl) continue;
+      const media = await this.prisma.mediaFile.findMany({
+        where: { entityType: 'NEWS', entityId: row.id },
+        select: { id: true, url: true },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      });
+      const missingMedia = media.filter((m) => this.localMediaFileMissing(m.url));
+      const imageMissing = !row.imageUrl || row.imageUrl.trim() === '' || this.localMediaFileMissing(row.imageUrl);
+      if (!imageMissing && missingMedia.length === 0) continue;
+      out.push({
+        id: row.id,
+        slug: row.slug,
+        sourceUrl: row.sourceUrl,
+        missingMedia: missingMedia.length > 0 ? missingMedia : [{ id: 0, url: row.imageUrl ?? '' }].filter((m) => m.url),
+      });
+      if (out.length >= limit) break;
+    }
+
+    return out;
   }
 
   private clampTelegramLimit(n: number): number {
@@ -853,52 +927,52 @@ export class NewsService implements OnModuleInit {
     channelRef: string,
     messageId: number,
     knownFolderId: number | null,
-  ): Promise<{ url: string; mediaFileId: number; folderId: number } | null> {
-    if (!msg || typeof msg !== 'object' || typeof client.downloadMedia !== 'function') {
-      return null;
-    }
-
-    // GramJS: фото может лежать напрямую в `photo`, в `media`, либо как превью ссылки `media.webpage.photo`.
-    // Для надёжности находим «насыщенный» объект media и передаём его в downloadMedia.
-    const root: any = msg;
-    const directPhoto = 'photo' in root ? root.photo : null;
-    const media = 'media' in root ? root.media : null;
-    const webpagePhoto = media && typeof media === 'object' && 'webpage' in media && (media as any).webpage
-      ? (media as any).webpage.photo ?? null
-      : null;
-
-    const target = webpagePhoto || directPhoto || media || msg;
-    const hasPhoto = Boolean(webpagePhoto || directPhoto || media);
-    if (!hasPhoto) return null;
-
+    reusePublicUrl?: string | null,
+  ): Promise<{ url: string; mediaFileId: number; folderId: number; sizeBytes: number } | null> {
     try {
-      // Telegram media download can hang for a long time on blocked/unstable 443 routes.
-      // We cap photo fetch time so one bad media item doesn't block whole channel import.
-      const mediaPromise = client.downloadMedia(target, {});
-      void mediaPromise.catch(() => undefined);
-      const raw = await this.withTimeout(mediaPromise, 10_000, 'Telegram media download timeout');
-      const buffer = this.toBuffer(raw);
-      if (!buffer || buffer.length === 0) return null;
+      const buffer = await downloadTelegramMessagePhoto(client, msg);
+      if (!buffer) return null;
+
+      const ext = detectImageExtension(buffer);
+      const reuseUrl =
+        reusePublicUrl && reusePublicUrl.startsWith(MEDIA_PUBLIC_PREFIX) && this.localMediaFileMissing(reusePublicUrl)
+          ? reusePublicUrl
+          : null;
+      const saved = await saveLocalMediaFile(this.mediaRoot, buffer, {
+        publicUrl: reuseUrl,
+        ext,
+      });
 
       const folderId = knownFolderId ?? (await this.ensureTelegramFolder(channelRef));
-      const storedName = `${randomUUID()}.jpg`;
-      const absDir = join(this.mediaRoot, 'media');
-      mkdirSync(absDir, { recursive: true });
-      const absPath = join(absDir, storedName);
-      await fs.writeFile(absPath, buffer);
+      const existing = reuseUrl
+        ? await this.prisma.mediaFile.findFirst({
+            where: { url: reuseUrl },
+            select: { id: true },
+          })
+        : null;
 
-      const url = `${MEDIA_PUBLIC_PREFIX}${storedName}`;
-      const media = await this.prisma.mediaFile.create({
-        data: {
-          kind: 'PHOTO',
-          url,
-          originalFilename: `tg-${this.telegramFolderSuffix(channelRef)}-${messageId}.jpg`,
-          sizeBytes: BigInt(buffer.length),
-          folderId,
-          uploadedBy: null,
-        },
-      });
-      return { url, mediaFileId: media.id, folderId };
+      const media = existing
+        ? await this.prisma.mediaFile.update({
+            where: { id: existing.id },
+            data: {
+              kind: 'PHOTO',
+              sizeBytes: BigInt(saved.sizeBytes),
+              folderId,
+              originalFilename: `tg-${this.telegramFolderSuffix(channelRef)}-${messageId}${ext}`,
+            },
+          })
+        : await this.prisma.mediaFile.create({
+            data: {
+              kind: 'PHOTO',
+              url: saved.url,
+              originalFilename: `tg-${this.telegramFolderSuffix(channelRef)}-${messageId}${ext}`,
+              sizeBytes: BigInt(saved.sizeBytes),
+              folderId,
+              uploadedBy: null,
+            },
+          });
+
+      return { url: saved.url, mediaFileId: media.id, folderId, sizeBytes: saved.sizeBytes };
     } catch (e) {
       this.log.warn(
         `Telegram photo save failed for ${channelRef}/${messageId}: ${e instanceof Error ? e.message : String(e)}`,
@@ -912,24 +986,21 @@ export class NewsService implements OnModuleInit {
     messages: unknown[],
     channelRef: string,
     knownFolderId: number | null,
-  ): Promise<Array<{ url: string; mediaFileId: number; folderId: number }>> {
-    const out: Array<{ url: string; mediaFileId: number; folderId: number }> = [];
+    reusePublicUrls: string[] = [],
+  ): Promise<Array<{ url: string; mediaFileId: number; folderId: number; sizeBytes: number }>> {
+    const out: Array<{ url: string; mediaFileId: number; folderId: number; sizeBytes: number }> = [];
     let folderId = knownFolderId;
+    let reuseIdx = 0;
     for (const msg of messages) {
       const messageId = this.telegramMessageId(msg);
-      const saved = await this.trySaveTelegramPhoto(client, msg, channelRef, messageId, folderId);
+      const reuse = reusePublicUrls[reuseIdx] ?? null;
+      const saved = await this.trySaveTelegramPhoto(client, msg, channelRef, messageId, folderId, reuse);
       if (!saved) continue;
       folderId = saved.folderId;
+      reuseIdx += 1;
       out.push(saved);
     }
     return out;
-  }
-
-  private toBuffer(value: unknown): Buffer | null {
-    if (Buffer.isBuffer(value)) return value;
-    if (value instanceof Uint8Array) return Buffer.from(value);
-    if (value instanceof ArrayBuffer) return Buffer.from(new Uint8Array(value));
-    return null;
   }
 
   private async ensureTelegramFolder(channelRef: string): Promise<number> {
@@ -1066,20 +1137,6 @@ export class NewsService implements OnModuleInit {
       const fallbackImage = mediaFiles[0]?.url ?? row.imageUrl ?? null;
       return { ...row, imageUrl: fallbackImage, mediaFiles };
     });
-  }
-
-  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-    let timer: NodeJS.Timeout | null = null;
-    try {
-      return await Promise.race<T>([
-        promise,
-        new Promise<T>((_, reject) => {
-          timer = setTimeout(() => reject(new Error(message)), timeoutMs);
-        }),
-      ]);
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
   }
 
   private normalizeRegionId(value: unknown): number | null {
