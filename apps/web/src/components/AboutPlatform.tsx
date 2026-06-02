@@ -112,7 +112,7 @@ const AboutPlatform = ({ pageSlug = '/', settings: settingsProp, preview = false
         ? formatStatNumber(globalCounters.data.builders)
         : null;
     return { objects, complexes, builders };
-  }), [kindCounts.data, catalogCounts.data, globalCounters.data]);
+  }, [kindCounts.data, catalogCounts.data, globalCounters.data]);
 
   if (!preview && !settingsProp && cms === null) return null;
 
