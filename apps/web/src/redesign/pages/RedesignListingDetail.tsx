@@ -58,8 +58,6 @@ type ApiListingDetailUniversal = {
   sourceUrl: string | null;
   publicContact?: {
     kind: 'agent' | 'agency';
-    userId?: string;
-    slug?: string | null;
     fullName?: string | null;
     label?: string;
     phone?: string | null;
@@ -303,12 +301,7 @@ const RedesignListingDetail = () => {
   const { id: idParam } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
-  const canStaffEdit =
-    user?.role === 'admin' ||
-    user?.role === 'editor' ||
-    user?.role === 'manager' ||
-    user?.role === 'agent';
+  const { isAuthenticated } = useAuth();
   const { isListingFavorite, toggleListing } = useFavorites();
   const { isCompared, toggle: toggleCompare, count: compareCount } = useCompare();
 
@@ -517,27 +510,6 @@ const RedesignListingDetail = () => {
             <span>/</span>
             <span className="text-foreground font-medium">{title}</span>
           </div>
-          {canStaffEdit ? (
-            <Button variant="outline" size="sm" asChild>
-              <Link
-                to={
-                  data.dataSource === 'MANUAL'
-                    ? data.kind === 'APARTMENT'
-                      ? `/admin/listings/manual/${data.id}/edit`
-                      : data.kind === 'HOUSE'
-                        ? `/admin/listings/manual-house/${data.id}/edit`
-                        : data.kind === 'LAND'
-                          ? `/admin/listings/manual-land/${data.id}/edit`
-                          : data.kind === 'COMMERCIAL'
-                            ? `/admin/listings/manual-commercial/${data.id}/edit`
-                            : `/admin/listings/manual-parking/${data.id}/edit`
-                    : `/admin/listings/wizard/${data.id}/edit`
-                }
-              >
-                Редактировать
-              </Link>
-            </Button>
-          ) : null}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -839,16 +811,6 @@ const RedesignListingDetail = () => {
                     ) : null}
                   </div>
                 </div>
-                {data.publicContact.kind === 'agent' && data.publicContact.slug ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to={`/agent/${data.publicContact.slug}`}>Информация об агенте</Link>
-                    </Button>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link to={`/agent/${data.publicContact.slug}/listings`}>Объявления агента</Link>
-                    </Button>
-                  </div>
-                ) : null}
               </div>
             ) : data.builder?.name ? (
               <div className="rounded-2xl border border-border bg-card p-5">

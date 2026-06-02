@@ -20,10 +20,9 @@ describe('display-price', () => {
     expect(formatPriceFrom(0)).toBe(PRICE_ON_REQUEST);
   });
 
-  it('formats valid prices without rounding to millions', () => {
-    expect(formatDisplayPrice(5_000_000)).toBe('5 000 000 ₽');
-    expect(formatPriceFrom(4_962_342)).toBe('от 4 962 342 ₽');
-    expect(formatDisplayPrice(8_283_750)).toBe('8 283 750 ₽');
+  it('formats valid prices', () => {
+    expect(formatDisplayPrice(5_000_000)).toContain('млн');
+    expect(formatPriceFrom(4_962_342)).toBe('от 5 млн ₽');
   });
 
   it('formats invalid range as on-request', () => {

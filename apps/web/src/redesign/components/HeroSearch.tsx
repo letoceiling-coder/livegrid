@@ -72,7 +72,7 @@ const HeroSearch = () => {
   const useSecondaryMarket = isApartmentMode && debouncedFilters.marketType === 'secondary';
 
   const hintsEnabled =
-    isApartmentMode && searchFocused && deferredSearch.length >= 2 && regionId != null;
+    searchFocused && deferredSearch.length >= 2 && regionId != null;
 
   const { data: catalogHints, isFetching: hintsLoading } = useQuery({
     queryKey: ['search', 'catalog-hints', regionId, deferredSearch],
@@ -151,7 +151,7 @@ const HeroSearch = () => {
   const roomLabel = heroLabelFromRoomCategories(filters.rooms);
   const deadlineLabel = heroDeadlineFromFilters(filters.deadline);
 
-  const showHintsPanel = isApartmentMode && searchFocused && filters.search.trim().length >= 2 && regionId != null;
+  const showHintsPanel = hintsEnabled && filters.search.trim().length >= 2;
 
   const heroSubtitle = useMemo(() => {
     switch (filters.objectType) {
@@ -181,7 +181,7 @@ const HeroSearch = () => {
   }, [isApartmentMode, filters.objectType]);
 
   return (
-    <section className="relative bg-background overflow-x-hidden">
+    <section className={cn('relative bg-background overflow-x-hidden', showHintsPanel && 'z-40 isolate overflow-visible')}>
       <div className="max-w-[1400px] mx-auto px-4 pt-6 pb-6 sm:pt-10 sm:pb-8">
         <div className="flex flex-col items-center gap-3 sm:gap-4 mb-5 sm:mb-6 max-w-3xl mx-auto">
           <RegionSelector
@@ -395,7 +395,8 @@ const HeroSearch = () => {
               <CatalogSearchHintsDropdown
                 hints={catalogHints}
                 isLoading={hintsLoading}
-                className="absolute left-0 right-0 top-full mt-2"
+                objectType={filters.objectType}
+                className="absolute left-0 right-0 top-full mt-2 z-[100] max-h-[min(70vh,520px)] overflow-y-auto"
                 onPick={() => {
                   setSearchFocused(false);
                   setFilters((prev) => ({ ...prev, search: '' }));

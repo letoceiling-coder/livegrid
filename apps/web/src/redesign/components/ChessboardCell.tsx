@@ -16,8 +16,6 @@ type Props = {
   selected: boolean;
   roomLabel: string;
   onFocus?: () => void;
-  /** DEV: ?chess_debug=1 — server shaft entity id */
-  dataShaftId?: string;
 };
 
 function formatArea(value: number): string {
@@ -31,7 +29,6 @@ const ChessboardCell = memo(function ChessboardCell({
   selected,
   roomLabel,
   onFocus,
-  dataShaftId,
 }: Props) {
   const status = (apartment.status as ChessStatusKey) ?? 'available';
   const visual = resolveChessVisualState(status, { hidden, selected });
@@ -43,7 +40,6 @@ const ChessboardCell = memo(function ChessboardCell({
       tabIndex={hidden ? -1 : 0}
       data-apt-id={apartment.id}
       data-section={section}
-      data-shaft-id={dataShaftId}
       data-status={status}
       data-interactive={status !== 'sold' && !hidden ? 'true' : 'false'}
       aria-label={`${roomLabel}, ${formatArea(apartment.area)}, ${formatDisplayPrice(apartment.price)}, ${statusLabel}`}

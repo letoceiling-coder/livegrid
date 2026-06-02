@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  complexPopularCompletionLine,
   complexCompletionLine,
   complexFallbackPriceRow,
   complexImageOverlayLines,
@@ -81,6 +82,36 @@ describe('card-visual complex helpers', () => {
     expect(
       complexCompletionLine({ ...base, status: 'building', deadline: '2027 3 квартал' }),
     ).toBe('Строится — 3 кв. 2027');
+  });
+
+  it('builds popular completion range without status prefix', () => {
+    expect(
+      complexPopularCompletionLine({
+        ...base,
+        status: 'building',
+        deadline: 'Строится',
+        buildings: [
+          {
+            id: 'b1',
+            complexId: '1',
+            name: 'корпус 1',
+            floors: 1,
+            sections: 1,
+            deadline: '2028 3 квартал',
+            apartments: [],
+          },
+          {
+            id: 'b2',
+            complexId: '1',
+            name: 'корпус 2',
+            floors: 1,
+            sections: 1,
+            deadline: '2028 4 квартал',
+            apartments: [],
+          },
+        ],
+      }),
+    ).toBe('3 кв. 2028 – 4 кв. 2028');
   });
 
   it('builds price bands from API priceRanges', () => {

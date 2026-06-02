@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Heart, GitCompare, MapPin, TrainFront, Building2, TrendingUp } from 'lucide-react';
+import { Heart, GitCompare, MapPin, HardHat, TrainFront, Building2, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
@@ -11,6 +11,7 @@ import StableMediaFrame from '@/redesign/components/StableMediaFrame';
 import CardDottedPriceRow from '@/redesign/components/CardDottedPriceRow';
 import {
   cardVisual,
+  complexPopularCompletionLine,
   complexCompletionLine,
   complexFallbackPriceRow,
   complexImageOverlayLines,
@@ -22,11 +23,13 @@ import {
 
 interface Props {
   complex: ResidentialComplex;
-  variant?: 'grid' | 'list';
+  variant?: 'grid' | 'list' | 'popular';
   coverAspect?: '16/9' | '4/3';
 }
 
 const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) => {
+  const isPopular = variant === 'popular';
+  const cardVariant = variant === 'popular' ? 'grid' : variant;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
@@ -44,7 +47,9 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
   const addressLine = complex.address?.trim();
   const hasAddress = Boolean(addressLine && addressLine !== '—');
   const metroLine = complexMetroDisplayLine(complex);
-  const completion = complexCompletionLine(complex);
+  const completion = isPopular
+    ? complexPopularCompletionLine(complex)
+    : complexCompletionLine(complex);
   const overlay = complexImageOverlayLines(complex);
   const showOverlay = Boolean(overlay.primary || overlay.secondary);
   const priceBandRows = complexPriceBandRows(complex);
@@ -100,7 +105,11 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
 
       {metroLine ? (
         <div className={cardVisual.complexMetaRow}>
-          <TrainFront className={cardVisual.complexMetaIcon} aria-hidden />
+          {isPopular ? (
+            <span className={cardVisual.complexMetroDot} aria-hidden />
+          ) : (
+            <TrainFront className={cardVisual.complexMetaIcon} aria-hidden />
+          )}
           <span className="min-w-0 line-clamp-1 text-foreground/85">{metroLine}</span>
         </div>
       ) : null}
@@ -114,10 +123,16 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
 
       {hasBuilder ? (
         <div className={cardVisual.complexMetaRow}>
-          <Building2 className={cardVisual.complexMetaIcon} aria-hidden />
+          {isPopular ? (
+            <HardHat className={cardVisual.complexMetaIcon} aria-hidden />
+          ) : (
+            <Building2 className={cardVisual.complexMetaIcon} aria-hidden />
+          )}
           <span className="min-w-0 line-clamp-1">
             <span className="text-muted-foreground">Застройщик: </span>
-            <span className="text-foreground/85">{builderName}</span>
+            <span className={isPopular ? 'font-semibold text-foreground/90' : 'text-foreground/85'}>
+              {builderName}
+            </span>
           </span>
         </div>
       ) : null}
@@ -144,21 +159,23 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
         </p>
       ) : null}
 
-      <div className={cardVisual.complexFooter}>
-        <span className={cardVisual.complexFooterPill}>Новостройки</span>
-        {yieldLabel ? (
-          <span className={cardVisual.complexYield} aria-label={`Доходность ${yieldLabel}`}>
-            <TrendingUp className="h-3 w-3 shrink-0" aria-hidden />
-            {yieldLabel}
-          </span>
-        ) : null}
-      </div>
+      {!isPopular ? (
+        <div className={cardVisual.complexFooter}>
+          <span className={cardVisual.complexFooterPill}>Новостройки</span>
+          {yieldLabel ? (
+            <span className={cardVisual.complexYield} aria-label={`Доходность ${yieldLabel}`}>
+              <TrendingUp className="h-3 w-3 shrink-0" aria-hidden />
+              {yieldLabel}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </>
   );
 
   const mediaAspectClass = coverAspect === '16/9' ? 'aspect-video' : 'aspect-[4/3]';
 
-  if (variant === 'list') {
+  if (cardVariant === 'list') {
     return (
       <Link
         to={`/complex/${complex.slug}`}
@@ -214,7 +231,7 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
             </div>
           ) : null}
           {actionButtons}
-          {coverImages.length > 1 ? (
+          {!isPopular && coverImages.length > 1 ? (
             <div
               className={cn(
                 'absolute left-1/2 z-10 flex -translate-x-1/2 gap-1',

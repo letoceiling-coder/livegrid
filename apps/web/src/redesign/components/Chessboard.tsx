@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { Apartment } from '@/redesign/data/types';
 import ChessboardMatrixGrid from '@/redesign/components/ChessboardMatrixGrid';
@@ -23,7 +22,6 @@ import {
   chessObsHoverStart,
   chessObsRegisterRender,
   chessObsSelection,
-  isChessDebugEnabled,
 } from '@/redesign/lib/chessboard-observability';
 import { roomCategoryFromRooms } from '@/redesign/lib/complex-room-groups';
 import type { ChessboardApartmentCell, ChessboardBuildingMatrix } from '@/redesign/lib/chessboard-api';
@@ -162,11 +160,10 @@ const Chessboard = ({
     chessObsRegisterRender({
       apartmentCount: matrix.apartmentCount,
       visibleCellCount,
-      sectionCount: matrix.topology.sectionCount,
+      sectionCount: 1,
       floorCount: matrix.floors.length,
-      matrix,
     });
-  }, [matrix, visibleCellCount]);
+  }, [matrix.apartmentCount, matrix.floors.length, visibleCellCount]);
 
   const toggleStatus = (s: ChessStatusKey) => {
     setActiveStatuses((prev) => {
@@ -242,20 +239,11 @@ const Chessboard = ({
       const ctx = resolveCellContext(e.target as HTMLElement);
       if (!ctx) return;
       const { apt } = ctx;
-      if (isHidden(apt)) return;
-
-      if (apt.status === 'sold' || apt.status === 'reserved') {
-        toast.message('Недоступна');
-        return;
-      }
+      if (apt.status === 'sold' || isHidden(apt)) return;
 
       const startedAt = performance.now();
       setSelectedId(apt.id);
-      chessObsSelection(
-        apt.id,
-        startedAt,
-        isChessDebugEnabled() ? matrix.topology.apartmentToShaft[apt.id] : null,
-      );
+      chessObsSelection(apt.id, startedAt);
 
       if (isMobile) {
         e.preventDefault();
@@ -264,8 +252,6 @@ const Chessboard = ({
       }
 
       if (e.detail === 2) {
-        navigate(`/apartment/${apt.id}`);
-      } else {
         navigate(`/apartment/${apt.id}`);
       }
     },
@@ -371,9 +357,6 @@ const Chessboard = ({
             {matrix.shaftCount > 0 ? (
               <span className="ml-2 text-muted-foreground/70">
                 · {matrix.shaftCount} стояков · {matrix.floors.length} этажей
-                {matrix.topology.sectionCount > 1
-                  ? ` · ${matrix.topology.sectionCount} секций в данных`
-                  : null}
               </span>
             ) : null}
           </p>

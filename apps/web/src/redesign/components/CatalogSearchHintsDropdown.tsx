@@ -40,7 +40,14 @@ export default function CatalogSearchHintsDropdown({ hints, isLoading, className
   const c = hints?.complexes ?? [];
   const m = hints?.metro ?? [];
   const d = hints?.districts ?? [];
-  const s = hints?.streets ?? [];
+  const rawStreets = hints?.streets ?? [];
+  const seenStreet = new Set<string>();
+  const s = rawStreets.filter((row) => {
+    const key = row.address.trim().replace(/\s+/g, ' ').toLowerCase();
+    if (seenStreet.has(key)) return false;
+    seenStreet.add(key);
+    return true;
+  });
   const hasAny = c.length + m.length + d.length + s.length > 0;
 
   const goCatalog = (search: string) => {

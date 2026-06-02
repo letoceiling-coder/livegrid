@@ -136,8 +136,9 @@ export class SearchService {
 
     const seenAddr = new Set<string>();
     const streets: CatalogHintsResult['streets'] = [];
+    const normalizeAddr = (a: string) => a.trim().replace(/\s+/g, ' ').toLowerCase();
     for (const r of addressRows) {
-      const key = `${r.block.id}\0${r.address}`;
+      const key = normalizeAddr(r.address);
       if (seenAddr.has(key)) continue;
       seenAddr.add(key);
       streets.push({

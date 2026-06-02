@@ -31,9 +31,10 @@ const RedesignIndex = () => {
     queryFn: async () => {
       const sp = new URLSearchParams();
       sp.set('region_id', String(regionId));
-      sp.set('per_page', '12');
+      sp.set('per_page', '24');
       sp.set('page', '1');
       sp.set('sort', 'created_desc');
+      sp.set('require_active_listings', 'true');
       return apiGet<{ data: ApiBlockListRow[] }>(`/blocks?${sp}`);
     },
     enabled: regionId != null,
@@ -41,8 +42,15 @@ const RedesignIndex = () => {
 
   const featured = useMemo(() => {
     const rows = blocksFeatured.data?.data ?? [];
-    const promoted = rows.filter((b) => b.isPromoted);
-    const pick = (promoted.length ? promoted : rows).slice(0, 4).map(mapApiBlockListRowToResidentialComplex);
+    const pool = rows.filter(
+      (b) => (b._count?.listings ?? 0) > 0 && (b.images?.length ?? 0) > 0,
+    );
+    const promoted = pool.filter((b) => b.isPromoted);
+    const pick = (promoted.length >= 6 ? promoted : pool.length ? pool : rows)
+      .slice()
+      .sort((a, z) => (z._count?.listings ?? 0) - (a._count?.listings ?? 0))
+      .slice(0, 6)
+      .map(mapApiBlockListRowToResidentialComplex);
     return pick;
   }, [blocksFeatured.data]);
 
@@ -53,7 +61,7 @@ const RedesignIndex = () => {
       <HeroSearch />
 
       {featured.length > 0 && (
-      <section className="max-w-[1400px] mx-auto px-4 pt-6 pb-6 sm:pb-10">
+      <section className="relative z-0 max-w-[1400px] mx-auto px-4 pt-6 pb-6 sm:pb-10">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h2 className="text-base sm:text-xl font-bold">Популярные ЖК</h2>
           <div className="flex items-center gap-2">
@@ -76,14 +84,16 @@ const RedesignIndex = () => {
 
         {/* Mobile: 1, tablet: 2, desktop: 3 */}
         <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 items-start">
-          {featured.map(c => <ComplexCard key={c.id} complex={c} coverAspect="4/3" />)}
+          {featured.map((c) => (
+            <ComplexCard key={c.id} complex={c} variant="popular" coverAspect="4/3" />
+          ))}
         </div>
 
         {/* Mobile swiper */}
         <div className="flex sm:hidden gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4">
           {featured.map(c => (
             <div key={c.id} className="min-w-[260px] snap-start shrink-0">
-              <ComplexCard complex={c} coverAspect="4/3" />
+              <ComplexCard complex={c} variant="popular" coverAspect="4/3" />
             </div>
           ))}
         </div>

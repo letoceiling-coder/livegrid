@@ -32,7 +32,14 @@ function intersectBlockIdFilter(current: Prisma.BlockWhereInput['id'], ids: numb
 
 const PUBLIC_LISTING_STATUSES = [ListingStatus.ACTIVE, ListingStatus.RESERVED] as const;
 
-
+/** Любой опубликованный тип объявления (коттеджи/дома в apartments.json импортируются как HOUSE). */
+const PUBLIC_CATALOG_LISTING_KINDS: ListingKind[] = [
+  ListingKind.APARTMENT,
+  ListingKind.HOUSE,
+  ListingKind.LAND,
+  ListingKind.COMMERCIAL,
+  ListingKind.PARKING,
+];
 
 function parseDeadlineFilterTokens(deadlineRaw: string): Array<{ kind: 'year' | 'month' | 'quarter' | 'completed' | 'exact'; value: string }> {
   return deadlineRaw
@@ -264,7 +271,7 @@ export class BlocksService {
       where.listings = {
         some: {
           status: { in: [...PUBLIC_LISTING_STATUSES] },
-          kind: ListingKind.APARTMENT,
+          kind: { in: PUBLIC_CATALOG_LISTING_KINDS },
           isPublished: true,
         },
       };
@@ -499,13 +506,18 @@ export class BlocksService {
         orderBy: { distanceTime: 'asc' as const },
         take: 3,
       },
+      buildings: {
+        select: { id: true, name: true, deadline: true, deadlineKey: true },
+        orderBy: { deadlineKey: 'asc' as const },
+        take: 8,
+      },
       _count: {
         select: {
           listings: {
             // «В продаже» = ACTIVE + RESERVED. Совпадает с layouts на сайте.
             where: {
               status: { in: [ListingStatus.ACTIVE, ListingStatus.RESERVED] },
-              kind: ListingKind.APARTMENT,
+              kind: { in: PUBLIC_CATALOG_LISTING_KINDS },
               isPublished: true,
             },
           },
@@ -532,7 +544,7 @@ export class BlocksService {
         SELECT block_id, MIN(price) AS min_p, MAX(price) AS max_p
         FROM listings
         WHERE status = ${ListingStatus.ACTIVE}::"ListingStatus"
-          AND kind = ${ListingKind.APARTMENT}::"ListingKind"
+          AND kind IN (${Prisma.join(PUBLIC_CATALOG_LISTING_KINDS.map((k) => Prisma.sql`${k}::"ListingKind"`))})
           AND is_published = true
           AND price IS NOT NULL
         GROUP BY block_id
@@ -619,12 +631,15 @@ export class BlocksService {
       priceByBlock = await this.listingPriceBoundsByBlockIds(rows.map((b) => b.id));
     }
 
+    const priceRangeByBlock = await this.listingPriceRangesByBlockIds(rows.map((b) => b.id));
+
     const data = rows.map((b) => {
       const p = priceByBlock.get(b.id);
       return {
         ...b,
         listingPriceMin: p?.min ?? null,
         listingPriceMax: p?.max ?? null,
+        priceRanges: priceRangeByBlock.get(b.id) ?? [],
       };
     });
 
@@ -676,7 +691,7 @@ export class BlocksService {
       where: {
         blockId: { in: blockIds },
         status: ListingStatus.ACTIVE,
-        kind: ListingKind.APARTMENT,
+        kind: { in: PUBLIC_CATALOG_LISTING_KINDS },
         price: { gte: minPrice },
         isPublished: true,
       },
@@ -689,6 +704,57 @@ export class BlocksService {
         min: Number(row._min.price),
         max: row._max.price != null ? Number(row._max.price) : Number(row._min.price),
       });
+    }
+    return map;
+  }
+
+  private async listingPriceRangesByBlockIds(
+    blockIds: number[],
+  ): Promise<Map<number, Array<{ rooms: number; priceMin: number }>>> {
+    const map = new Map<number, Array<{ rooms: number; priceMin: number }>>();
+    if (!blockIds.length) return map;
+    if (!(await this.isCatalogMvAvailable())) return map;
+    try {
+      const rows = await this.prisma.$queryRaw<
+        Array<{ block_id: number; room_type_id: number; min_p: unknown }>
+      >`
+        SELECT block_id, room_type_id, MIN(price) AS min_p
+        FROM catalog_apartment_active_mv
+        WHERE block_id IN (${Prisma.join(blockIds)})
+        GROUP BY block_id, room_type_id
+      `;
+      const roomTypes = await this.prisma.roomType.findMany({
+        select: { id: true, name: true, nameOne: true },
+      });
+      const rtToCat = new Map<number, number>();
+      for (const rt of roomTypes) {
+        const cat = this.roomCategoryFromName(rt.nameOne ?? rt.name);
+        if (cat != null) rtToCat.set(rt.id, cat);
+      }
+      const byBlock = new Map<number, Map<number, number>>();
+      for (const row of rows) {
+        const blockId = Number(row.block_id);
+        const rooms = rtToCat.get(Number(row.room_type_id));
+        if (rooms == null || row.min_p == null) continue;
+        const priceMin = Number(row.min_p);
+        if (!Number.isFinite(priceMin)) continue;
+        if (!byBlock.has(blockId)) byBlock.set(blockId, new Map());
+        const inner = byBlock.get(blockId)!;
+        const prev = inner.get(rooms);
+        if (prev == null || priceMin < prev) inner.set(rooms, priceMin);
+      }
+      for (const [blockId, inner] of byBlock) {
+        map.set(
+          blockId,
+          Array.from(inner.entries())
+            .map(([rooms, priceMin]) => ({ rooms, priceMin }))
+            .sort((a, b) => a.rooms - b.rooms),
+        );
+      }
+    } catch (e: unknown) {
+      this.logger.warn(
+        `MV price ranges fallback skipped: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
     return map;
   }
@@ -789,7 +855,7 @@ export class BlocksService {
           // «В продаже» = ACTIVE + RESERVED. SOLD исключаем, isPublished обязателен.
           where: {
             status: { in: [ListingStatus.ACTIVE, ListingStatus.RESERVED] },
-            kind: ListingKind.APARTMENT,
+            kind: { in: PUBLIC_CATALOG_LISTING_KINDS },
             isPublished: true,
           },
         },

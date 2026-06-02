@@ -45,7 +45,7 @@ export const cardVisual = {
   complexTitle: 'text-[17px] font-bold leading-[1.25] tracking-tight text-foreground line-clamp-2',
   complexMetaRow: 'flex items-start gap-2 min-w-0 text-xs text-muted-foreground leading-snug',
   complexMetaIcon: 'w-3.5 h-3.5 shrink-0 mt-0.5 text-muted-foreground/70',
-  complexMetroDot: 'w-2 h-2 shrink-0 mt-1.5 rounded-full bg-amber-400',
+  complexMetroDot: 'w-2 h-2 shrink-0 mt-1.5 rounded-full bg-emerald-500',
   complexCompletion:
     'text-xs font-semibold text-foreground leading-snug truncate pt-0.5 pb-0.5',
   complexInventory: 'text-[11px] text-muted-foreground leading-snug mt-1',
@@ -165,6 +165,30 @@ export function complexImageOverlayLines(complex: ResidentialComplex): {
 }
 
 /** Emphasized completion / delivery line */
+/** Quarter range for marketplace cards — «3 кв. 2028 – 4 кв. 2028» without status prefix */
+export function complexPopularCompletionLine(complex: ResidentialComplex): string | null {
+  const quarters = complex.buildings
+    .map((b) => formatCompletionQuarterText(b.deadline))
+    .filter((q): q is string => Boolean(q));
+  const unique = Array.from(new Set(quarters));
+  if (unique.length >= 2) {
+    const sorted = unique.sort((a, b) => {
+      const pa = a.match(/(\d) кв\. (\d{4})/);
+      const pb = b.match(/(\d) кв\. (\d{4})/);
+      if (pa && pb) {
+        const ya = Number(pa[2]);
+        const yb = Number(pb[2]);
+        if (ya !== yb) return ya - yb;
+        return Number(pa[1]) - Number(pb[1]);
+      }
+      return a.localeCompare(b, 'ru');
+    });
+    return `${sorted[0]} – ${sorted[sorted.length - 1]}`;
+  }
+  if (unique.length === 1) return unique[0];
+  return formatCompletionQuarterText(complex.deadline ?? '');
+}
+
 export function complexCompletionLine(complex: ResidentialComplex): string | null {
   const quarter = formatCompletionQuarterText(complex.deadline ?? '');
   if (complex.status === 'completed') {

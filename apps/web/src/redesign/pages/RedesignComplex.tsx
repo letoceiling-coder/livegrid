@@ -101,7 +101,7 @@ const RedesignComplex = () => {
     queryKey: ['listings', 'block', apiBlockQuery.data?.id],
     queryFn: () =>
       apiGet<{ data: ApiListingRow[] }>(
-        `/listings?block_id=${apiBlockQuery.data!.id}&kind=APARTMENT&statuses=ACTIVE,RESERVED,SOLD&is_published=true&per_page=500`,
+        `/listings?block_id=${apiBlockQuery.data!.id}&statuses=ACTIVE,RESERVED,SOLD&is_published=true&per_page=500`,
       ),
     enabled: Boolean(apiBlockQuery.data?.id),
   });

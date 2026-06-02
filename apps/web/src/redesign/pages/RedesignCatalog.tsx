@@ -632,7 +632,7 @@ const RedesignCatalog = () => {
         )}
 
         <div className="flex gap-4">
-          <aside className="hidden lg:block w-[260px] shrink-0 relative z-30">
+          <aside className="hidden lg:block w-[260px] shrink-0">
             <div className="sticky top-20">
               <FilterSidebar
                 filters={filters}

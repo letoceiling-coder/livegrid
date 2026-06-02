@@ -1,5 +1,8 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { apiGet } from '@/lib/api';
 import aboutMain from '@/assets/about-main.jpg';
 import {
   aboutPlatformIcon,
@@ -7,14 +10,30 @@ import {
   normalizeAboutPlatformSettings,
   sortedEnabledStats,
   type AboutPlatformSettings,
+  type AboutPlatformStat,
 } from '@/shared/lib/about-platform-cms';
 import { useAboutPlatformSection } from '@/shared/hooks/useAboutPlatformSection';
+import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 
 type Props = {
   pageSlug?: string;
   settings?: AboutPlatformSettings;
   preview?: boolean;
 };
+
+function formatStatNumber(n: number): string {
+  if (n >= 10_000) return n.toLocaleString('ru-RU');
+  if (n >= 100) return `${Math.floor(n / 10) * 10}+`;
+  return String(n);
+}
+
+function applyLiveStatValue(stat: AboutPlatformStat, live: Record<string, string | null>): string {
+  const label = stat.label.toLowerCase();
+  if (label.includes('объект')) return live.objects ?? stat.value;
+  if (label.includes('комплекс') || label.includes('жк')) return live.complexes ?? stat.value;
+  if (label.includes('застройщ')) return live.builders ?? stat.value;
+  return stat.value;
+}
 
 function CtaLink({
   href,
@@ -48,10 +67,60 @@ function CtaLink({
 
 const AboutPlatform = ({ pageSlug = '/', settings: settingsProp, preview = false }: Props) => {
   const cms = useAboutPlatformSection(preview ? '' : pageSlug);
+  const { data: defaultRegionId } = useDefaultRegionId();
+
+  const kindCounts = useQuery({
+    queryKey: ['stats', 'listing-kind-counts', defaultRegionId],
+    queryFn: () =>
+      apiGet<Record<string, number>>(`/stats/listing-kind-counts?region_id=${defaultRegionId}`),
+    enabled: defaultRegionId != null && !preview,
+    staleTime: 120_000,
+  });
+
+  const catalogCounts = useQuery({
+    queryKey: ['blocks', 'catalog-counts', defaultRegionId],
+    queryFn: () =>
+      apiGet<{ blocks: number; apartments: number }>(
+        `/blocks/catalog-counts?region_id=${defaultRegionId}`,
+      ),
+    enabled: defaultRegionId != null && !preview,
+    staleTime: 120_000,
+  });
+
+  const globalCounters = useQuery({
+    queryKey: ['stats', 'counters'],
+    queryFn: () =>
+      apiGet<{ blocks: number; apartments: number; builders: number; regions: number }>(
+        '/stats/counters',
+      ),
+    enabled: !preview,
+    staleTime: 120_000,
+  });
+
+  const liveStats = useMemo((): Record<string, string | null> => {
+    const kind = kindCounts.data;
+    const objects =
+      kind && Object.values(kind).reduce((a, b) => a + b, 0) > 0
+        ? formatStatNumber(Object.values(kind).reduce((a, b) => a + b, 0))
+        : null;
+    const complexes =
+      catalogCounts.data?.blocks != null && catalogCounts.data.blocks > 0
+        ? formatStatNumber(catalogCounts.data.blocks)
+        : null;
+    const builders =
+      globalCounters.data?.builders != null && globalCounters.data.builders > 0
+        ? formatStatNumber(globalCounters.data.builders)
+        : null;
+    return { objects, complexes, builders };
+  }), [kindCounts.data, catalogCounts.data, globalCounters.data]);
+
   if (!preview && !settingsProp && cms === null) return null;
 
   const settings = settingsProp ?? cms?.settings ?? normalizeAboutPlatformSettings(null);
-  const stats = sortedEnabledStats(settings);
+  const stats = sortedEnabledStats(settings).map((s) => ({
+    ...s,
+    value: preview ? s.value : applyLiveStatValue(s, liveStats),
+  }));
   const desktopSrc = settings.imageUrl?.trim() || aboutMain;
   const mobileSrc = settings.imageUrlMobile?.trim() || desktopSrc;
 
@@ -61,10 +130,10 @@ const AboutPlatform = ({ pageSlug = '/', settings: settingsProp, preview = false
       aria-labelledby="about-platform-title"
     >
       <div className="max-w-[1400px] mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-10 md:items-center">
-          <div className="relative mx-auto w-full max-w-[480px] md:max-w-none md:mx-0">
-            <div className="relative overflow-hidden rounded-3xl aspect-[5/4] max-h-[220px] sm:max-h-[260px] md:max-h-[280px] shadow-[0_4px_24px_rgba(0,0,0,0.06)] bg-muted">
-              <picture>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-10 md:items-stretch">
+          <div className="relative mx-auto w-full max-w-[480px] md:max-w-none md:mx-0 flex">
+            <div className="relative overflow-hidden rounded-3xl w-full min-h-[220px] sm:min-h-[260px] md:min-h-[320px] md:h-full shadow-[0_4px_24px_rgba(0,0,0,0.06)] bg-muted">
+              <picture className="block h-full w-full">
                 {settings.imageUrlMobile?.trim() ? (
                   <source media="(max-width: 767px)" srcSet={mobileSrc} />
                 ) : null}
@@ -81,7 +150,7 @@ const AboutPlatform = ({ pageSlug = '/', settings: settingsProp, preview = false
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:gap-4 min-w-0">
+          <div className="flex flex-col gap-3 sm:gap-4 min-w-0 justify-center">
             {settings.eyebrow ? (
               <p className="text-xs font-medium tracking-wide text-primary/80">{settings.eyebrow}</p>
             ) : null}

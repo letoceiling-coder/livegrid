@@ -580,7 +580,6 @@ export class FeedProcessorService {
         };
 
         if (feedKind === 'HOUSE') {
-          await this.prisma.listingApartment.deleteMany({ where: { listingId: listing.id } });
           const housePhotos = this.extractPhotoArray(aptRecord, [
             'photos',
             'photo',
@@ -592,6 +591,7 @@ export class FeedProcessorService {
             where: { listingId: listing.id },
             update: {
               areaTotal: areaTotal ?? null,
+              areaKitchen: apt.area_kitchen ?? null,
               floorsCount: apt.floors ?? null,
               photoUrl: apt.plan?.[0] || housePhotos?.[0] || null,
               extraPhotoUrls:
@@ -602,6 +602,7 @@ export class FeedProcessorService {
             create: {
               listingId: listing.id,
               areaTotal: areaTotal ?? null,
+              areaKitchen: apt.area_kitchen ?? null,
               floorsCount: apt.floors ?? null,
               photoUrl: apt.plan?.[0] || housePhotos?.[0] || null,
               extraPhotoUrls:
@@ -614,7 +615,6 @@ export class FeedProcessorService {
           await this.prisma.listingHouse.deleteMany({ where: { listingId: listing.id } });
         }
 
-        if (feedKind !== 'HOUSE') {
         await this.prisma.listingApartment.upsert({
           where: { listingId: listing.id },
           update: {
@@ -701,7 +701,6 @@ export class FeedProcessorService {
               data: { listingId: listing.id, contractExternalId: contractId },
             });
           }
-        }
         }
 
         count++;

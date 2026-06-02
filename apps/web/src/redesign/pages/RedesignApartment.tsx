@@ -8,7 +8,6 @@ import {
   Share2,
   GitCompare,
   FileText,
-  Phone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
@@ -73,12 +72,7 @@ const RedesignApartment = () => {
   const { id: idParam } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
-  const canStaffEdit =
-    user?.role === 'admin' ||
-    user?.role === 'editor' ||
-    user?.role === 'manager' ||
-    user?.role === 'agent';
+  const { isAuthenticated } = useAuth();
   const { isListingFavorite, toggleListing } = useFavorites();
   const { isCompared, toggle: toggleCompare, count: compareCount } = useCompare();
   const { ready: ymapsReady } = useYandexMapsReady();
@@ -133,19 +127,6 @@ const RedesignApartment = () => {
   const apt = mockResult?.apartment ?? apiPage?.apartment;
   const complex = mockResult?.complex ?? apiPage?.complex;
   const building = mockResult?.building ?? apiPage?.building;
-
-  type PublicContact = {
-    kind: 'agent' | 'agency';
-    slug?: string | null;
-    fullName?: string | null;
-    label?: string;
-    phone?: string | null;
-    avatarUrl?: string | null;
-    showEmail?: boolean;
-    email?: string | null;
-  };
-  const publicContact = (listingQuery.data as { publicContact?: PublicContact } | undefined)
-    ?.publicContact;
 
   const mediaImages = useMemo(() => {
     const fromListing =
@@ -423,12 +404,6 @@ const RedesignApartment = () => {
               {roomLabel}, {apt.area} м²
             </span>
           </nav>
-          <div className="flex items-center gap-2 shrink-0">
-          {canStaffEdit && listingId != null ? (
-            <Button variant="outline" size="sm" asChild>
-              <Link to={`/admin/listings/wizard/${listingId}/edit`}>Редактировать</Link>
-            </Button>
-          ) : null}
           <ObjectPageActionBar
             actions={[
               {
@@ -460,7 +435,6 @@ const RedesignApartment = () => {
               },
             ]}
           />
-          </div>
         </div>
 
         <div className="mb-3">
@@ -648,47 +622,6 @@ const RedesignApartment = () => {
               excludeListingId={listingId}
               className="scroll-mt-28"
             />
-          ) : null}
-
-          {publicContact ? (
-            <section className="scroll-mt-28 rounded-xl border border-border bg-card p-5 sm:p-6">
-              <p className="text-xs text-muted-foreground mb-3">
-                {publicContact.kind === 'agent' ? 'Ответственный агент' : 'Контакт агентства'}
-              </p>
-              <div className="flex items-center gap-3">
-                {publicContact.avatarUrl ? (
-                  <img src={publicContact.avatarUrl} alt="" className="w-12 h-12 rounded-xl object-cover" />
-                ) : (
-                  <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center text-sm font-bold text-accent-foreground">
-                    {(publicContact.fullName ?? publicContact.label ?? '?').charAt(0)}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm truncate">
-                    {publicContact.fullName ?? publicContact.label ?? 'Контакт'}
-                  </p>
-                  {publicContact.phone ? (
-                    <a
-                      href={`tel:${publicContact.phone.replace(/\s/g, '')}`}
-                      className="text-sm text-primary font-medium inline-flex items-center gap-1 mt-1"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      {publicContact.phone}
-                    </a>
-                  ) : null}
-                </div>
-              </div>
-              {publicContact.kind === 'agent' && publicContact.slug ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={`/agent/${publicContact.slug}`}>Информация об агенте</Link>
-                  </Button>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={`/agent/${publicContact.slug}/listings`}>Объявления агента</Link>
-                  </Button>
-                </div>
-              ) : null}
-            </section>
           ) : null}
 
           <section id="lead" className="scroll-mt-28">

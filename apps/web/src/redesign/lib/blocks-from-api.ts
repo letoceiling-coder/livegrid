@@ -24,6 +24,13 @@ export type ApiBlockListRow = {
   _count?: { listings: number };
   listingPriceMin?: number | null;
   listingPriceMax?: number | null;
+  priceRanges?: { rooms: number; priceMin: number }[];
+  buildings?: {
+    id: number;
+    name: string | null;
+    deadline: string | null;
+    deadlineKey?: string | Date | null;
+  }[];
 };
 
 export type ApiBlockDetail = ApiBlockListRow & {
@@ -44,6 +51,15 @@ export type ApiListingRow = {
   status: string;
   kind?: string;
   builder?: { name: string } | null;
+  building?: { name: string | null } | null;
+  house?: null | {
+    areaTotal?: string | number | null;
+    areaKitchen?: string | number | null;
+    floorsCount?: number | null;
+    bedrooms?: number | null;
+    photoUrl?: string | null;
+    extraPhotoUrls?: unknown;
+  };
   apartment: null | {
     floor: number | null;
     floorsTotal: number | null;
@@ -98,6 +114,21 @@ function quarterLabel(value: string | Date | null | undefined): string | null {
   return `${d.getFullYear()} ${quarter} квартал`;
 }
 
+function buildingDeadlineLabel(bg: {
+  deadline?: string | null;
+  deadlineKey?: string | Date | null;
+}): string {
+  if (bg.deadlineKey != null) {
+    const d =
+      bg.deadlineKey instanceof Date ? bg.deadlineKey : new Date(String(bg.deadlineKey));
+    if (!Number.isNaN(d.getTime())) {
+      const quarter = Math.ceil((d.getMonth() + 1) / 3);
+      return `${d.getFullYear()} ${quarter} квартал`;
+    }
+  }
+  return bg.deadline?.trim() || '';
+}
+
 /** Плоский список ЖК (каталог, автодополнение). */
 export function mapApiBlockListRowToResidentialComplex(b: ApiBlockListRow): ResidentialComplex {
   const addr = b.addresses?.[0]?.address ?? '';
@@ -135,8 +166,17 @@ export function mapApiBlockListRowToResidentialComplex(b: ApiBlockListRow): Resi
     coords: coordsFromBlock(b),
     advantages: [],
     infrastructure: extractInfrastructureLabels(b.infrastructure),
-    buildings: [],
+    buildings: (b.buildings ?? []).map((bg) => ({
+      id: String(bg.id),
+      complexId: String(b.id),
+      name: bg.name?.trim() || 'Корпус',
+      floors: 1,
+      sections: 1,
+      deadline: buildingDeadlineLabel(bg),
+      apartments: [],
+    })),
     listingCount: b._count?.listings,
+    priceRanges: b.priceRanges,
     salesStartDate:
       b.salesStartDate != null
         ? typeof b.salesStartDate === 'string'
@@ -208,13 +248,70 @@ function listingStatus(s: string): Apartment['status'] {
   return 'available';
 }
 
+function mapHouseListingRowToApartment(
+  listing: ApiListingRow,
+  complexId: string,
+  defaultBuildingId: string,
+): Apartment | null {
+  const house = listing.house;
+  if (!house) return null;
+  const area = num(house.areaTotal);
+  const price = num(listing.price);
+  if (area <= 0) return null;
+  const safePrice = price >= MIN_REASONABLE_PRICE_RUB ? price : 0;
+  const kitchen = num(house.areaKitchen);
+  const floors = house.floorsCount ?? 1;
+  const buildingName = listing.building?.name?.trim() || undefined;
+  const gallery =
+    Array.isArray(house.extraPhotoUrls) && house.extraPhotoUrls.length
+      ? house.extraPhotoUrls.filter((x): x is string => typeof x === 'string')
+      : undefined;
+  const rooms =
+    house.bedrooms != null && house.bedrooms > 0
+      ? Math.min(4, house.bedrooms)
+      : area >= 150
+        ? 4
+        : area >= 120
+          ? 3
+          : area >= 90
+            ? 2
+            : 1;
+  return {
+    id: String(listing.id),
+    complexId,
+    buildingId: listing.buildingId != null ? String(listing.buildingId) : defaultBuildingId,
+    rooms,
+    area,
+    kitchenArea: kitchen > 0 ? kitchen : Math.round(area * 0.2 * 10) / 10,
+    floor: 1,
+    totalFloors: floors > 0 ? floors : 1,
+    price: safePrice,
+    pricePerMeter: safePrice > 0 ? Math.round(safePrice / area) : 0,
+    finishing: 'без отделки',
+    status: listingStatus(listing.status),
+    planImage:
+      (typeof house.photoUrl === 'string' && house.photoUrl.trim()) ||
+      (gallery && gallery[0]) ||
+      IMAGE_PLACEHOLDER,
+    galleryImages: gallery,
+    section: 1,
+    number: buildingName ? `${buildingName}.${Math.round(area)}` : undefined,
+    buildingName,
+  };
+}
+
 export function mapListingRowToApartment(
   listing: ApiListingRow,
   complexId: string,
   defaultBuildingId: string,
 ): Apartment | null {
   const apt = listing.apartment;
-  if (!apt) return null;
+  if (!apt) {
+    if (listing.kind === 'HOUSE') {
+      return mapHouseListingRowToApartment(listing, complexId, defaultBuildingId);
+    }
+    return null;
+  }
   const area = num(apt.areaTotal);
   const price = num(listing.price);
   if (area <= 0) return null;

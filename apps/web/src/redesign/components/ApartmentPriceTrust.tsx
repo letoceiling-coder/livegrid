@@ -1,13 +1,19 @@
 import { Link } from 'react-router-dom';
-import { MapPin } from 'lucide-react';
+import { Calculator, MapPin } from 'lucide-react';
 import type { Apartment } from '@/redesign/data/types';
 import {
   formatDisplayPrice,
   formatPricePerMeterSafe,
   isPriceFallbackText,
+  isPriceHidden,
   priceAriaLabel,
   PRICE_ON_REQUEST_CLASS,
 } from '@/redesign/lib/display-price';
+import {
+  estimateMortgageMonthlyPayment,
+  formatRubMonthly,
+  MORTGAGE_ESTIMATE_DISCLAIMER,
+} from '@/redesign/lib/mortgage-estimate';
 import { cn } from '@/lib/utils';
 
 const STATUS_LABEL = {
@@ -40,8 +46,13 @@ const ApartmentPriceTrust = ({
   roomLabel,
 }: Props) => {
   const priceDisplay = formatDisplayPrice(apartment.price);
+  const priceHidden = isPriceHidden(apartment.price);
   const ppmDisplay = formatPricePerMeterSafe(apartment.price, apartment.area);
   const ppmHidden = isPriceFallbackText(ppmDisplay);
+
+  const mortgageMonthly = !priceHidden
+    ? estimateMortgageMonthlyPayment({ priceRub: apartment.price })
+    : null;
 
   return (
     <section id="price" className="scroll-mt-32 rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-4">
@@ -90,6 +101,24 @@ const ApartmentPriceTrust = ({
           {ppmDisplay}
         </p>
       </div>
+
+      {mortgageMonthly != null ? (
+        <div className="rounded-xl border border-border/80 bg-muted/25 p-4">
+          <div className="flex items-start gap-3">
+            <Calculator className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium">Ипотека от {formatRubMonthly(mortgageMonthly)}</p>
+              <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                {MORTGAGE_ESTIMATE_DISCLAIMER}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-border bg-muted/10 px-4 py-3 text-sm text-muted-foreground">
+          Ипотечный расчёт доступен после указания цены объекта
+        </div>
+      )}
     </section>
   );
 };
