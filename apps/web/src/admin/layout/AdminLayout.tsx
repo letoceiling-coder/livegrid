@@ -19,6 +19,7 @@ import { CrmRefreshProvider } from '@/admin/context/CrmRefreshContext';
 import { useCrmRouteFocusRefresh } from '@/admin/hooks/useCrmRouteFocusRefresh';
 import { useCrmRuntimeMetrics } from '@/admin/hooks/useCrmRuntimeMetrics';
 import { isAdminNavVisible } from '@/admin/lib/admin-governance-nav';
+import { isDemoAdminNavRoute } from '@/admin/lib/admin-demo-nav';
 
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Дашборд', end: true, roles: ['admin', 'editor', 'manager'] },
@@ -45,13 +46,13 @@ const navItems = [
   { to: '/admin/reference', icon: BookOpen, label: 'Справочники', roles: ['admin', 'editor'] },
   { to: '/admin/regions', icon: Globe, label: 'Регионы', roles: ['admin', 'editor'] },
   { to: '/admin/homepage', icon: LayoutTemplate, label: 'Главная: блоки API', roles: ['admin', 'editor'] },
-  { to: '/admin/news', icon: Newspaper, label: 'Новости', roles: ['admin', 'editor'] },
+  { to: '/admin/news', icon: Newspaper, label: 'Новости / парсер', roles: ['admin', 'editor'] },
   { to: '/admin/media', icon: Image, label: 'Медиа', roles: ['admin', 'editor'] },
   { to: '/admin/users', icon: Users, label: 'Пользователи и роли', roles: ['admin'] },
-  { to: '/admin/agents', icon: UserCircle, label: 'Агенты', roles: ['admin', 'editor', 'manager'] },
+  { to: '/admin/agents', icon: UserCircle, label: 'Сотрудники', roles: ['admin', 'editor', 'manager'] },
   { to: '/admin/tokens', icon: Palette, label: 'Токены', roles: ['admin'] },
   { to: '/admin/docs', icon: BookOpen, label: 'Документация' },
-  { to: '/admin/settings', icon: Settings, label: 'Настройки', roles: ['admin', 'editor'] },
+  { to: '/admin/settings', icon: Settings, label: 'Настройки', roles: ['admin'] },
   { to: '/admin/settings/ai', icon: Sparkles, label: 'AI интеграции', roles: ['admin'] },
 ];
 
@@ -65,6 +66,7 @@ export default function AdminLayout() {
   useCrmRuntimeMetrics();
 
   const availableNavItems = navItems.filter((item) => {
+    if (!isDemoAdminNavRoute(item.to)) return false;
     if (!isAdminNavVisible(item.to)) return false;
     if (!item.roles?.length) return true;
     const role = user?.role;
