@@ -26,6 +26,10 @@ export interface ResidentialComplex {
   listingCount?: number;
   /** ISO дата старта продаж (API `salesStartDate`) — оверлей на обложке. */
   salesStartDate?: string | null;
+  /** Плашка «Новый ЖК» на обложке (API `isPromoted`). */
+  isPromoted?: boolean;
+  /** Видовые квартиры в продаже (если API отдаёт). */
+  scenicCount?: number | null;
   /** Минимальные цены по комнатности (если API отдаёт `price_ranges`). */
   priceRanges?: { rooms: number; priceMin: number }[];
   /** Доходность / yield (если API отдаёт). */

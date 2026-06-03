@@ -24,6 +24,19 @@ function itemId() {
   return `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
 }
 
+/** Task 7.3 — mortgage calculator removed from «Дополнительные возможности». */
+export function isMortgageCalculatorPlatformTool(item: Pick<PlatformToolItem, 'title' | 'description' | 'link' | 'icon'>): boolean {
+  const title = item.title.trim().toLowerCase();
+  const desc = item.description.trim().toLowerCase();
+  const link = item.link.trim().toLowerCase();
+  if (link === '/mortgage' || link.includes('/mortgage')) return true;
+  if (title.includes('ипотеч') && title.includes('калькулятор')) return true;
+  if (title === 'ипотечный калькулятор') return true;
+  if (desc.includes('рассчитаем ипотеку') || desc.includes('рассчитать ипотеку')) return true;
+  if (item.icon === 'calculator' && (title.includes('ипотек') || link.includes('mortgage'))) return true;
+  return false;
+}
+
 function coerceItem(raw: unknown, index: number): PlatformToolItem {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const action = typeof o.action === 'string' ? o.action : '';
@@ -81,13 +94,18 @@ export function normalizePlatformToolsSettings(
 ): PlatformToolsSettings {
   const base = { ...DEFAULT_PLATFORM_TOOLS_SETTINGS };
   if (!raw) return base;
-  const items = Array.isArray(raw.items) ? raw.items.map(coerceItem) : base.items;
+  const items = (Array.isArray(raw.items) ? raw.items.map(coerceItem) : base.items)
+    .filter((i) => !isMortgageCalculatorPlatformTool(i))
+    .filter((i) => i.title.trim() || i.description.trim())
+    .sort((a, b) => a.order - b.order);
   return {
     title: typeof raw.title === 'string' && raw.title.trim() ? raw.title : base.title,
-    items: items.filter((i) => i.title.trim() || i.description.trim()).sort((a, b) => a.order - b.order),
+    items,
   };
 }
 
 export function sortedEnabledTools(settings: PlatformToolsSettings): PlatformToolItem[] {
-  return settings.items.filter((i) => i.enabled && i.title.trim()).sort((a, b) => a.order - b.order);
+  return settings.items
+    .filter((i) => i.enabled && i.title.trim() && !isMortgageCalculatorPlatformTool(i))
+    .sort((a, b) => a.order - b.order);
 }

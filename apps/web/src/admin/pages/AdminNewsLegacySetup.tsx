@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { ApiError, apiDelete, apiGet, apiPost, apiPut, apiUrl, getAccessToken } from '@/lib/api';
 import { toast } from '@/components/ui/sonner';
@@ -321,6 +322,27 @@ export default function AdminNewsLegacySetup() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiDelete(`/admin/news/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'news'] }),
+  });
+
+  const generateCoverMutation = useMutation({
+    mutationFn: () =>
+      apiPost<{ id: number; url: string }>('/admin/generate-image', {
+        title: form.title.trim() || undefined,
+        body: form.body.trim() || undefined,
+      }),
+    onSuccess: (file) => {
+      setForm((prev) => ({
+        ...prev,
+        mediaFileIds: prev.mediaFileIds.includes(file.id)
+          ? prev.mediaFileIds
+          : [file.id, ...prev.mediaFileIds],
+        mediaUrls: prev.mediaUrls.includes(file.url) ? prev.mediaUrls : [file.url, ...prev.mediaUrls],
+      }));
+      toast.success('Обложка сгенерирована и добавлена в медиа');
+    },
+    onError: (e) => {
+      toast.error(e instanceof ApiError ? e.message : 'Не удалось сгенерировать обложку');
+    },
   });
 
   const rssMutation = useMutation({
@@ -1157,14 +1179,37 @@ export default function AdminNewsLegacySetup() {
                 </div>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={() => setMediaPickerOpen(true)}
-              className="inline-flex items-center gap-2 border border-border bg-background px-3 py-2 rounded-xl text-sm hover:bg-muted"
-            >
-              <Plus className="w-4 h-4" />
-              Добавить из медиа
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => generateCoverMutation.mutate()}
+                disabled={generateCoverMutation.isPending || (!form.title.trim() && !form.body.trim())}
+                className="inline-flex items-center gap-2 border border-primary/30 bg-primary/5 px-3 py-2 rounded-xl text-sm hover:bg-primary/10 disabled:opacity-50"
+                title={!form.title.trim() && !form.body.trim() ? 'Заполните заголовок или текст' : undefined}
+              >
+                {generateCoverMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-primary" />
+                )}
+                {generateCoverMutation.isPending ? 'Генерация…' : 'Сгенерировать обложку'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMediaPickerOpen(true)}
+                className="inline-flex items-center gap-2 border border-border bg-background px-3 py-2 rounded-xl text-sm hover:bg-muted"
+              >
+                <Plus className="w-4 h-4" />
+                Добавить из медиа
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5">
+              DALL-E по заголовку и тексту. Настройка:{' '}
+              <a href="/admin/settings/ai" className="text-primary hover:underline">
+                AI интеграции
+              </a>{' '}
+              — включить OpenAI, обложки и сохранить.
+            </p>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input

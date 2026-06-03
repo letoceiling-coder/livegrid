@@ -50,6 +50,13 @@ export class EcosystemPublicController {
   }
 
   @Public()
+  @Get('agents')
+  @ApiOperation({ summary: 'Published agents directory' })
+  listAgents() {
+    return this.agents.listPublished();
+  }
+
+  @Public()
   @Get('agents/:slug')
   @ApiOperation({ summary: 'Public agent profile' })
   async agentBySlug(@Param('slug') slug: string) {
@@ -63,7 +70,10 @@ export class EcosystemPublicController {
   @Get('agents/:slug/listings')
   @ApiOperation({ summary: 'Agent public listings' })
   agentListings(@Param('slug') slug: string, @Query() query: QueryEcosystemListingsDto) {
-    return this.agents.getPublicListingsBySlug(slug, query.page ?? 1, query.per_page ?? 12);
+    return this.agents.getPublicListingsBySlug(slug, query.page ?? 1, query.per_page ?? 12, {
+      kind: query.kind,
+      search: query.search,
+    });
   }
 
   @Public()

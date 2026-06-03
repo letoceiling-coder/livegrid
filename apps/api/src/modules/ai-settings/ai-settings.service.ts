@@ -12,8 +12,23 @@ import { SecretCryptoService } from '../../common/crypto/secret-crypto.service';
 import { AiRewriteService } from './ai-rewrite.service';
 import {
   AI_PROVIDER_MODELS,
+  DALL_E_IMAGE_MODELS,
+  DALL_E_IMAGE_SIZES,
+  DEFAULT_IMAGE_MODEL,
+  DEFAULT_IMAGE_SIZE,
+  DEFAULT_IMAGE_TIMEOUT_MS,
   DEFAULT_NEWS_SYSTEM_PROMPT,
 } from './ai-settings.constants';
+
+export type NewsImageGenerationAdminDto = {
+  enabled: boolean;
+  model: string;
+  size: string;
+  timeoutMs: number;
+  availableModels: string[];
+  availableSizes: string[];
+  openAiConfigured: boolean;
+};
 
 export type AiProviderAdminDto = {
   provider: AiProviderKind;
@@ -60,24 +75,121 @@ export class AiSettingsService implements OnModuleInit {
     }
     await this.prisma.newsAiGlobalSetting.upsert({
       where: { id: 1 },
-      create: { id: 1 },
+      create: {
+        id: 1,
+        imageModel: DEFAULT_IMAGE_MODEL,
+        imageSize: DEFAULT_IMAGE_SIZE,
+        imageTimeoutMs: DEFAULT_IMAGE_TIMEOUT_MS,
+        imageGenerationEnabled: false,
+      },
       update: {},
     });
   }
 
   async getAdminSettings(): Promise<{
     activeProvider: AiProviderKind | null;
+    imageGeneration: NewsImageGenerationAdminDto;
     providers: AiProviderAdminDto[];
   }> {
     await this.ensureDefaults();
-    const [global, rows] = await Promise.all([
+    const [global, rows, openAi] = await Promise.all([
       this.prisma.newsAiGlobalSetting.findUnique({ where: { id: 1 } }),
       this.prisma.aiProviderSetting.findMany({ orderBy: { provider: 'asc' } }),
+      this.prisma.aiProviderSetting.findUnique({ where: { provider: 'OPENAI' } }),
     ]);
+    const model = global?.imageModel?.trim() || DEFAULT_IMAGE_MODEL;
     return {
       activeProvider: global?.activeProvider ?? null,
+      imageGeneration: {
+        enabled: global?.imageGenerationEnabled ?? false,
+        model,
+        size: global?.imageSize?.trim() || DEFAULT_IMAGE_SIZE,
+        timeoutMs: global?.imageTimeoutMs ?? DEFAULT_IMAGE_TIMEOUT_MS,
+        availableModels: [...DALL_E_IMAGE_MODELS],
+        availableSizes: this.imageSizesForModel(model),
+        openAiConfigured: Boolean(openAi?.isEnabled && openAi?.apiKeyEnc),
+      },
       providers: rows.map((r) => this.toAdminDto(r)),
     };
+  }
+
+  async updateImageGeneration(dto: {
+    enabled?: boolean;
+    model?: string;
+    size?: string;
+    timeoutMs?: number;
+  }): Promise<NewsImageGenerationAdminDto> {
+    await this.ensureDefaults();
+    const existing = await this.prisma.newsAiGlobalSetting.findUnique({ where: { id: 1 } });
+    const model = dto.model?.trim() || existing?.imageModel?.trim() || DEFAULT_IMAGE_MODEL;
+    if (!DALL_E_IMAGE_MODELS.includes(model as (typeof DALL_E_IMAGE_MODELS)[number])) {
+      throw new BadRequestException('Недопустимая модель DALL-E');
+    }
+    const size = dto.size?.trim() || existing?.imageSize?.trim() || DEFAULT_IMAGE_SIZE;
+    const allowedSizes = this.imageSizesForModel(model);
+    if (!allowedSizes.includes(size)) {
+      throw new BadRequestException(`Недопустимый размер для ${model}: ${allowedSizes.join(', ')}`);
+    }
+    const timeoutMs = dto.timeoutMs ?? existing?.imageTimeoutMs ?? DEFAULT_IMAGE_TIMEOUT_MS;
+    if (!Number.isFinite(timeoutMs) || timeoutMs < 10_000 || timeoutMs > 300_000) {
+      throw new BadRequestException('Таймаут должен быть от 10000 до 300000 мс');
+    }
+
+    const data: Prisma.NewsAiGlobalSettingUpdateInput = {
+      imageModel: model,
+      imageSize: size,
+      imageTimeoutMs: Math.trunc(timeoutMs),
+    };
+    if (dto.enabled !== undefined) data.imageGenerationEnabled = dto.enabled;
+
+    const global = await this.prisma.newsAiGlobalSetting.update({
+      where: { id: 1 },
+      data,
+    });
+
+    const openAi = await this.prisma.aiProviderSetting.findUnique({ where: { provider: 'OPENAI' } });
+    return {
+      enabled: global.imageGenerationEnabled,
+      model: global.imageModel,
+      size: global.imageSize,
+      timeoutMs: global.imageTimeoutMs,
+      availableModels: [...DALL_E_IMAGE_MODELS],
+      availableSizes: this.imageSizesForModel(global.imageModel),
+      openAiConfigured: Boolean(openAi?.isEnabled && openAi?.apiKeyEnc),
+    };
+  }
+
+  /** Runtime config for DALL-E news covers — только из админки, без env. */
+  async getImageGenerationRuntime(): Promise<{
+    apiKey: string;
+    model: string;
+    size: string;
+    timeoutMs: number;
+  }> {
+    await this.ensureDefaults();
+    const global = await this.prisma.newsAiGlobalSetting.findUnique({ where: { id: 1 } });
+    if (!global?.imageGenerationEnabled) {
+      throw new BadRequestException(
+        'Генерация обложек отключена. Включите в /admin/settings/ai → «Обложки новостей (DALL-E)».',
+      );
+    }
+    const openAi = await this.getProviderRuntime('OPENAI');
+    const model = global.imageModel?.trim() || DEFAULT_IMAGE_MODEL;
+    const size = global.imageSize?.trim() || DEFAULT_IMAGE_SIZE;
+    if (!this.imageSizesForModel(model).includes(size)) {
+      throw new BadRequestException('Некорректный размер изображения в настройках AI');
+    }
+    return {
+      apiKey: openAi.apiKey,
+      model,
+      size,
+      timeoutMs: global.imageTimeoutMs ?? DEFAULT_IMAGE_TIMEOUT_MS,
+    };
+  }
+
+  private imageSizesForModel(model: string): string[] {
+    const key = model as (typeof DALL_E_IMAGE_MODELS)[number];
+    return DALL_E_IMAGE_SIZES[key] ?? DALL_E_IMAGE_SIZES[DEFAULT_IMAGE_MODEL];
   }
 
   async updateProvider(

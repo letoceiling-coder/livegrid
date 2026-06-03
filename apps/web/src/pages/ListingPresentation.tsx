@@ -1,10 +1,11 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Printer, MapPin, Building2, ExternalLink, Download, Tag } from 'lucide-react';
+import { Printer, MapPin, Building2, ExternalLink, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import FooterSection from '@/components/FooterSection';
-import { apiGetOrNull, apiUrl } from '@/lib/api';
+import DownloadPdfButton from '@/shared/components/DownloadPdfButton';
+import { apiGetOrNull } from '@/lib/api';
 
 const PLACEHOLDER = '/placeholder.svg';
 
@@ -100,12 +101,10 @@ const ListingPresentation = () => {
             </Button>
           ) : null}
           <div className="flex items-center gap-2 flex-wrap">
-            <Button type="button" variant="outline" size="sm" asChild>
-              <a href={apiUrl(`/presentations/listing/${p.listingId}/pdf`)}>
-                <Download className="w-4 h-4 mr-2" />
-                Скачать PDF
-              </a>
-            </Button>
+            <DownloadPdfButton
+              apiPath={`/presentations/listing/${p.listingId}/pdf`}
+              filename={`listing-${p.listingId}.pdf`}
+            />
             <Button type="button" size="sm" onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />
               Печать

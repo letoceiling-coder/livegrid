@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Loader2, Search } from 'lucide-react';
@@ -6,13 +6,13 @@ import { apiGet } from '@/lib/api';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import FooterSection from '@/components/FooterSection';
 import ListingCard, { type ApiListingCardRow } from '@/redesign/components/ListingCard';
+import AgentListingsPagination from '@/ecosystem/components/AgentListingsPagination';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
 type AgentProfile = {
   slug: string;
   name: string | null;
-  avatarUrl: string | null;
 };
 
 type ListingRow = ApiListingCardRow & { title?: string | null; address?: string | null };
@@ -28,7 +28,8 @@ export default function PublicAgentListingsPage() {
   const { slug = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
-  const [idSearch, setIdSearch] = useState(searchParams.get('id') ?? '');
+  const urlSearch = searchParams.get('search') ?? '';
+  const [searchInput, setSearchInput] = useState(urlSearch);
 
   const profileQuery = useQuery({
     queryKey: ['ecosystem', 'agent', slug],
@@ -37,14 +38,13 @@ export default function PublicAgentListingsPage() {
   });
 
   const listingsQuery = useQuery({
-    queryKey: ['ecosystem', 'agent', slug, 'listings', page, idSearch.trim()],
+    queryKey: ['ecosystem', 'agent', slug, 'listings', page, urlSearch],
     queryFn: () => {
       const sp = new URLSearchParams({
         page: String(page),
         per_page: String(PER_PAGE),
       });
-      const q = idSearch.trim();
-      if (q) sp.set('search', q);
+      if (urlSearch.trim()) sp.set('search', urlSearch.trim());
       return apiGet<Paginated>(
         `/ecosystem/agents/${encodeURIComponent(slug)}/listings?${sp}`,
       );
@@ -56,20 +56,18 @@ export default function PublicAgentListingsPage() {
   const meta = listingsQuery.data?.meta;
   const rows = listingsQuery.data?.data ?? [];
 
-  const filteredById = useMemo(() => {
-    const q = idSearch.trim();
-    if (!q || /^\D/.test(q)) return rows;
-    const id = Number.parseInt(q, 10);
-    if (!Number.isFinite(id)) return rows;
-    return rows.filter((r) => r.id === id);
-  }, [rows, idSearch]);
-
-  const applyIdSearch = () => {
+  const applySearch = () => {
     const next = new URLSearchParams(searchParams);
-    const q = idSearch.trim();
-    if (q) next.set('id', q);
-    else next.delete('id');
+    const q = searchInput.trim();
+    if (q) next.set('search', q);
+    else next.delete('search');
     next.set('page', '1');
+    setSearchParams(next);
+  };
+
+  const setPage = (nextPage: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(nextPage));
     setSearchParams(next);
   };
 
@@ -84,8 +82,8 @@ export default function PublicAgentListingsPage() {
         ) : profileQuery.isError || !p ? (
           <div className="text-center py-16">
             <p className="text-muted-foreground">Агент не найден</p>
-            <Link to="/catalog" className="text-sm text-primary underline mt-2 inline-block">
-              В каталог
+            <Link to="/agents" className="text-sm text-primary underline mt-2 inline-block">
+              Наши специалисты
             </Link>
           </div>
         ) : (
@@ -100,18 +98,18 @@ export default function PublicAgentListingsPage() {
               ) : null}
             </div>
 
-            <div className="flex gap-2 mb-6 max-w-md">
+            <div className="flex gap-2 mb-6 max-w-lg">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Поиск по ID"
+                  placeholder="Поиск по ID или адресу"
                   className="pl-9"
-                  value={idSearch}
-                  onChange={(e) => setIdSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && applyIdSearch()}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && applySearch()}
                 />
               </div>
-              <Button type="button" variant="secondary" onClick={applyIdSearch}>
+              <Button type="button" variant="secondary" onClick={applySearch}>
                 Найти
               </Button>
             </div>
@@ -120,46 +118,22 @@ export default function PublicAgentListingsPage() {
               <div className="flex justify-center py-16">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
-            ) : filteredById.length === 0 ? (
+            ) : rows.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-12">Нет объявлений</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredById.map((l) => (
+                {rows.map((l) => (
                   <ListingCard key={l.id} listing={l} />
                 ))}
               </div>
             )}
 
-            {meta && meta.total_pages > 1 ? (
-              <div className="flex justify-center gap-2 mt-8">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.set('page', String(page - 1));
-                    setSearchParams(next);
-                  }}
-                >
-                  Назад
-                </Button>
-                <span className="text-sm text-muted-foreground self-center">
-                  {page} / {meta.total_pages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= meta.total_pages}
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.set('page', String(page + 1));
-                    setSearchParams(next);
-                  }}
-                >
-                  Далее
-                </Button>
-              </div>
+            {meta ? (
+              <AgentListingsPagination
+                page={page}
+                totalPages={meta.total_pages}
+                onPageChange={setPage}
+              />
             ) : null}
           </>
         )}

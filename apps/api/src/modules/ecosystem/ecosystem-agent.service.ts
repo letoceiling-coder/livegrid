@@ -93,12 +93,15 @@ export class EcosystemAgentService {
     if (!profile) throw new NotFoundException('Агент не найден');
 
     const userId = profile.userId;
-    const [listingCount, avgQuality, trustIndicators, recentActivity] = await Promise.all([
-      this.agencies.countPublicListings(userId),
-      this.agencies.avgListingQuality(userId),
-      this.agencies.buildTrustIndicators(userId, profile.user),
-      this.recentListingActivity(userId),
-    ]);
+    const [listingCount, apartmentsCount, housesCount, avgQuality, trustIndicators, recentActivity] =
+      await Promise.all([
+        this.agencies.countPublicListings(userId),
+        this.agencies.countPublicListings(userId, 'APARTMENT'),
+        this.agencies.countPublicListings(userId, 'HOUSE'),
+        this.agencies.avgListingQuality(userId),
+        this.agencies.buildTrustIndicators(userId, profile.user),
+        this.recentListingActivity(userId),
+      ]);
 
     const badges = deriveTrustBadges({
       qualityScore: avgQuality ?? 0,
@@ -129,6 +132,15 @@ export class EcosystemAgentService {
           : null,
       theme,
       listingCount,
+      listingCountsByKind: {
+        all: listingCount,
+        apartment: apartmentsCount,
+        house: housesCount,
+      },
+      title:
+        (Array.isArray(profile.specializationsJson)
+          ? (profile.specializationsJson as string[])[0]
+          : null) ?? null,
       avgListingQuality: avgQuality,
       trust: trustIndicators,
       badges,
@@ -152,17 +164,53 @@ export class EcosystemAgentService {
     return { recentlyApproved, lastApprovedAt: recent?.createdAt.toISOString() ?? null };
   }
 
-  async getPublicListingsBySlug(slug: string, page = 1, perPage = 12) {
+  async getPublicListingsBySlug(
+    slug: string,
+    page = 1,
+    perPage = 12,
+    opts?: { kind?: 'APARTMENT' | 'HOUSE'; search?: string },
+  ) {
     const profile = await this.prisma.agentProfile.findFirst({
       where: { slug, status: 'PUBLISHED' },
       select: { userId: true },
     });
     if (!profile) throw new NotFoundException('Агент не найден');
-    return this.getPublicListings(profile.userId, page, perPage);
+    return this.getPublicListings(profile.userId, page, perPage, opts);
   }
 
-  async getPublicListings(userId: string, page = 1, perPage = 12) {
-    return this.agencies.getPublicListings(userId, page, perPage);
+  async getPublicListings(
+    userId: string,
+    page = 1,
+    perPage = 12,
+    opts?: { kind?: 'APARTMENT' | 'HOUSE'; search?: string },
+  ) {
+    return this.agencies.getPublicListings(userId, page, perPage, opts);
+  }
+
+  async listPublished() {
+    const profiles = await this.prisma.agentProfile.findMany({
+      where: { status: 'PUBLISHED' },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        user: { select: { fullName: true, avatarUrl: true } },
+      },
+    });
+
+    const data = await Promise.all(
+      profiles.map(async (p) => {
+        const specs = Array.isArray(p.specializationsJson) ? (p.specializationsJson as string[]) : [];
+        const listingCount = await this.agencies.countPublicListings(p.userId);
+        return {
+          slug: p.slug,
+          name: p.user.fullName,
+          avatarUrl: p.user.avatarUrl,
+          title: specs[0] ?? null,
+          listingCount,
+        };
+      }),
+    );
+
+    return { data: data.filter((a) => a.listingCount > 0 || a.name) };
   }
 
   async listCandidates(limit = 80) {

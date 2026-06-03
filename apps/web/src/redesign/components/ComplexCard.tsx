@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Heart, GitCompare, MapPin, HardHat, TrainFront, Building2, TrendingUp } from 'lucide-react';
+import { Heart, GitCompare, MapPin, HardHat, TrainFront, Building2 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
@@ -11,13 +11,14 @@ import StableMediaFrame from '@/redesign/components/StableMediaFrame';
 import CardDottedPriceRow from '@/redesign/components/CardDottedPriceRow';
 import {
   cardVisual,
+  cardBadgeClass,
   complexPopularCompletionLine,
-  complexCompletionLine,
+  complexCoverBadgeLabel,
   complexFallbackPriceRow,
   complexImageOverlayLines,
+  complexInventoryLine,
   complexMetroDisplayLine,
   complexPriceBandRows,
-  complexTotalUnits,
   complexYieldLabel,
 } from '@/redesign/lib/card-visual';
 
@@ -27,7 +28,7 @@ interface Props {
   coverAspect?: '16/9' | '4/3';
 }
 
-const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) => {
+const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props) => {
   const isPopular = variant === 'popular';
   const cardVariant = variant === 'popular' ? 'grid' : variant;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -47,15 +48,17 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
   const addressLine = complex.address?.trim();
   const hasAddress = Boolean(addressLine && addressLine !== '—');
   const metroLine = complexMetroDisplayLine(complex);
-  const completion = isPopular
-    ? complexPopularCompletionLine(complex)
-    : complexCompletionLine(complex);
+  const completion = complexPopularCompletionLine(complex);
   const overlay = complexImageOverlayLines(complex);
+  const coverBadge = complexCoverBadgeLabel(complex);
   const showOverlay = Boolean(overlay.primary || overlay.secondary);
   const priceBandRows = complexPriceBandRows(complex);
   const fallbackRow = priceBandRows.length === 0 ? complexFallbackPriceRow(complex) : null;
-  const totalUnits = complexTotalUnits(complex);
+  const inventoryLine = complexInventoryLine(complex);
   const yieldLabel = complexYieldLabel(complex);
+  const districtLine =
+    complex.district && complex.district !== '—' ? complex.district.trim() : '';
+  const fullAddressLine = [districtLine, hasAddress ? addressLine : ''].filter(Boolean).join(', ');
 
   const handleLike = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -114,10 +117,10 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
         </div>
       ) : null}
 
-      {hasAddress ? (
+      {fullAddressLine ? (
         <div className={cardVisual.complexMetaRow}>
           <MapPin className={cardVisual.complexMetaIcon} aria-hidden />
-          <span className="min-w-0 line-clamp-2 text-muted-foreground/90">{addressLine}</span>
+          <span className="min-w-0 line-clamp-2 text-muted-foreground/90">{fullAddressLine}</span>
         </div>
       ) : null}
 
@@ -152,11 +155,8 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
         </div>
       ) : null}
 
-      {totalUnits != null && totalUnits > 0 ? (
-        <p className={cardVisual.complexInventory}>
-          <span className="text-muted-foreground">Квартир </span>
-          <span className="font-medium tabular-nums text-foreground/90">{totalUnits}</span>
-        </p>
+      {inventoryLine ? (
+        <p className={cardVisual.complexInventory}>{inventoryLine}</p>
       ) : null}
 
       {!isPopular ? (
@@ -164,7 +164,7 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
           <span className={cardVisual.complexFooterPill}>Новостройки</span>
           {yieldLabel ? (
             <span className={cardVisual.complexYield} aria-label={`Доходность ${yieldLabel}`}>
-              <TrendingUp className="h-3 w-3 shrink-0" aria-hidden />
+              <span aria-hidden>🏦</span>
               {yieldLabel}
             </span>
           ) : null}
@@ -179,7 +179,7 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
     return (
       <Link
         to={`/complex/${complex.slug}`}
-        className={cn(cardVisual.complexShell, 'group flex hover:shadow-md')}
+        className={cn(cardVisual.complexShell, 'group flex')}
       >
         {hasCoverImage ? (
           <div className="relative w-[200px] shrink-0 overflow-hidden bg-muted min-h-[148px] sm:w-[220px]">
@@ -191,18 +191,28 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
               className="h-full min-h-[148px] rounded-none"
               imgClassName="transition-transform duration-200 group-hover:scale-[1.02]"
             />
-            {showOverlay ? (
-              <div className={cardVisual.complexOverlayStack}>
-                {overlay.primary ? <span className={cardVisual.complexOverlayPill}>{overlay.primary}</span> : null}
-                {overlay.secondary ? (
-                  <span className={cardVisual.complexOverlayPill}>{overlay.secondary}</span>
-                ) : null}
-              </div>
-            ) : null}
-            {actionButtons}
-          </div>
-        ) : null}
-        <div className={cn(cardVisual.complexBody, 'flex-1 justify-between')}>{contentBlock}</div>
+          {coverBadge ? (
+            <span
+              className={cn(
+                cardVisual.complexCoverBadge,
+                cardBadgeClass('primary', complex.salesStartDate ? 'amber' : 'blue'),
+              )}
+            >
+              {coverBadge}
+            </span>
+          ) : null}
+          {showOverlay ? (
+            <div className={cardVisual.complexOverlayStack}>
+              {overlay.primary ? <span className={cardVisual.complexOverlayPill}>{overlay.primary}</span> : null}
+              {overlay.secondary ? (
+                <span className={cardVisual.complexOverlayPill}>{overlay.secondary}</span>
+              ) : null}
+            </div>
+          ) : null}
+          {actionButtons}
+        </div>
+      ) : null}
+      <div className={cn(cardVisual.complexBody, 'flex-1 justify-between')}>{contentBlock}</div>
       </Link>
     );
   }
@@ -222,6 +232,16 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '4/3' }: Props) 
             className="absolute inset-0"
             imgClassName="transition-transform duration-200 group-hover:scale-[1.02]"
           />
+          {coverBadge ? (
+            <span
+              className={cn(
+                cardVisual.complexCoverBadge,
+                cardBadgeClass('primary', complex.salesStartDate ? 'amber' : 'blue'),
+              )}
+            >
+              {coverBadge}
+            </span>
+          ) : null}
           {showOverlay ? (
             <div className={cardVisual.complexOverlayStack}>
               {overlay.primary ? <span className={cardVisual.complexOverlayPill}>{overlay.primary}</span> : null}

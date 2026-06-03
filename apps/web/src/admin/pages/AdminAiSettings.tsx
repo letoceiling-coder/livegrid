@@ -28,8 +28,19 @@ type ProviderRow = {
   availableModels: string[];
 };
 
+type ImageGenerationSettings = {
+  enabled: boolean;
+  model: string;
+  size: string;
+  timeoutMs: number;
+  availableModels: string[];
+  availableSizes: string[];
+  openAiConfigured: boolean;
+};
+
 type AiSettingsResponse = {
   activeProvider: AiProviderKind | null;
+  imageGeneration: ImageGenerationSettings;
   providers: ProviderRow[];
 };
 
@@ -53,6 +64,7 @@ export default function AdminAiSettings() {
   });
 
   const [activeProvider, setActiveProvider] = useState<AiProviderKind | ''>('');
+  const [imageDraft, setImageDraft] = useState<ImageGenerationSettings | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Partial<ProviderRow & { apiKey: string }>>>({});
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState<AiProviderKind | null>(null);
@@ -60,6 +72,7 @@ export default function AdminAiSettings() {
   useEffect(() => {
     if (!data) return;
     setActiveProvider(data.activeProvider ?? '');
+    setImageDraft(data.imageGeneration);
     const next: typeof drafts = {};
     for (const p of data.providers) {
       next[p.provider] = { ...p, apiKey: '' };
@@ -87,6 +100,23 @@ export default function AdminAiSettings() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       toast.success('Настройки AI сохранены');
+    },
+    onError: (e) => toast.error(formatApiError(e)),
+  });
+
+  const saveImageGeneration = useMutation({
+    mutationFn: () => {
+      if (!imageDraft) return Promise.resolve();
+      return apiPut('/admin/settings/ai/image-generation', {
+        enabled: imageDraft.enabled,
+        model: imageDraft.model,
+        size: imageDraft.size,
+        timeoutMs: imageDraft.timeoutMs,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'settings', 'ai'] });
+      toast.success('Настройки генерации обложек сохранены');
     },
     onError: (e) => toast.error(formatApiError(e)),
   });
@@ -140,7 +170,7 @@ export default function AdminAiSettings() {
             AI интеграции
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Провайдеры для рерайта новостей. API-ключи шифруются на сервере и не отображаются полностью.
+            Рерайт новостей и генерация обложек DALL-E. API-ключи задаются здесь и шифруются на сервере.
           </p>
         </div>
         {saved && (
@@ -149,6 +179,101 @@ export default function AdminAiSettings() {
           </span>
         )}
       </div>
+
+      {imageDraft ? (
+        <div className="bg-background border rounded-2xl p-5 space-y-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="font-semibold text-sm">Обложки новостей (DALL-E 3)</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Используется API-ключ провайдера <strong>OpenAI</strong> ниже. Env-переменные не нужны.
+              </p>
+            </div>
+            <label className="inline-flex items-center gap-2 text-sm cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={imageDraft.enabled}
+                onChange={(e) => setImageDraft((d) => (d ? { ...d, enabled: e.target.checked } : d))}
+              />
+              Включено
+            </label>
+          </div>
+          {!imageDraft.openAiConfigured ? (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              Включите провайдер OpenAI и сохраните API-ключ в блоке ниже.
+            </p>
+          ) : null}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="text-sm font-medium block mb-1">Модель</label>
+              <select
+                value={imageDraft.model}
+                onChange={(e) => {
+                  const model = e.target.value;
+                  const sizes =
+                    model === 'dall-e-3'
+                      ? ['1024x1024', '1792x1024', '1024x1792']
+                      : ['256x256', '512x512', '1024x1024'];
+                  setImageDraft((d) =>
+                    d
+                      ? {
+                          ...d,
+                          model,
+                          size: sizes.includes(d.size) ? d.size : (sizes[0] ?? d.size),
+                          availableSizes: sizes,
+                        }
+                      : d,
+                  );
+                }}
+                className="w-full border rounded-xl px-3 py-2 text-sm"
+              >
+                {imageDraft.availableModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Размер</label>
+              <select
+                value={imageDraft.size}
+                onChange={(e) => setImageDraft((d) => (d ? { ...d, size: e.target.value } : d))}
+                className="w-full border rounded-xl px-3 py-2 text-sm"
+              >
+                {imageDraft.availableSizes.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Таймаут (мс)</label>
+              <input
+                type="number"
+                min={10000}
+                max={300000}
+                step={1000}
+                value={imageDraft.timeoutMs}
+                onChange={(e) =>
+                  setImageDraft((d) => (d ? { ...d, timeoutMs: Number(e.target.value) } : d))
+                }
+                className="w-full border rounded-xl px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => saveImageGeneration.mutate()}
+            disabled={saveImageGeneration.isPending}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+          >
+            {saveImageGeneration.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            Сохранить настройки обложек
+          </button>
+        </div>
+      ) : null}
 
       <div className="bg-background border rounded-2xl p-5 space-y-3">
         <h2 className="font-semibold text-sm">Провайдер по умолчанию для рерайта</h2>
@@ -217,6 +342,11 @@ export default function AdminAiSettings() {
                   {p.apiKeyMasked && !d.apiKey && (
                     <p className="text-xs text-muted-foreground mt-1">Текущий: {p.apiKeyMasked}</p>
                   )}
+                  {p.provider === 'OPENAI' ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Этот ключ также используется для генерации обложек новостей (DALL-E).
+                    </p>
+                  ) : null}
                 </div>
 
                 <div>

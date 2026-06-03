@@ -138,14 +138,37 @@ export class EcosystemAgencyService {
     return this.getPublicListings(profile.userId, page, perPage);
   }
 
-  async getPublicListings(userId: string, page = 1, perPage = 12) {
-    const take = Math.min(perPage, 24);
-    const where = {
+  private manualPublicListingWhere(
+    userId: string,
+    opts?: { kind?: 'APARTMENT' | 'HOUSE'; search?: string },
+  ) {
+    const where: import('@prisma/client').Prisma.ListingWhereInput = {
       ownerUserId: userId,
-      visibility: 'PUBLIC' as const,
+      visibility: 'PUBLIC',
       isPublished: true,
-      dataSource: 'MANUAL' as const,
+      dataSource: 'MANUAL',
     };
+    if (opts?.kind) where.kind = opts.kind;
+    const q = opts?.search?.trim();
+    if (q) {
+      const id = /^\d+$/.test(q) ? Number.parseInt(q, 10) : null;
+      const textOr = [
+        { address: { contains: q, mode: 'insensitive' as const } },
+        { title: { contains: q, mode: 'insensitive' as const } },
+      ];
+      where.OR = id != null ? [{ id }, ...textOr] : textOr;
+    }
+    return where;
+  }
+
+  async getPublicListings(
+    userId: string,
+    page = 1,
+    perPage = 12,
+    opts?: { kind?: 'APARTMENT' | 'HOUSE'; search?: string },
+  ) {
+    const take = Math.min(perPage, 24);
+    const where = this.manualPublicListingWhere(userId, opts);
     const [rows, total] = await Promise.all([
       this.prisma.listing.findMany({
         where,
@@ -158,9 +181,31 @@ export class EcosystemAgencyService {
           address: true,
           price: true,
           kind: true,
+          status: true,
+          dataSource: true,
           promotionTier: true,
           promotedUntil: true,
-          region: { select: { name: true } },
+          region: { select: { name: true, code: true } },
+          apartment: {
+            select: {
+              areaTotal: true,
+              areaKitchen: true,
+              floor: true,
+              floorsTotal: true,
+              planUrl: true,
+              finishingPhotoUrl: true,
+              extraPhotoUrls: true,
+              roomType: { select: { name: true } },
+            },
+          },
+          house: {
+            select: {
+              areaTotal: true,
+              areaLand: true,
+              photoUrl: true,
+              extraPhotoUrls: true,
+            },
+          },
         },
       }),
       this.prisma.listing.count({ where }),
@@ -171,14 +216,9 @@ export class EcosystemAgencyService {
     };
   }
 
-  async countPublicListings(userId: string) {
+  async countPublicListings(userId: string, kind?: 'APARTMENT' | 'HOUSE') {
     return this.prisma.listing.count({
-      where: {
-        ownerUserId: userId,
-        visibility: 'PUBLIC',
-        isPublished: true,
-        dataSource: 'MANUAL',
-      },
+      where: this.manualPublicListingWhere(userId, kind ? { kind } : undefined),
     });
   }
 

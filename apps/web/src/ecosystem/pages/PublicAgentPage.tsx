@@ -1,41 +1,50 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import { Loader2, User } from 'lucide-react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Loader2, Mail, Phone } from 'lucide-react';
 import { apiGet } from '@/lib/api';
-import { themeClasses, type EcosystemThemeKey, type PublicTrustIndicators } from '@lg/shared';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import FooterSection from '@/components/FooterSection';
-import EcosystemTrustChips from '@/ecosystem/components/EcosystemTrustChips';
-import StickyContactCta from '@/ecosystem/components/StickyContactCta';
-import TrustBadgeRow, { type TrustBadgeView } from '@/redesign/components/TrustBadgeRow';
+import AgentAvatar from '@/ecosystem/components/AgentAvatar';
+import AgentListingsPagination from '@/ecosystem/components/AgentListingsPagination';
+import ListingCard, { type ApiListingCardRow } from '@/redesign/components/ListingCard';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 type AgentProfile = {
   slug: string;
   name: string | null;
   avatarUrl: string | null;
-  bio: string | null;
-  specializations: string[];
+  title: string | null;
   phone: string | null;
   email: string | null;
-  agency: { slug: string; displayName: string; logoUrl: string | null } | null;
-  theme: EcosystemThemeKey;
   listingCount: number;
-  avgListingQuality: number | null;
-  trust: PublicTrustIndicators;
-  badges: TrustBadgeView[];
+  listingCountsByKind: { all: number; apartment: number; house: number };
 };
 
-type ListingRow = {
-  id: number;
-  title: string | null;
-  address: string | null;
-  price: string | number | null;
-  region?: { name: string };
+type ListingRow = ApiListingCardRow & { title?: string | null; address?: string | null };
+
+type Paginated = {
+  data: ListingRow[];
+  meta: { page: number; per_page: number; total: number; total_pages: number };
 };
+
+const PER_PAGE = 12;
+
+type KindTab = 'all' | 'APARTMENT' | 'HOUSE';
+
+function kindLabel(tab: KindTab): string {
+  if (tab === 'APARTMENT') return 'Квартиры';
+  if (tab === 'HOUSE') return 'Дома';
+  return 'Все';
+}
 
 export default function PublicAgentPage() {
   const { slug = '' } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1);
+  const kindParam = searchParams.get('kind');
+  const kind: KindTab =
+    kindParam === 'APARTMENT' || kindParam === 'HOUSE' ? kindParam : 'all';
 
   const profileQuery = useQuery({
     queryKey: ['ecosystem', 'agent', slug],
@@ -44,19 +53,46 @@ export default function PublicAgentPage() {
   });
 
   const listingsQuery = useQuery({
-    queryKey: ['ecosystem', 'agent', slug, 'listings'],
-    queryFn: () =>
-      apiGet<{ data: ListingRow[] }>(`/ecosystem/agents/${encodeURIComponent(slug)}/listings?per_page=12`),
+    queryKey: ['ecosystem', 'agent', slug, 'listings', page, kind],
+    queryFn: () => {
+      const sp = new URLSearchParams({
+        page: String(page),
+        per_page: String(PER_PAGE),
+      });
+      if (kind !== 'all') sp.set('kind', kind);
+      return apiGet<Paginated>(`/ecosystem/agents/${encodeURIComponent(slug)}/listings?${sp}`);
+    },
     enabled: Boolean(slug) && profileQuery.isSuccess,
   });
 
   const p = profileQuery.data;
-  const theme = themeClasses(p?.theme ?? 'default');
+  const meta = listingsQuery.data?.meta;
+  const counts = p?.listingCountsByKind ?? { all: 0, apartment: 0, house: 0 };
+
+  const setKind = (next: KindTab) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === 'all') nextParams.delete('kind');
+    else nextParams.set('kind', next);
+    nextParams.set('page', '1');
+    setSearchParams(nextParams);
+  };
+
+  const setPage = (nextPage: number) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('page', String(nextPage));
+    setSearchParams(nextParams);
+  };
+
+  const tabs: { key: KindTab; count: number }[] = [
+    { key: 'all', count: counts.all },
+    { key: 'APARTMENT', count: counts.apartment },
+    { key: 'HOUSE', count: counts.house },
+  ];
 
   return (
-    <div className="min-h-screen bg-background flex flex-col pb-24 sm:pb-8">
+    <div className="min-h-screen bg-background flex flex-col">
       <RedesignHeader />
-      <main className="flex-1 max-w-3xl mx-auto w-full">
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-6 sm:py-8">
         {profileQuery.isLoading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -64,78 +100,92 @@ export default function PublicAgentPage() {
         ) : profileQuery.isError || !p ? (
           <div className="p-6 text-center">
             <p className="text-muted-foreground">Агент не найден</p>
-            <Link to="/catalog" className="text-sm text-primary underline mt-2 inline-block">
-              В каталог
+            <Link to="/agents" className="text-sm text-primary underline mt-2 inline-block">
+              Наши специалисты
             </Link>
           </div>
         ) : (
           <>
-            <div className={cn('px-4 pt-6 pb-4', theme.banner.replace('bg-gradient-to-r', 'bg-gradient-to-b'))}>
-              <div className="flex items-start gap-4">
-                {p.avatarUrl ? (
-                  <img src={p.avatarUrl} alt="" className="w-20 h-20 rounded-full object-cover border-4 border-background shadow" />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
-                    <User className="w-10 h-10 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1 pt-1">
-                  <h1 className="text-xl font-bold truncate">{p.name ?? 'Агент'}</h1>
-                  {p.agency ? (
-                    <Link to={`/agency/${p.agency.slug}`} className="text-sm text-primary hover:underline">
-                      {p.agency.displayName}
-                    </Link>
+            <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 items-start mb-8 pb-8 border-b border-border">
+              <AgentAvatar name={p.name} avatarUrl={p.avatarUrl} size="lg" />
+              <div className="min-w-0 flex-1">
+                <h1 className="text-2xl font-bold">{p.name ?? 'Агент'}</h1>
+                {p.title ? <p className="text-muted-foreground mt-1">{p.title}</p> : null}
+                <div className="mt-4 space-y-2 text-sm">
+                  {p.phone ? (
+                    <a
+                      href={`tel:${p.phone.replace(/\s/g, '')}`}
+                      className="flex items-center gap-2 text-foreground hover:text-primary"
+                    >
+                      <Phone className="w-4 h-4 shrink-0" />
+                      {p.phone}
+                    </a>
                   ) : null}
-                  <p className="text-xs text-muted-foreground mt-1">{p.listingCount} объявлений</p>
+                  {p.email ? (
+                    <a
+                      href={`mailto:${p.email}`}
+                      className="flex items-center gap-2 text-muted-foreground hover:text-primary"
+                    >
+                      <Mail className="w-4 h-4 shrink-0" />
+                      {p.email}
+                    </a>
+                  ) : null}
+                </div>
+                {p.phone ? (
+                  <Button asChild className="mt-4" size="sm">
+                    <a href={`tel:${p.phone.replace(/\s/g, '')}`}>Позвонить</a>
+                  </Button>
+                ) : null}
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <Button asChild variant="outline" size="sm" className="border-border text-foreground">
+                    <Link to={`/agent/${p.slug}/listings`}>Все объявления</Link>
+                  </Button>
                 </div>
               </div>
             </div>
 
-            <div className="px-4 py-4 space-y-4">
-              <TrustBadgeRow badges={p.badges} />
-              <EcosystemTrustChips trust={p.trust} />
+            <section>
+              <h2 className="text-lg font-semibold mb-4">Объявления агента</h2>
+              <div className="flex flex-wrap gap-2 mb-6">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setKind(tab.key)}
+                    className={cn(
+                      'text-sm rounded-full border px-3 py-1.5 transition-colors',
+                      kind === tab.key
+                        ? 'border-primary bg-primary/5 text-primary font-medium'
+                        : 'border-border text-muted-foreground hover:border-primary/40',
+                    )}
+                  >
+                    {kindLabel(tab.key)}({tab.count})
+                  </button>
+                ))}
+              </div>
 
-              {p.bio ? <p className="text-sm text-muted-foreground leading-relaxed">{p.bio}</p> : null}
-
-              {p.specializations.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {p.specializations.map((s) => (
-                    <span key={s} className={cn('text-xs rounded-full border px-2.5 py-1', theme.chip)}>
-                      {s}
-                    </span>
+              {listingsQuery.isLoading ? (
+                <div className="flex justify-center py-16">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (listingsQuery.data?.data?.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-12">Нет объявлений в этой категории</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {listingsQuery.data!.data.map((l) => (
+                    <ListingCard key={l.id} listing={l} />
                   ))}
                 </div>
+              )}
+
+              {meta ? (
+                <AgentListingsPagination
+                  page={page}
+                  totalPages={meta.total_pages}
+                  onPageChange={setPage}
+                />
               ) : null}
-
-              <section>
-                <h2 className="text-sm font-semibold mb-2">Объявления</h2>
-                {listingsQuery.isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-                ) : (listingsQuery.data?.data?.length ?? 0) === 0 ? (
-                  <p className="text-sm text-muted-foreground">Нет опубликованных объявлений</p>
-                ) : (
-                  <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
-                    {listingsQuery.data!.data.map((l) => (
-                      <Link
-                        key={l.id}
-                        to={`/listing/${l.id}`}
-                        className="shrink-0 w-[200px] snap-start rounded-xl border p-3 hover:bg-muted/40"
-                      >
-                        <p className="font-medium text-sm line-clamp-2">{l.title ?? l.address ?? `#${l.id}`}</p>
-                        {l.price != null ? (
-                          <p className="text-sm font-semibold mt-2">{Number(l.price).toLocaleString('ru-RU')} ₽</p>
-                        ) : null}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
-
-            <div className="px-4 hidden sm:block pb-6">
-              <StickyContactCta phone={p.phone} email={p.email} />
-            </div>
-            <StickyContactCta phone={p.phone} email={p.email} className="sm:hidden" />
+            </section>
           </>
         )}
       </main>

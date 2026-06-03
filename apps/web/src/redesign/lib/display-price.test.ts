@@ -4,6 +4,7 @@ import {
   compareByPrice,
   formatDisplayPrice,
   formatPriceFrom,
+  formatPriceFromExact,
   formatPricePerMeterSafe,
   formatPriceRangeSafe,
   hasValidPrice,
@@ -23,6 +24,7 @@ describe('display-price', () => {
   it('formats valid prices', () => {
     expect(formatDisplayPrice(5_000_000)).toContain('млн');
     expect(formatPriceFrom(4_962_342)).toBe('от 5 млн ₽');
+    expect(formatPriceFromExact(4_269_408).replace(/\s/g, ' ')).toBe('от 4 269 408 ₽');
   });
 
   it('formats invalid range as on-request', () => {

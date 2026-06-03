@@ -631,7 +631,11 @@ export class BlocksService {
       priceByBlock = await this.listingPriceBoundsByBlockIds(rows.map((b) => b.id));
     }
 
-    const priceRangeByBlock = await this.listingPriceRangesByBlockIds(rows.map((b) => b.id));
+    const blockIds = rows.map((b) => b.id);
+    const [priceRangeByBlock, scenicByBlock] = await Promise.all([
+      this.listingPriceRangesByBlockIds(blockIds),
+      this.listingScenicCountByBlockIds(blockIds),
+    ]);
 
     const data = rows.map((b) => {
       const p = priceByBlock.get(b.id);
@@ -640,6 +644,7 @@ export class BlocksService {
         listingPriceMin: p?.min ?? null,
         listingPriceMax: p?.max ?? null,
         priceRanges: priceRangeByBlock.get(b.id) ?? [],
+        scenicCount: scenicByBlock.get(b.id) ?? null,
       };
     });
 
@@ -704,6 +709,35 @@ export class BlocksService {
         min: Number(row._min.price),
         max: row._max.price != null ? Number(row._max.price) : Number(row._min.price),
       });
+    }
+    return map;
+  }
+
+  private async listingScenicCountByBlockIds(blockIds: number[]): Promise<Map<number, number>> {
+    const map = new Map<number, number>();
+    if (!blockIds.length) return map;
+    if (!(await this.isCatalogMvAvailable())) return map;
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ block_id: number; cnt: bigint }>>`
+        SELECT mv.block_id, COUNT(*)::bigint AS cnt
+        FROM catalog_apartment_active_mv mv
+        INNER JOIN listing_apartments la ON la.listing_id = mv.listing_id
+        INNER JOIN room_types rt ON rt.id = la.room_type_id
+        WHERE mv.block_id IN (${Prisma.join(blockIds)})
+          AND (
+            lower(rt.name) LIKE '%вид%'
+            OR lower(coalesce(rt.name_one, '')) LIKE '%вид%'
+            OR lower(coalesce(rt.name, '')) LIKE '%панорам%'
+          )
+        GROUP BY mv.block_id
+      `;
+      for (const row of rows) {
+        map.set(Number(row.block_id), Number(row.cnt));
+      }
+    } catch (e: unknown) {
+      this.logger.warn(
+        `MV scenic count skipped: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
     return map;
   }
@@ -798,13 +832,20 @@ export class BlocksService {
     );
   }
 
+  /** Room band key for price rows: 0 studio, 1 one-room, 2 euro-2, 21 classic 2-room, 3+ … */
   private roomCategoryFromName(name?: string | null): number | null {
-    const n = (name ?? '').toLowerCase();
+    const n = (name ?? '').toLowerCase().replace(/\s+/g, '');
     if (!n) return null;
     if (n.includes('студ')) return 0;
+    if (n.includes('2е') || n.includes('2e') || n.includes('евро')) return 2;
+    if (n.includes('1-к') || n.includes('1к') || /^1/.test(n)) return 1;
+    if (n.includes('3-к') || n.includes('3к') || /^3/.test(n)) return 3;
+    if (n.includes('4') || n.includes('5')) return 4;
+    if (n.includes('2-к') || n.includes('2к') || /^2/.test(n)) return 21;
     const m = n.match(/(\d)/);
     if (m) {
       const r = Number.parseInt(m[1], 10);
+      if (r === 2) return 21;
       return r > 4 ? 4 : r;
     }
     return null;

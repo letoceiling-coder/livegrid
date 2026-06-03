@@ -8,12 +8,30 @@
 ## Локальный запуск
 
 ```bash
+cd C:\Users\dsc-2\projects\livegrid   # или ~/livegrid на Linux
 pnpm install
+docker compose up -d                  # PostgreSQL (PostGIS) + Redis
 pnpm --filter @lg/database exec prisma migrate deploy
 pnpm --filter @lg/shared build
-pnpm --filter @lg/api build
-pnpm --filter web dev
+pnpm dev:web                          # http://localhost:5173
+pnpm dev:api                          # http://localhost:3000
 ```
+
+**`.env`:** для локальной разработки укажите `DATABASE_URL=postgresql://lg_admin:lg_dev_password@localhost:5432/lg_development` (как в `docker-compose.yml`). Не используйте production-пароль и `NODE_ENV=production` локально.
+
+### База с продакшена (полный снимок)
+
+Только **read-only** `pg_dump` на сервере, затем восстановление в `lg_development`:
+
+```powershell
+# Windows (ключ Beget)
+.\scripts\sync-prod-db-windows.ps1
+
+# Повторное восстановление из уже скачанного дампа:
+.\scripts\restore-prod-db-local.ps1 -DumpPath "$env:USERPROFILE\livegrid-snapshots\lg_production_YYYYMMDD.dump"
+```
+
+Дампы хранятся в `%USERPROFILE%\livegrid-snapshots\` (в git не коммитить). После restore скрипт очищает токены/лиды (`scripts/sanitize-local-map-snapshot.sql`) и создаёт локального админа через `pnpm db:seed`.
 
 API по умолчанию: `http://localhost:3000`. Фронт: Vite dev server.
 

@@ -1,43 +1,22 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
+import type PDFKit from 'pdfkit';
 import { ListingKind } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  formatPdfFooterContact,
+  formatPdfHeaderAgentLine,
+  listingPdfParamRows,
+  PDF_BRAND_COLOR,
+  PDF_TEXT_DARK,
+  PDF_TEXT_MUTED,
+  resolveGeoPoint,
+  yandexStaticMapImageUrl,
+  type PdfAgentContact,
+} from './presentation-pdf';
+import type { ListingPresentationPayload, PresentationPayload } from './presentation.types';
 
-export type PresentationPayload = {
-  slug: string;
-  name: string;
-  description: string | null;
-  imageUrl: string | null;
-  address: string | null;
-  metro: string | null;
-  builder: string | null;
-  deadline: string | null;
-  availableApartments: number;
-  priceFrom: number | null;
-  priceTo: number | null;
-  roomMix: Array<{ label: string; count: number; priceFrom: number | null }>;
-  generatedAt: string;
-};
-
-export type ListingPresentationPayload = {
-  listingId: number;
-  kind: ListingKind;
-  kindLabel: string;
-  title: string;
-  description: string | null;
-  price: number | null;
-  address: string | null;
-  region: string | null;
-  district: string | null;
-  builder: string | null;
-  blockName: string | null;
-  /** Для кнопки «ЖК»: ссылка на /complex/[slug]. */
-  blockSlug: string | null;
-  subtitle: string | null;
-  photoUrls: string[];
-  planUrls: string[];
-  generatedAt: string;
-};
+export type { ListingPresentationPayload, PresentationPayload } from './presentation.types';
 
 function listingKindLabel(kind: ListingKind): string {
   const m: Record<ListingKind, string> = {
@@ -218,17 +197,13 @@ export class PresentationsService {
     };
   }
 
-  async generatePdf(slug: string): Promise<Buffer> {
-    const FONT_REGULAR = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
-    const FONT_BOLD = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
+  async generatePdf(slug: string, creatorUserId?: string): Promise<Buffer> {
     const p = await this.getBySlug(slug);
-    const chunks: Buffer[] = [];
-    const doc = new PDFDocument({ size: 'A4', margin: 48 });
-    doc.registerFont('Regular', FONT_REGULAR);
-    doc.registerFont('Bold', FONT_BOLD);
-    doc.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    const contact = await this.resolvePdfAgentContact(creatorUserId);
+    const { doc, chunks } = this.createPdfDoc();
+    this.drawPdfBrandHeader(doc, contact);
 
-    doc.font('Bold').fontSize(22).text(p.name, { align: 'left' });
+    doc.font('Bold').fontSize(22).fillColor(PDF_BRAND_COLOR).text(p.name, { align: 'left' });
     doc.moveDown(0.5);
     doc.font('Regular').fontSize(11).fillColor('#666666').text('Краткая презентация для клиента');
     doc.moveDown();
@@ -271,13 +246,9 @@ export class PresentationsService {
     }
 
     doc.moveDown();
-    doc.font('Regular').fontSize(9).fillColor('#888888').text('Сформировано: ' + new Date(p.generatedAt).toLocaleString('ru-RU'));
-    doc.end();
-
-    return await new Promise<Buffer>((resolve, reject) => {
-      doc.once('end', () => resolve(Buffer.concat(chunks)));
-      doc.once('error', reject);
-    });
+    doc.font('Regular').fontSize(9).fillColor(PDF_TEXT_MUTED).text('Сформировано: ' + new Date(p.generatedAt).toLocaleString('ru-RU'));
+    this.drawPdfFooterBar(doc, contact);
+    return this.pdfFinish(doc, chunks);
   }
 
   private siteBase(): string {
@@ -314,7 +285,7 @@ export class PresentationsService {
         region: true,
         district: true,
         builder: true,
-        block: true,
+        block: { select: { name: true, slug: true, latitude: true, longitude: true } },
       },
     });
     if (!row) throw new NotFoundException('Listing not found');
@@ -402,6 +373,13 @@ export class PresentationsService {
     const price =
       row.price != null && Number.isFinite(Number(row.price)) ? Number(row.price) : null;
 
+    const geo = resolveGeoPoint({
+      lat: row.lat,
+      lng: row.lng,
+      blockLat: row.block?.latitude,
+      blockLng: row.block?.longitude,
+    });
+
     return {
       listingId: row.id,
       kind: row.kind,
@@ -418,57 +396,196 @@ export class PresentationsService {
       subtitle,
       photoUrls,
       planUrls,
+      latitude: geo?.lat ?? null,
+      longitude: geo?.lng ?? null,
       generatedAt: new Date().toISOString(),
     };
   }
 
-  async generateListingPdf(listingId: number, creatorUserId?: string): Promise<Buffer> {
-    const FONT_REGULAR = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
-    const FONT_BOLD = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
-    const p = await this.getListingPresentation(listingId);
-    let contactPhone: string | null = null;
-    if (creatorUserId) {
-      const creator = await this.prisma.user.findUnique({
-        where: { id: creatorUserId },
-        select: { phone: true },
-      });
-      contactPhone = creator?.phone?.trim() || null;
-    }
+  /** Контакты агента/создателя PDF (имя, телефон, email). */
+  async resolvePdfAgentContact(
+    creatorUserId?: string,
+    listingOwnerUserId?: string | null,
+  ): Promise<PdfAgentContact | null> {
+    const userId = creatorUserId ?? listingOwnerUserId ?? undefined;
+    if (!userId) return null;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        fullName: true,
+        phone: true,
+        email: true,
+        agencyProfile: { select: { displayName: true, phone: true, email: true } },
+      },
+    });
+    if (!user) return null;
+
+    const name =
+      user.fullName?.trim() ||
+      user.agencyProfile?.displayName?.trim() ||
+      null;
+    const phone = user.phone?.trim() || user.agencyProfile?.phone?.trim() || null;
+    const email = user.email?.trim() || user.agencyProfile?.email?.trim() || null;
+
+    if (!name && !phone && !email) return null;
+    return { name, phone, email };
+  }
+
+  private pdfFonts(): { regular: string; bold: string } {
+    return {
+      regular: '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+      bold: '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+    };
+  }
+
+  private createPdfDoc(): { doc: PDFKit.PDFDocument; chunks: Buffer[] } {
+    const { regular, bold } = this.pdfFonts();
     const chunks: Buffer[] = [];
     const doc = new PDFDocument({ size: 'A4', margin: 48 });
-    doc.registerFont('Regular', FONT_REGULAR);
-    doc.registerFont('Bold', FONT_BOLD);
+    doc.registerFont('Regular', regular);
+    doc.registerFont('Bold', bold);
     doc.on('data', (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    return { doc, chunks };
+  }
 
-    doc.font('Bold').fontSize(20).fillColor('#000000').text(p.title, { align: 'left' });
-    doc.moveDown(0.4);
-    doc.font('Regular').fontSize(11).fillColor('#666666').text('Презентация объекта', { align: 'left' });
-    doc.moveDown(0.8);
-    doc.font('Regular').fontSize(11).fillColor('#000000');
+  private pdfFinish(doc: PDFKit.PDFDocument, chunks: Buffer[]): Promise<Buffer> {
+    doc.end();
+    return new Promise<Buffer>((resolve, reject) => {
+      doc.once('end', () => resolve(Buffer.concat(chunks)));
+      doc.once('error', reject);
+    });
+  }
 
-    const lines: string[] = [];
-    lines.push(`Тип: ${p.kindLabel}`);
-    if (p.subtitle) lines.push(`Параметры: ${p.subtitle}`);
-    if (p.price != null)
-      lines.push(`Цена: ${new Intl.NumberFormat('ru-RU').format(Math.trunc(p.price))} ₽`);
-    if (contactPhone) lines.push(`Контакт: ${contactPhone}`);
-    if (p.region) lines.push(`Регион: ${p.region}`);
-    if (p.district) lines.push(`Район: ${p.district}`);
-    if (p.address) lines.push(`Адрес: ${p.address}`);
-    if (p.builder) lines.push(`Продавец / застройщик: ${p.builder}`);
-    if (p.blockName) lines.push(`ЖК / комплекс: ${p.blockName}`);
+  private drawPdfBrandHeader(doc: PDFKit.PDFDocument, contact: PdfAgentContact | null): number {
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const y0 = doc.y;
 
-    for (const ln of lines) doc.font('Regular').fontSize(11).fillColor('#1f1f1f').text(ln);
+    doc.font('Bold').fontSize(16).fillColor(PDF_BRAND_COLOR).text('LiveGrid', left, y0, { lineBreak: false });
+    doc.font('Regular').fontSize(8).fillColor(PDF_TEXT_MUTED).text('Платформа недвижимости', left, y0 + 18, {
+      lineBreak: false,
+    });
 
-    if (p.description?.trim()) {
-      doc.moveDown();
-      doc.font('Bold').fontSize(11).fillColor('#000000').text('Описание');
-      doc.moveDown(0.25);
-      doc.font('Regular').fontSize(10).fillColor('#232323').text(p.description.trim(), { align: 'left' });
+    const agentLine = formatPdfHeaderAgentLine(contact);
+    if (agentLine) {
+      doc.font('Regular').fontSize(9).fillColor(PDF_TEXT_DARK).text(agentLine, left, y0, {
+        width: right - left,
+        align: 'right',
+      });
     }
 
-    doc.moveDown();
-    doc.font('Regular').fontSize(9).fillColor('#888888').text('Документ сформатирован: ' + new Date(p.generatedAt).toLocaleString('ru-RU'));
+    const headerBottom = Math.max(y0 + 32, doc.y);
+    doc
+      .moveTo(left, headerBottom + 6)
+      .lineTo(right, headerBottom + 6)
+      .strokeColor('#E5E7EB')
+      .lineWidth(1)
+      .stroke();
+    doc.y = headerBottom + 14;
+    return doc.y;
+  }
+
+  private drawPdfFooterBar(doc: PDFKit.PDFDocument, contact: PdfAgentContact | null): void {
+    const footerLine = formatPdfFooterContact(contact);
+    if (!footerLine) return;
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const bottom = doc.page.height - doc.page.margins.bottom;
+    doc
+      .font('Regular')
+      .fontSize(8)
+      .fillColor(PDF_TEXT_MUTED)
+      .text(`По вопросам: ${footerLine}`, left, bottom - 28, { width: right - left, align: 'center' });
+  }
+
+  private drawPdfParamTable(doc: PDFKit.PDFDocument, rows: ReturnType<typeof listingPdfParamRows>): void {
+    const left = doc.page.margins.left;
+    const colW = (doc.page.width - doc.page.margins.left - doc.page.margins.right) / 2;
+    for (const row of rows) {
+      const y = doc.y;
+      doc.font('Regular').fontSize(9).fillColor(PDF_TEXT_MUTED).text(row.label, left, y, {
+        width: colW - 8,
+        lineBreak: false,
+      });
+      doc.font('Regular').fontSize(10).fillColor(PDF_TEXT_DARK).text(row.value, left + colW, y, {
+        width: colW,
+      });
+      doc.moveDown(0.35);
+    }
+  }
+
+  private async renderListingPdfFirstPage(
+    doc: PDFKit.PDFDocument,
+    p: ListingPresentationPayload,
+    contact: PdfAgentContact | null,
+  ): Promise<void> {
+    this.drawPdfBrandHeader(doc, contact);
+    const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const heroUrl = p.photoUrls[0];
+    if (heroUrl) {
+      const hero = await this.fetchImageBuffer(heroUrl);
+      if (hero) {
+        try {
+          doc.image(hero, { width: contentWidth, height: 200 });
+          doc.moveDown(0.6);
+        } catch {
+          /* skip broken hero */
+        }
+      }
+    }
+
+    doc.font('Bold').fontSize(18).fillColor(PDF_BRAND_COLOR).text(p.title, { align: 'left' });
+    doc.moveDown(0.35);
+    if (p.price != null && Number.isFinite(p.price)) {
+      doc
+        .font('Bold')
+        .fontSize(16)
+        .fillColor(PDF_TEXT_DARK)
+        .text(`${new Intl.NumberFormat('ru-RU').format(Math.trunc(p.price))} ₽`);
+      doc.moveDown(0.5);
+    }
+
+    doc.font('Bold').fontSize(11).fillColor(PDF_BRAND_COLOR).text('Параметры');
+    doc.moveDown(0.3);
+    this.drawPdfParamTable(doc, listingPdfParamRows(p));
+
+    if (p.description?.trim()) {
+      doc.moveDown(0.4);
+      doc.font('Bold').fontSize(11).fillColor(PDF_BRAND_COLOR).text('Описание');
+      doc.moveDown(0.2);
+      doc.font('Regular').fontSize(10).fillColor(PDF_TEXT_DARK).text(p.description.trim());
+    }
+
+    if (p.latitude != null && p.longitude != null) {
+      const mapBuf = await this.fetchImageBuffer(yandexStaticMapImageUrl(p.latitude, p.longitude));
+      doc.moveDown(0.5);
+      doc.font('Bold').fontSize(11).fillColor(PDF_BRAND_COLOR).text('Расположение');
+      doc.moveDown(0.25);
+      if (mapBuf) {
+        try {
+          doc.image(mapBuf, { width: contentWidth, height: 140 });
+        } catch {
+          doc.font('Regular').fontSize(9).fillColor(PDF_TEXT_MUTED).text(p.address ?? 'Карта недоступна');
+        }
+      } else if (p.address) {
+        doc.font('Regular').fontSize(10).fillColor(PDF_TEXT_DARK).text(p.address);
+      }
+    }
+
+    this.drawPdfFooterBar(doc, contact);
+  }
+
+  async generateListingPdf(listingId: number, creatorUserId?: string): Promise<Buffer> {
+    const row = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { ownerUserId: true },
+    });
+    const p = await this.getListingPresentation(listingId);
+    const contact = await this.resolvePdfAgentContact(creatorUserId, row?.ownerUserId);
+
+    const { doc, chunks } = this.createPdfDoc();
+    await this.renderListingPdfFirstPage(doc, p, contact);
 
     const fit = { fit: [500, 700] as [number, number] };
 
@@ -477,42 +594,41 @@ export class PresentationsService {
       const url = plans[i];
       const buf = await this.fetchImageBuffer(url);
       doc.addPage();
-      doc.font('Bold').fontSize(13).fillColor('#000000').text(`Планировка (${i + 1}/${plans.length})`);
+      this.drawPdfBrandHeader(doc, contact);
+      doc.font('Bold').fontSize(13).fillColor(PDF_BRAND_COLOR).text(`Планировка (${i + 1}/${plans.length})`);
       doc.moveDown(0.4);
       if (buf) {
         try {
           doc.image(buf, fit);
         } catch {
-          doc.font('Regular').fontSize(10).text('Не удалось встроить изображение.');
+          doc.font('Regular').fontSize(10).fillColor(PDF_TEXT_MUTED).text('Не удалось встроить изображение.');
         }
       } else {
-        doc.font('Regular').fontSize(10).text('Изображение недоступно по ссылке.');
+        doc.font('Regular').fontSize(10).fillColor(PDF_TEXT_MUTED).text('Изображение недоступно по ссылке.');
       }
+      this.drawPdfFooterBar(doc, contact);
     }
 
-    const photos = p.photoUrls.slice(0, 14);
+    const photos = p.photoUrls.slice(1, 15);
     for (let i = 0; i < photos.length; i++) {
       const url = photos[i];
       const buf = await this.fetchImageBuffer(url);
       doc.addPage();
-      doc.font('Bold').fontSize(13).fillColor('#000000').text(`Фото (${i + 1}/${photos.length})`);
+      this.drawPdfBrandHeader(doc, contact);
+      doc.font('Bold').fontSize(13).fillColor(PDF_BRAND_COLOR).text(`Фото (${i + 2}/${p.photoUrls.length})`);
       doc.moveDown(0.4);
       if (buf) {
         try {
           doc.image(buf, fit);
         } catch {
-          doc.font('Regular').fontSize(10).text('Не удалось встроить изображение.');
+          doc.font('Regular').fontSize(10).fillColor(PDF_TEXT_MUTED).text('Не удалось встроить изображение.');
         }
       } else {
-        doc.font('Regular').fontSize(10).text('Изображение недоступно по ссылке.');
+        doc.font('Regular').fontSize(10).fillColor(PDF_TEXT_MUTED).text('Изображение недоступно по ссылке.');
       }
+      this.drawPdfFooterBar(doc, contact);
     }
 
-    doc.end();
-
-    return await new Promise<Buffer>((resolve, reject) => {
-      doc.once('end', () => resolve(Buffer.concat(chunks)));
-      doc.once('error', reject);
-    });
+    return this.pdfFinish(doc, chunks);
   }
 }

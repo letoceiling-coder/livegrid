@@ -138,4 +138,15 @@ export class QueryEcosystemListingsDto {
   @IsOptional()
   @IsInt()
   per_page?: number;
+
+  @ApiPropertyOptional({ enum: ['APARTMENT', 'HOUSE'] })
+  @IsOptional()
+  @IsIn(['APARTMENT', 'HOUSE'])
+  kind?: 'APARTMENT' | 'HOUSE';
+
+  @ApiPropertyOptional({ description: 'Listing id or address/title substring' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  search?: string;
 }

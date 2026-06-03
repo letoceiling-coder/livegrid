@@ -16,3 +16,15 @@ export const AI_PROVIDER_MODELS: Record<string, string[]> = {
   GEMINI: ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash'],
   CLAUDE: ['claude-3-5-haiku-latest', 'claude-3-5-sonnet-latest'],
 };
+
+/** DALL-E models for news cover generation (OpenAI Images API). */
+export const DALL_E_IMAGE_MODELS = ['dall-e-3', 'dall-e-2'] as const;
+
+export const DALL_E_IMAGE_SIZES: Record<(typeof DALL_E_IMAGE_MODELS)[number], string[]> = {
+  'dall-e-3': ['1024x1024', '1792x1024', '1024x1792'],
+  'dall-e-2': ['256x256', '512x512', '1024x1024'],
+};
+
+export const DEFAULT_IMAGE_MODEL = 'dall-e-3';
+export const DEFAULT_IMAGE_SIZE = '1792x1024';
+export const DEFAULT_IMAGE_TIMEOUT_MS = 120_000;

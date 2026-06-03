@@ -34,10 +34,16 @@ export class PresentationsController {
   }
 
   @Public()
+  @OptionalJwtUser()
   @Get(':slug/pdf')
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Public: download presentation PDF by block slug' })
-  async downloadPdf(@Param('slug') slug: string, @Res({ passthrough: true }) res: Response) {
-    const buf = await this.service.generatePdf(slug);
+  async downloadPdf(
+    @Param('slug') slug: string,
+    @CurrentUser('sub') userId: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const buf = await this.service.generatePdf(slug, userId);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=\"presentation-${slug}.pdf\"`);
     res.setHeader('Content-Length', String(buf.length));

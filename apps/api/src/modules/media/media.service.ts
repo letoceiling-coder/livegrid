@@ -189,6 +189,52 @@ export class MediaService implements OnModuleInit {
     return row;
   }
 
+  /** Сохранить сгенерированное изображение (DALL-E и т.п.) в медиатеку. */
+  async saveImageBuffer(opts: {
+    buffer: Buffer;
+    mime: string;
+    originalFilename: string;
+    folderId?: number;
+    uploadedBy?: string;
+  }) {
+    const mime = (opts.mime || '').toLowerCase();
+    if (!IMAGE_MIMES.has(mime)) {
+      throw new BadRequestException('Недопустимый MIME сгенерированного изображения');
+    }
+    const trashId = await this.getTrashFolderId();
+    let folderId: number | null = null;
+    if (opts.folderId != null) {
+      if (opts.folderId === trashId) throw new BadRequestException('Нельзя сохранять в корзину');
+      const folder = await this.prisma.mediaFolder.findUnique({ where: { id: opts.folderId } });
+      if (!folder) throw new BadRequestException('Папка не найдена');
+      if (folder.isTrash) throw new BadRequestException('Нельзя сохранять в корзину');
+      folderId = opts.folderId;
+    } else {
+      const uploads = await this.prisma.mediaFolder.findFirst({
+        where: { parentId: null, isTrash: false, name: 'Загрузки' },
+      });
+      folderId = uploads?.id ?? null;
+    }
+
+    const storedName = `${randomUUID()}${this.extFromMime(mime, opts.originalFilename)}`;
+    const absDir = join(this.mediaRoot, 'media');
+    mkdirSync(absDir, { recursive: true });
+    const absPath = join(absDir, storedName);
+    await fs.writeFile(absPath, opts.buffer);
+
+    const url = `${PUBLIC_PREFIX}${storedName}`;
+    return this.prisma.mediaFile.create({
+      data: {
+        kind: 'PHOTO',
+        url,
+        originalFilename: opts.originalFilename,
+        sizeBytes: BigInt(opts.buffer.length),
+        uploadedBy: opts.uploadedBy ?? null,
+        folderId,
+      },
+    });
+  }
+
   async moveFileToTrash(id: number) {
     const trashId = await this.getTrashFolderId();
     const file = await this.prisma.mediaFile.findUnique({ where: { id } });

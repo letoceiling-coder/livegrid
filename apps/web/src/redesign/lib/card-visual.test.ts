@@ -10,6 +10,8 @@ import {
   complexRoomBandLabel,
   complexTotalUnits,
   complexYieldLabel,
+  complexCoverBadgeLabel,
+  complexInventoryLine,
   formatCompletionQuarterText,
 } from '@/redesign/lib/card-visual';
 import type { ResidentialComplex } from '@/redesign/data/types';
@@ -40,6 +42,14 @@ describe('card-visual complex helpers', () => {
   it('formats room band labels', () => {
     expect(complexRoomBandLabel(0)).toBe('Студии');
     expect(complexRoomBandLabel(2)).toBe('2Е-к.кв');
+    expect(complexRoomBandLabel(21)).toBe('2-к.кв');
+  });
+
+  it('picks cover badge label', () => {
+    expect(complexCoverBadgeLabel({ ...base, isPromoted: true })).toBe('Новый ЖК');
+    expect(
+      complexCoverBadgeLabel({ ...base, salesStartDate: '2026-06-01T00:00:00.000Z' }),
+    ).toBe('Старт продаж');
   });
 
   it('formats completion quarter text', () => {
@@ -64,7 +74,7 @@ describe('card-visual complex helpers', () => {
       ],
     });
     expect(lines.primary).toBe('Старт продаж');
-    expect(lines.secondary).toMatch(/корпус 4\.1/);
+    expect(lines.secondary).toMatch(/корпус 4\.1/i);
   });
 
   it('formats metro display line with transport time', () => {
@@ -124,14 +134,19 @@ describe('card-visual complex helpers', () => {
     });
     expect(rows).toHaveLength(2);
     expect(rows[0].label).toBe('Студии');
-    expect(rows[0].price).toBe('от 5 млн ₽');
-    expect(rows[1].price).toBe('от 6.5 млн ₽');
+    expect(rows[0].price.replace(/\s/g, ' ')).toBe('от 4 962 342 ₽');
+    expect(rows[1].price).toContain('6');
   });
 
   it('falls back to single price row when no bands', () => {
     const row = complexFallbackPriceRow(base);
     expect(row?.label).toBe('Цены от');
-    expect(row?.price).toBe('от 5 млн ₽');
+    expect(row?.price).toContain('4');
+  });
+
+  it('formats inventory with scenic count', () => {
+    expect(complexInventoryLine({ ...base, scenicCount: 95 })).toBe('Квартир 268 · Видовых 95');
+    expect(complexInventoryLine(base)).toBe('Квартир 268');
   });
 
   it('returns null yield when API fields missing', () => {

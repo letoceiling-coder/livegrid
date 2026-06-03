@@ -58,6 +58,7 @@ type ApiListingDetailUniversal = {
   sourceUrl: string | null;
   publicContact?: {
     kind: 'agent' | 'agency';
+    slug?: string | null;
     fullName?: string | null;
     label?: string;
     phone?: string | null;
@@ -811,6 +812,26 @@ const RedesignListingDetail = () => {
                     ) : null}
                   </div>
                 </div>
+                {data.publicContact.kind === 'agent' && data.publicContact.slug ? (
+                  <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-border">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="border-border text-foreground hover:bg-muted/50"
+                    >
+                      <Link to={`/agent/${data.publicContact.slug}`}>Информация об агенте</Link>
+                    </Button>
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="border-border text-foreground hover:bg-muted/50"
+                    >
+                      <Link to={`/agent/${data.publicContact.slug}/listings`}>Объявления агента</Link>
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             ) : data.builder?.name ? (
               <div className="rounded-2xl border border-border bg-card p-5">

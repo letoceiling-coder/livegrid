@@ -23,3 +23,23 @@ export function yandexMapsHref(opts: {
   if (addr) return `https://yandex.ru/maps/?text=${encodeURIComponent(addr)}`;
   return undefined;
 }
+
+/** Виджет Яндекс.Карт для iframe в подвале (ll = долгота, широта). */
+export function yandexMapWidgetSrc(opts: {
+  officeLat?: string;
+  officeLng?: string;
+  /** Поиск по адресу, если координат нет */
+  address?: string;
+}): string | undefined {
+  const lat = parseFloat(opts.officeLat ?? '');
+  const lng = parseFloat(opts.officeLng ?? '');
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    const ll = `${lng}%2C${lat}`;
+    return `https://yandex.ru/map-widget/v1/?ll=${ll}&z=17&pt=${lng}%2C${lat},pm2rdm&l=map`;
+  }
+  const addr = opts.address?.trim();
+  if (addr) {
+    return `https://yandex.ru/map-widget/v1/?text=${encodeURIComponent(addr)}&z=16&l=map`;
+  }
+  return undefined;
+}

@@ -25,6 +25,7 @@ export type ApiBlockListRow = {
   listingPriceMin?: number | null;
   listingPriceMax?: number | null;
   priceRanges?: { rooms: number; priceMin: number }[];
+  scenicCount?: number | null;
   buildings?: {
     id: number;
     name: string | null;
@@ -177,6 +178,8 @@ export function mapApiBlockListRowToResidentialComplex(b: ApiBlockListRow): Resi
     })),
     listingCount: b._count?.listings,
     priceRanges: b.priceRanges,
+    isPromoted: Boolean(b.isPromoted),
+    scenicCount: b.scenicCount ?? null,
     salesStartDate:
       b.salesStartDate != null
         ? typeof b.salesStartDate === 'string'

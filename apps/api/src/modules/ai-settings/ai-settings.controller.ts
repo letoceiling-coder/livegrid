@@ -23,6 +23,21 @@ export class AiSettingsAdminController {
     return this.service.setActiveProvider(body.provider ?? null);
   }
 
+  @Put('image-generation')
+  @Roles('admin')
+  @ApiOperation({ summary: 'Admin: DALL-E settings for news cover images' })
+  updateImageGeneration(
+    @Body()
+    body: {
+      enabled?: boolean;
+      model?: string;
+      size?: string;
+      timeoutMs?: number;
+    },
+  ) {
+    return this.service.updateImageGeneration(body);
+  }
+
   @Put(':provider')
   @Roles('admin')
   @ApiOperation({ summary: 'Admin: update AI provider settings' })

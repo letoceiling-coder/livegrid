@@ -1,6 +1,10 @@
 import { cn } from '@/lib/utils';
 import type { ResidentialComplex } from '@/redesign/data/types';
-import { formatPriceFrom, isPriceFallbackText, normalizePriceValue } from '@/redesign/lib/display-price';
+import {
+  formatPriceFromExact,
+  isPriceFallbackText,
+  normalizePriceValue,
+} from '@/redesign/lib/display-price';
 import { MIN_REASONABLE_PRICE_RUB } from '@/redesign/data/mock-data';
 
 /**
@@ -39,8 +43,10 @@ export const cardVisual = {
 
   /** ЖК marketplace card */
   complexShell:
-    'rounded-[20px] border border-neutral-200/80 bg-card overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:-translate-y-px',
-  complexMedia: 'relative shrink-0 overflow-hidden rounded-t-[20px] bg-muted aspect-[4/3]',
+    'rounded-[20px] border border-neutral-200/80 bg-card overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow duration-200 hover:shadow-md',
+  complexMedia: 'relative shrink-0 overflow-hidden rounded-t-[20px] bg-muted aspect-video',
+  complexCoverBadge:
+    'absolute left-2.5 top-2.5 z-10 rounded-lg px-2.5 py-1 text-[10px] font-semibold leading-tight shadow-md pointer-events-none',
   complexBody: 'flex flex-col gap-2.5 p-4 min-w-0',
   complexTitle: 'text-[17px] font-bold leading-[1.25] tracking-tight text-foreground line-clamp-2',
   complexMetaRow: 'flex items-start gap-2 min-w-0 text-xs text-muted-foreground leading-snug',
@@ -119,8 +125,16 @@ export function complexRoomBandLabel(rooms: number): string {
   if (rooms === 0) return 'Студии';
   if (rooms === 1) return '1-к.кв';
   if (rooms === 2) return '2Е-к.кв';
+  if (rooms === 21) return '2-к.кв';
   if (rooms === 3) return '3-к.кв';
   return '4+ к.кв';
+}
+
+/** Top-left cover badge — «Новый ЖК» or «Старт продаж». */
+export function complexCoverBadgeLabel(complex: ResidentialComplex): string | null {
+  if (complex.salesStartDate?.trim()) return 'Старт продаж';
+  if (complex.isPromoted) return 'Новый ЖК';
+  return null;
 }
 
 function capitalizeRuMonthYear(iso: string): string | null {
@@ -149,19 +163,19 @@ export function complexImageOverlayLines(complex: ResidentialComplex): {
   primary: string | null;
   secondary: string | null;
 } {
-  const hasStart = Boolean(complex.salesStartDate?.trim());
-  const primary = hasStart ? 'Старт продаж' : null;
   let secondary: string | null = null;
-  if (complex.salesStartDate) {
+  if (complex.salesStartDate?.trim()) {
     const monthYear = capitalizeRuMonthYear(complex.salesStartDate);
     const corp = complex.buildings[0]?.name?.trim();
+    const primary = 'Старт продаж';
     if (monthYear && corp) secondary = `${monthYear} — ${corp}`;
     else if (monthYear) secondary = monthYear;
+    return { primary, secondary };
   }
-  if (!primary && complex.status === 'planned') {
-    return { primary: 'Планируется', secondary };
+  if (complex.status === 'planned') {
+    return { primary: 'Планируется', secondary: null };
   }
-  return { primary, secondary };
+  return { primary: null, secondary: null };
 }
 
 /** Emphasized completion / delivery line */
@@ -242,14 +256,18 @@ export type ComplexPriceBandRow = { rooms: number; label: string; price: string 
 
 /** Dotted price rows from API priceRanges or loaded apartments */
 export function complexPriceBandRows(complex: ResidentialComplex): ComplexPriceBandRow[] {
+  const bandSortKey = (rooms: number) => {
+    if (rooms === 21) return 2.5;
+    return rooms;
+  };
   const fromApi = (complex.priceRanges ?? [])
     .filter((r) => normalizePriceValue(r.priceMin) != null)
-    .sort((a, b) => a.rooms - b.rooms)
+    .sort((a, b) => bandSortKey(a.rooms) - bandSortKey(b.rooms))
     .slice(0, 3)
     .map((r) => ({
       rooms: r.rooms,
       label: complexRoomBandLabel(r.rooms),
-      price: formatPriceFrom(r.priceMin),
+      price: formatPriceFromExact(r.priceMin),
     }));
 
   if (fromApi.length > 0) return fromApi;
@@ -269,8 +287,19 @@ export function complexPriceBandRows(complex: ResidentialComplex): ComplexPriceB
     .map(([rooms, price]) => ({
       rooms,
       label: complexRoomBandLabel(rooms),
-      price: formatPriceFrom(price),
+      price: formatPriceFromExact(price),
     }));
+}
+
+/** «Квартир 562 · Видовых 95» */
+export function complexInventoryLine(complex: ResidentialComplex): string | null {
+  const total = complexTotalUnits(complex);
+  if (total == null || total <= 0) return null;
+  const scenic = complex.scenicCount;
+  if (scenic != null && scenic > 0) {
+    return `Квартир ${total} · Видовых ${scenic}`;
+  }
+  return `Квартир ${total}`;
 }
 
 export function complexTotalUnits(complex: ResidentialComplex): number | null {
@@ -299,7 +328,7 @@ export function complexYieldLabel(complex: ResidentialComplex): string | null {
 }
 
 export function complexFallbackPriceRow(complex: ResidentialComplex): ComplexPriceBandRow | null {
-  const price = formatPriceFrom(complex.priceFrom);
+  const price = formatPriceFromExact(complex.priceFrom);
   if (isPriceFallbackText(price)) return null;
   return { rooms: -1, label: 'Цены от', price };
 }

@@ -40,6 +40,7 @@ const AccountNotifications = lazyWithReload(() => import("./account/pages/Accoun
 const AccountBillingPage = lazyWithReload(() => import("./account/pages/AccountBillingPage"));
 const PublicAgencyPage = lazyWithReload(() => import("./ecosystem/pages/PublicAgencyPage"));
 const PublicAgentPage = lazyWithReload(() => import("./ecosystem/pages/PublicAgentPage"));
+const PublicAgentsListPage = lazyWithReload(() => import("./ecosystem/pages/PublicAgentsListPage"));
 const PublicAgentListingsPage = lazyWithReload(() => import("./ecosystem/pages/PublicAgentListingsPage"));
 const Contacts = lazy(() => import("./pages/Contacts"));
 const Privacy = lazy(() => import("./pages/Privacy"));
@@ -171,6 +172,7 @@ const AppRoutes = () => (
 
     {/* Ecosystem — public agency/agent profiles */}
     <Route path="/agency/:slug" element={<PublicAgencyPage />} />
+    <Route path="/agents" element={<PublicAgentsListPage />} />
     <Route path="/agent/:slug/listings" element={<PublicAgentListingsPage />} />
     <Route path="/agent/:slug" element={<PublicAgentPage />} />
 

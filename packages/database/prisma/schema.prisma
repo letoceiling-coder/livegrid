@@ -1939,9 +1939,13 @@ model AiProviderSetting {
 }
 
 model NewsAiGlobalSetting {
-  id             Int             @id @default(1)
-  activeProvider AiProviderKind? @map("active_provider")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  id                     Int             @id @default(1)
+  activeProvider         AiProviderKind? @map("active_provider")
+  imageGenerationEnabled Boolean         @default(false) @map("image_generation_enabled")
+  imageModel             String          @default("dall-e-3") @map("image_model") @db.VarChar(64)
+  imageSize              String          @default("1792x1024") @map("image_size") @db.VarChar(32)
+  imageTimeoutMs         Int             @default(120000) @map("image_timeout_ms")
+  updatedAt              DateTime        @updatedAt @map("updated_at")
 
   @@map("news_ai_global_settings")
 }

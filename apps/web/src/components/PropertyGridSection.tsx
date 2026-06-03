@@ -220,7 +220,7 @@ const PropertyGridSection = ({ title, type }: Props) => {
         {!loading && !empty && (
           <div
             ref={scrollRef}
-            className="flex lg:grid lg:grid-cols-4 items-start gap-3 sm:gap-4 overflow-x-auto lg:overflow-visible snap-x snap-mandatory scrollbar-hide -mx-4 px-4 lg:mx-0 lg:px-0"
+            className="flex lg:grid lg:grid-cols-3 items-start gap-3 sm:gap-4 overflow-x-auto lg:overflow-visible snap-x snap-mandatory scrollbar-hide -mx-4 px-4 lg:mx-0 lg:px-0"
           >
             {showListingFallback
               ? listingFallbackCards.map((listing) => (

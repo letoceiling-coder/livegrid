@@ -1,332 +1,169 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Phone, Mail, MapPin, Clock, ChevronDown, Send, MessageCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Phone, Mail, MapPin, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSiteSettings, settingOptional } from '@/redesign/hooks/useSiteSettings';
-import { telHref, yandexMapsHref } from '@/lib/contact-links';
+import { setting, settingOptional, useSiteSettings } from '@/redesign/hooks/useSiteSettings';
+import { telHref, yandexMapsHref, yandexMapWidgetSrc } from '@/lib/contact-links';
+import {
+  FOOTER_CATALOG_LINKS,
+  FOOTER_COMPANY_LINKS,
+  FOOTER_DEFAULT_ADDRESS,
+  FOOTER_DEFAULT_EMAIL,
+  FOOTER_DEFAULT_HOURS,
+  FOOTER_DEFAULT_MAPS_URL,
+  FOOTER_DEFAULT_PHONE,
+} from '@/components/footer-constants';
 
-const navColumns = [
-  {
-    title: 'Недвижимость',
-    links: [
-      { label: 'Квартиры', to: '/catalog?type=apartments' },
-      { label: 'Дома', to: '/catalog?type=houses' },
-      { label: 'Участки', to: '/catalog?type=land' },
-      { label: 'Коммерция', to: '/catalog?type=commercial' },
-      { label: 'Новостройки', to: '/catalog?type=apartments&market=new' },
-      { label: 'Вторичка', to: '/catalog?type=apartments&market=secondary' },
-    ],
-  },
-  {
-    title: 'Сервисы',
-    links: [
-      { label: 'Подбор объекта', to: '/selection' },
-      { label: 'Каталог', to: '/catalog' },
-      { label: 'На карте', to: '/map' },
-    ],
-  },
-  {
-    title: 'Компания',
-    links: [
-      { label: 'О компании', to: '/about' },
-      { label: 'Контакты', to: '/contacts' },
-      { label: 'Новости', to: '/news' },
-      { label: 'Партнерам', to: '/partners' },
-      { label: 'Карьера', to: '/career' },
-    ],
-  },
-  {
-    title: 'Аккаунт',
-    links: [
-      { label: 'Войти', to: '/login' },
-      { label: 'Регистрация', to: '/register' },
-      { label: 'Избранное', to: '/favorites' },
-      { label: 'Личный кабинет', to: '/profile' },
-    ],
-  },
-];
+const footerLinkClass =
+  'inline-flex min-h-11 items-center text-sm opacity-80 hover:opacity-100 transition-opacity py-1.5 -my-1.5';
 
-const socialsDefs = [
-  { label: 'Telegram', icon: Send, settingsKey: 'telegram_url' },
-  { label: 'VK', icon: MessageCircle, settingsKey: 'vk_url' },
-  { label: 'YouTube', icon: () => <span className="text-[10px] font-bold leading-none">YT</span>, settingsKey: 'youtube_url' },
-  { label: 'Одноклассники', icon: () => <span className="text-[10px] font-bold leading-none">OK</span>, settingsKey: 'ok_url' },
-];
+const FooterNavColumn = ({
+  title,
+  links,
+}: {
+  title: string;
+  links: readonly { label: string; to: string }[];
+}) => (
+  <div>
+    <h3 className="text-xs font-semibold uppercase tracking-wider opacity-50 mb-2 sm:mb-3">{title}</h3>
+    <ul className="flex flex-col">
+      {links.map((l) => (
+        <li key={l.label}>
+          <Link to={l.to} className={footerLinkClass}>
+            {l.label}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
 
-const legalLinks: { label: string; to: string }[] = [
-  { label: 'Пользовательское соглашение', to: '/terms' },
-  { label: 'Политика конфиденциальности', to: '/privacy' },
-  { label: 'Обработка персональных данных (152-ФЗ)', to: '/privacy' },
-  { label: 'Согласие на обработку ПД', to: '/privacy' },
-  { label: 'Оферта', to: '/offer' },
-];
-
-/* Mobile accordion column */
-const MobileColumn = ({ title, links }: { title: string; links: { label: string; to: string }[] }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="border-b border-primary-foreground/10">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center justify-between w-full py-3 text-sm font-medium"
-      >
-        {title}
-        <ChevronDown className={cn('w-4 h-4 opacity-50 transition-transform duration-200', open && 'rotate-180')} />
-      </button>
-      <div className={cn('overflow-hidden transition-all duration-250', open ? 'max-h-[300px] pb-3' : 'max-h-0')}>
-        <ul className="space-y-2">
-          {links.map((l) => (
-            <li key={l.label}>
-              <Link to={l.to} className="text-xs opacity-60 hover:opacity-100 transition-opacity">{l.label}</Link>
-            </li>
-          ))}
-        </ul>
-      </div>
+const FooterOfficeMap = ({
+  widgetSrc,
+  mapsUrl,
+}: {
+  widgetSrc: string;
+  mapsUrl: string;
+}) => (
+  <div className="mt-6 sm:mt-8">
+    <div className="h-[300px] w-full overflow-hidden rounded-xl border border-primary-foreground/15 bg-primary-foreground/5">
+      <iframe
+        title="Офис LiveGrid на Яндекс Картах"
+        src={widgetSrc}
+        className="h-full w-full border-0"
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+      />
     </div>
-  );
-};
+    <a
+      href={mapsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(footerLinkClass, 'mt-2 text-xs opacity-60')}
+    >
+      Открыть в Яндекс Картах
+    </a>
+  </div>
+);
 
 const FooterSection = React.forwardRef<HTMLElement>((_, ref) => {
   const { data: s } = useSiteSettings();
 
-  const phoneMain = settingOptional(s, 'phone_main');
-  const phoneHref = phoneMain ? telHref(phoneMain) : undefined;
-  const emailVal = settingOptional(s, 'email');
-  const addressVal = settingOptional(s, 'address');
+  const phoneMain = setting(s, 'phone_main', FOOTER_DEFAULT_PHONE);
+  const phoneHref = telHref(phoneMain);
+  const emailVal =
+    settingOptional(s, 'email') ?? settingOptional(s, 'contacts_email') ?? FOOTER_DEFAULT_EMAIL;
+  const addressVal = setting(s, 'address', FOOTER_DEFAULT_ADDRESS);
   const officeLat = settingOptional(s, 'office_lat');
   const officeLng = settingOptional(s, 'office_lng');
+
   const mapsUrl =
-    addressVal || (officeLat && officeLng)
-      ? yandexMapsHref({ address: addressVal, officeLat, officeLng })
-      : undefined;
+    yandexMapsHref({ address: addressVal, officeLat, officeLng }) ?? FOOTER_DEFAULT_MAPS_URL;
 
   const whWeekday = settingOptional(s, 'work_hours_weekdays');
   const whWeekend = settingOptional(s, 'work_hours_weekend');
-  const whSingle = settingOptional(s, 'work_hours');
+  const whSingle = settingOptional(s, 'work_hours') ?? settingOptional(s, 'contacts_work_hours');
   const hourLines = [whWeekday, whWeekend].filter(Boolean) as string[];
-  if (hourLines.length === 0 && whSingle) hourLines.push(whSingle);
-  const showHours = hourLines.length > 0;
-
-  const companyName = settingOptional(s, 'company_name');
-  const inn = settingOptional(s, 'inn');
-  const ogrn = settingOptional(s, 'ogrn');
-  const companyParts: string[] = [];
-  if (companyName) companyParts.push(companyName);
-  if (inn) companyParts.push(`ИНН ${inn}`);
-  if (ogrn) companyParts.push(`ОГРН ${ogrn}`);
-  const companyLine =
-    companyParts.length > 0 ? companyParts.join(' · ') : settingOptional(s, 'company_info');
+  if (hourLines.length === 0) {
+    hourLines.push(whSingle?.trim() ? whSingle : FOOTER_DEFAULT_HOURS);
+  }
 
   const copyrightYear = settingOptional(s, 'copyright_year') ?? '2026';
 
-  const socials = socialsDefs
-    .map((d) => ({ ...d, href: settingOptional(s, d.settingsKey) }))
-    .filter((x): x is (typeof socialsDefs)[number] & { href: string } => Boolean(x.href));
+  const mapWidgetSrc =
+    yandexMapWidgetSrc({ officeLat, officeLng, address: addressVal }) ??
+    yandexMapWidgetSrc({ address: 'Белгород ул. Есенина 9' }) ??
+    'https://yandex.ru/map-widget/v1/?text=%D0%91%D0%B5%D0%BB%D0%B3%D0%BE%D1%80%D0%BE%D0%B4%20%D1%83%D0%BB.%20%D0%95%D1%81%D0%B5%D0%BD%D0%B8%D0%BD%D0%B0%209&z=16&l=map';
+
+  const contactLinkClass = cn(
+    'inline-flex min-h-11 items-center gap-2 text-sm opacity-80 hover:opacity-100 transition-opacity py-1',
+  );
 
   return (
-  <footer ref={ref} className="bg-foreground text-primary-foreground">
+    <footer ref={ref} className="bg-foreground text-primary-foreground">
+      <div className="max-w-[1400px] mx-auto px-4 py-8 sm:py-10 lg:py-12">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-10">
+          {/* Brand + contacts */}
+          <div className="sm:col-span-2 lg:col-span-1">
+            <Link to="/" className="inline-flex min-h-11 items-center gap-2.5 mb-2">
+              <img src="/logo.svg" alt="" className="w-8 h-8 object-contain" aria-hidden />
+              <span className="font-bold text-base">Live Grid</span>
+            </Link>
+            <p className="text-sm opacity-70 mb-4">Платформа недвижимости</p>
 
-    {/* LEVEL 1 — CTA */}
-    <div className="border-b border-primary-foreground/10">
-      <div className="max-w-[1400px] mx-auto px-4 py-8 sm:py-10 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
-        <div className="text-center sm:text-left">
-          <h3 className="text-base sm:text-lg font-bold mb-1">Нужна помощь с выбором?</h3>
-          <p className="text-xs sm:text-sm opacity-70">Эксперты LiveGrid подберут объект бесплатно</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-end">
-          <Button asChild className="rounded-xl h-10 px-5 text-xs sm:text-sm">
-            <Link to="/contacts">Получить консультацию</Link>
-          </Button>
-          {phoneHref ? (
-            <a
-              href={phoneHref}
-              className="inline-flex items-center gap-2 h-10 px-5 rounded-xl border border-primary-foreground/20 text-xs sm:text-sm font-medium hover:bg-primary-foreground/10 transition-colors"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              Позвонить
-            </a>
-          ) : null}
-          <Link
-            to="/register"
-            className="inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-primary-foreground/10 text-xs sm:text-sm font-medium hover:bg-primary-foreground/20 transition-colors"
-          >
-            Зарегистрироваться
-          </Link>
-        </div>
-      </div>
-    </div>
-
-    {/* LEVEL 2 — Main footer */}
-    <div className="max-w-[1400px] mx-auto px-4 py-8 sm:py-10">
-
-      {/* Desktop grid */}
-      <div className="hidden md:grid md:grid-cols-[1.3fr_1fr_1fr_1fr_1fr] gap-6 lg:gap-8">
-
-        {/* Brand + contacts */}
-        <div>
-          <Link to="/" className="flex items-center gap-2.5 mb-4">
-            <img src="/logo.svg" alt="Live Grid" className="w-8 h-8 object-contain" />
-            <span className="font-bold text-sm">Live Grid</span>
-          </Link>
-
-          <div className="space-y-2.5 text-xs opacity-70">
-            {phoneMain && phoneHref ? (
-              <a href={phoneHref} className="flex items-center gap-2 hover:opacity-100 transition-opacity">
-                <Phone className="w-3.5 h-3.5 shrink-0" />
-                {phoneMain}
-              </a>
-            ) : null}
-            {emailVal ? (
-              <a href={`mailto:${emailVal}`} className="flex items-center gap-2 hover:opacity-100 transition-opacity">
-                <Mail className="w-3.5 h-3.5 shrink-0" />
-                {emailVal}
-              </a>
-            ) : null}
-            {addressVal ? (
-              <div className="flex items-start gap-2">
-                <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                {mapsUrl ? (
-                  <a
-                    href={mapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:opacity-100 transition-opacity underline-offset-2 hover:underline"
-                  >
-                    {addressVal}
-                  </a>
-                ) : (
-                  <span>{addressVal}</span>
-                )}
-              </div>
-            ) : null}
-            {showHours ? (
-              <div className="flex items-start gap-2">
-                <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                <div>
-                  {hourLines.map((line, i) => (
-                    <p key={`${line}-${i}`}>{line}</p>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {socials.length > 0 ? (
-          <div className="flex items-center gap-2 mt-4">
-            {socials.map((s) => (
+            <div className="space-y-0.5">
               <a
-                key={s.label}
-                href={s.href}
+                href={mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={s.label}
-                className="w-8 h-8 rounded-lg bg-primary-foreground/10 flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors"
+                className={cn(contactLinkClass, 'items-start whitespace-pre-line')}
               >
-                {typeof s.icon === 'function' && s.icon.length === 0
-                  ? <s.icon />
-                  : <s.icon className="w-3.5 h-3.5" />
-                }
+                <MapPin className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+                <span className="underline-offset-2 hover:underline">{addressVal}</span>
               </a>
-            ))}
+              <a href={phoneHref} className={contactLinkClass}>
+                <Phone className="w-4 h-4 shrink-0" aria-hidden />
+                {phoneMain}
+              </a>
+              <a href={`mailto:${emailVal}`} className={contactLinkClass}>
+                <Mail className="w-4 h-4 shrink-0" aria-hidden />
+                {emailVal}
+              </a>
+              <div className={cn(contactLinkClass, 'opacity-80')}>
+                <Clock className="w-4 h-4 shrink-0" aria-hidden />
+                <span>
+                  {hourLines.map((line, i) => (
+                    <span key={`${line}-${i}`}>
+                      {i > 0 ? ' · ' : null}
+                      {line}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            </div>
           </div>
-          ) : null}
+
+          <FooterNavColumn title="Каталог" links={FOOTER_CATALOG_LINKS} />
+          <FooterNavColumn title="Компания" links={FOOTER_COMPANY_LINKS} />
         </div>
 
-        {/* Nav columns */}
-        {navColumns.map((col) => (
-          <div key={col.title}>
-            <h4 className="text-xs font-semibold uppercase tracking-wider opacity-50 mb-3">{col.title}</h4>
-            <ul className="space-y-2">
-              {col.links.map((l) => (
-                <li key={l.label}>
-                  <Link to={l.to} className="text-xs opacity-60 hover:opacity-100 transition-opacity">{l.label}</Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <FooterOfficeMap widgetSrc={mapWidgetSrc} mapsUrl={mapsUrl} />
       </div>
 
-      {/* Mobile: contacts + accordion */}
-      <div className="md:hidden">
-        {/* Brand */}
-        <Link to="/" className="flex items-center gap-2.5 mb-5">
-          <img src="/logo.svg" alt="Live Grid" className="w-8 h-8 object-contain" />
-          <span className="font-bold text-sm">Live Grid</span>
-        </Link>
-
-        {/* Contacts inline */}
-        <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs opacity-70 mb-5">
-          {phoneMain && phoneHref ? (
-            <a href={phoneHref} className="flex items-center gap-1.5">
-              <Phone className="w-3.5 h-3.5" /> {phoneMain}
-            </a>
-          ) : null}
-          {emailVal ? (
-            <a href={`mailto:${emailVal}`} className="flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5" /> {emailVal}
-            </a>
-          ) : null}
-        </div>
-
-        {/* Accordion */}
-        {navColumns.map((col) => (
-          <MobileColumn key={col.title} title={col.title} links={col.links} />
-        ))}
-
-        {socials.length > 0 ? (
-        <div className="flex items-center gap-2 mt-5">
-          {socials.map((s) => (
-            <a
-              key={s.label}
-              href={s.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={s.label}
-              className="w-9 h-9 rounded-lg bg-primary-foreground/10 flex items-center justify-center hover:bg-primary transition-colors"
-            >
-              {typeof s.icon === 'function' && s.icon.length === 0
-                ? <s.icon />
-                : <s.icon className="w-4 h-4" />
-              }
-            </a>
-          ))}
-        </div>
-        ) : null}
-      </div>
-    </div>
-
-    {/* LEVEL 3 — Legal */}
-    <div className="border-t border-primary-foreground/10">
-      <div className="max-w-[1400px] mx-auto px-4 py-5 sm:py-6">
-        {/* Legal links */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5 mb-3">
-          {legalLinks.map((l) => (
-            <Link
-              key={l.label}
-              to={l.to}
-              className="text-[10px] sm:text-[11px] opacity-40 hover:opacity-70 transition-opacity"
-            >
-              {l.label}
+      <div className="border-t border-primary-foreground/10">
+        <div className="max-w-[1400px] mx-auto px-4 py-5 sm:py-6">
+          <p className="text-xs sm:text-sm opacity-50">
+            © {copyrightYear} LiveGrid
+            <span className="opacity-40 mx-2" aria-hidden>
+              ·
+            </span>
+            <Link to="/privacy" className="inline-flex min-h-11 items-center hover:opacity-80 transition-opacity">
+              Политика конфиденциальности
             </Link>
-          ))}
-        </div>
-
-        {/* Company details */}
-        {companyLine || addressVal ? (
-          <p className="text-[10px] sm:text-[11px] opacity-30 leading-relaxed mb-2">
-            {[companyLine, addressVal].filter(Boolean).join(' · ')}
           </p>
-        ) : null}
-
-        {/* Copyright */}
-        <p className="text-[10px] sm:text-[11px] opacity-40">
-          © {copyrightYear} LiveGrid. Все права защищены.
-        </p>
+        </div>
       </div>
-    </div>
-  </footer>
+    </footer>
   );
 });
 

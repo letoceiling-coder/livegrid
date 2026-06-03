@@ -226,6 +226,28 @@ export async function apiDelete(path: string, init?: RequestInit): Promise<void>
   if (!parsed.ok) throw new ApiError(parsed.status, parsed.text);
 }
 
+/** Скачивание бинарного файла (PDF и т.д.) с Bearer-токеном при наличии сессии. */
+export async function apiDownloadBlob(path: string, filename: string): Promise<void> {
+  const res = await apiFetch(path, { method: 'GET', headers: { Accept: 'application/pdf' } });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(res.status, text || `${res.status} ${res.statusText}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,

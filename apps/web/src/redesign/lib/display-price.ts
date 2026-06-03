@@ -70,6 +70,18 @@ export function formatPriceFrom(
   return formatDisplayPrice(value, { prefix: 'от', withCurrency });
 }
 
+/** ЖК marketplace cards — full ruble amount without «млн» rounding (TrendAgent-style). */
+export function formatPriceFromExact(
+  value: string | number | null | undefined,
+  withCurrency = true,
+): string {
+  const rub = normalizePriceValue(value);
+  if (rub === null) return PRICE_ON_REQUEST;
+  const amount = Math.round(rub).toLocaleString('ru-RU');
+  const suffix = withCurrency ? ' ₽' : '';
+  return `от ${amount}${suffix}`;
+}
+
 /** Map marker badge: «от 6.8 млн» without ₽. */
 export function formatMarkerPriceFrom(value: string | number | null | undefined): string {
   return formatDisplayPrice(value, { prefix: 'от', withCurrency: false });

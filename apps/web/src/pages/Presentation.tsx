@@ -1,10 +1,11 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Printer, MapPin, Building2, ExternalLink, Download, CalendarClock } from 'lucide-react';
+import { Printer, MapPin, Building2, ExternalLink, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import FooterSection from '@/components/FooterSection';
-import { apiGetOrNull, apiUrl } from '@/lib/api';
+import DownloadPdfButton from '@/shared/components/DownloadPdfButton';
+import { apiGetOrNull } from '@/lib/api';
 
 const PLACEHOLDER = '/placeholder.svg';
 
@@ -89,12 +90,10 @@ const Presentation = () => {
             </Link>
           </Button>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" asChild>
-              <a href={apiUrl(`/presentations/${encodeURIComponent(p.slug)}/pdf`)}>
-                <Download className="w-4 h-4 mr-2" />
-                Скачать PDF
-              </a>
-            </Button>
+            <DownloadPdfButton
+              apiPath={`/presentations/${encodeURIComponent(p.slug)}/pdf`}
+              filename={`presentation-${p.slug}.pdf`}
+            />
             <Button type="button" size="sm" onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />
               Печать
