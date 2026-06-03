@@ -8,6 +8,8 @@ type Health = { status: string; services?: { database?: string } };
  * Тонкая полоска под шапкой: проверка доступности API (Sprint 2 — первый живой запрос).
  */
 export function ApiConnectionStrip() {
+  if (import.meta.env.PROD) return null;
+
   const { isAuthenticated, user, loading } = useAuth();
   const canSeeStrip = isAuthenticated && user?.role === 'admin';
 

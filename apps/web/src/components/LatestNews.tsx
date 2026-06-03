@@ -49,7 +49,10 @@ const LatestNews = () => {
     staleTime: 60_000,
   });
 
-  const items = data?.data ?? [];
+  const items = (data?.data ?? []).filter((n) => {
+    const url = n.imageUrl?.trim() ?? '';
+    return url.startsWith('/uploads/media/');
+  });
   if (!isLoading && items.length === 0) return null;
 
   return (

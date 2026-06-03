@@ -812,7 +812,7 @@ const RedesignComplex = () => {
               {sectionHeading('Похожие жилые комплексы')}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {similarComplexes.map((c) => (
-                  <ComplexCard key={c.id} complex={c} />
+                  <ComplexCard key={c.id} complex={c} variant="compact" coverAspect="16/9" />
                 ))}
               </div>
             </section>

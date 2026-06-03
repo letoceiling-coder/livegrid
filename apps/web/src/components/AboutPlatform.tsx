@@ -9,11 +9,13 @@ import {
   aboutPlatformSectionBg,
   normalizeAboutPlatformSettings,
   sortedEnabledStats,
+  aboutPlatformStatHref,
   type AboutPlatformSettings,
   type AboutPlatformStat,
 } from '@/shared/lib/about-platform-cms';
 import { useAboutPlatformSection } from '@/shared/hooks/useAboutPlatformSection';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
+import { useSiteSettings, settingOptional } from '@/redesign/hooks/useSiteSettings';
 
 type Props = {
   pageSlug?: string;
@@ -29,9 +31,9 @@ function formatStatNumber(n: number): string {
 
 function applyLiveStatValue(stat: AboutPlatformStat, live: Record<string, string | null>): string {
   const label = stat.label.toLowerCase();
-  if (label.includes('объект')) return live.objects ?? stat.value;
+  if (label.includes('квартир') || label.includes('объект')) return live.apartments ?? stat.value;
   if (label.includes('комплекс') || label.includes('жк')) return live.complexes ?? stat.value;
-  if (label.includes('застройщ')) return live.builders ?? stat.value;
+  if (label.includes('регион')) return live.regions ?? stat.value;
   return stat.value;
 }
 
@@ -68,6 +70,7 @@ function CtaLink({
 const AboutPlatform = ({ pageSlug = '/', settings: settingsProp, preview = false }: Props) => {
   const cms = useAboutPlatformSection(preview ? '' : pageSlug);
   const { data: defaultRegionId } = useDefaultRegionId();
+  const { data: siteMap } = useSiteSettings();
 
   const kindCounts = useQuery({
     queryKey: ['stats', 'listing-kind-counts', defaultRegionId],
@@ -90,7 +93,7 @@ const AboutPlatform = ({ pageSlug = '/', settings: settingsProp, preview = false
   const globalCounters = useQuery({
     queryKey: ['stats', 'counters'],
     queryFn: () =>
-      apiGet<{ blocks: number; apartments: number; builders: number; regions: number }>(
+      apiGet<{ blocks: number; apartments: number; builders: number; regions: number; regionNames?: string[] }>(
         '/stats/counters',
       ),
     enabled: !preview,
@@ -98,21 +101,27 @@ const AboutPlatform = ({ pageSlug = '/', settings: settingsProp, preview = false
   });
 
   const liveStats = useMemo((): Record<string, string | null> => {
-    const kind = kindCounts.data;
-    const objects =
-      kind && Object.values(kind).reduce((a, b) => a + b, 0) > 0
-        ? formatStatNumber(Object.values(kind).reduce((a, b) => a + b, 0))
+    const apartments =
+      globalCounters.data?.apartments != null && globalCounters.data.apartments > 0
+        ? globalCounters.data.apartments.toLocaleString('ru-RU')
         : null;
     const complexes =
-      catalogCounts.data?.blocks != null && catalogCounts.data.blocks > 0
-        ? formatStatNumber(catalogCounts.data.blocks)
-        : null;
-    const builders =
-      globalCounters.data?.builders != null && globalCounters.data.builders > 0
-        ? formatStatNumber(globalCounters.data.builders)
-        : null;
-    return { objects, complexes, builders };
-  }, [kindCounts.data, catalogCounts.data, globalCounters.data]);
+      globalCounters.data?.blocks != null && globalCounters.data.blocks > 0
+        ? globalCounters.data.blocks.toLocaleString('ru-RU')
+        : catalogCounts.data?.blocks != null && catalogCounts.data.blocks > 0
+          ? formatStatNumber(catalogCounts.data.blocks)
+          : null;
+    const names = globalCounters.data?.regionNames ?? [];
+    const regions =
+      names.length > 0
+        ? names.length <= 3
+          ? names.join(' и ')
+          : `${names.length} региона`
+        : globalCounters.data?.regions != null && globalCounters.data.regions > 0
+          ? String(globalCounters.data.regions)
+          : null;
+    return { apartments, complexes, regions };
+  }, [catalogCounts.data, globalCounters.data]);
 
   if (!preview && !settingsProp && cms === null) return null;
 
@@ -121,7 +130,8 @@ const AboutPlatform = ({ pageSlug = '/', settings: settingsProp, preview = false
     ...s,
     value: preview ? s.value : applyLiveStatValue(s, liveStats),
   }));
-  const desktopSrc = settings.imageUrl?.trim() || aboutMain;
+  const cmsAboutImage = settingOptional(siteMap, 'about_platform_image');
+  const desktopSrc = settings.imageUrl?.trim() || cmsAboutImage || aboutMain;
   const mobileSrc = settings.imageUrlMobile?.trim() || desktopSrc;
 
   return (
@@ -184,20 +194,32 @@ const AboutPlatform = ({ pageSlug = '/', settings: settingsProp, preview = false
           >
             {stats.map((s) => {
               const Icon = aboutPlatformIcon(s.icon);
-              return (
-                <li
-                  key={s.id}
-                  className="rounded-xl border border-border/60 bg-background/90 px-3 py-2.5 sm:px-3.5 sm:py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
-                >
-                  <div className="flex items-start gap-2">
-                    <Icon className="w-3.5 h-3.5 text-muted-foreground/80 shrink-0 mt-0.5" aria-hidden />
-                    <div className="min-w-0">
-                      <div className="text-base sm:text-lg font-bold tabular-nums leading-none text-foreground">
-                        {s.value}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground leading-snug mt-1 line-clamp-2">{s.label}</div>
+              const href = preview ? null : aboutPlatformStatHref(s.label);
+              const inner = (
+                <div className="flex items-start gap-2">
+                  <Icon className="w-3.5 h-3.5 text-muted-foreground/80 shrink-0 mt-0.5" aria-hidden />
+                  <div className="min-w-0">
+                    <div className="text-base sm:text-lg font-bold tabular-nums leading-none text-foreground">
+                      {s.value}
                     </div>
+                    <div className="text-[11px] text-muted-foreground leading-snug mt-1 line-clamp-2">{s.label}</div>
                   </div>
+                </div>
+              );
+              return (
+                <li key={s.id}>
+                  {href ? (
+                    <Link
+                      to={href}
+                      className="block rounded-xl border border-border/60 bg-background/90 px-3 py-2.5 sm:px-3.5 sm:py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:border-primary/30 transition-colors"
+                    >
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div className="rounded-xl border border-border/60 bg-background/90 px-3 py-2.5 sm:px-3.5 sm:py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                      {inner}
+                    </div>
+                  )}
                 </li>
               );
             })}

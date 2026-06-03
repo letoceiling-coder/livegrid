@@ -49,7 +49,7 @@ const RedesignIndex = () => {
     const pick = (promoted.length >= 6 ? promoted : pool.length ? pool : rows)
       .slice()
       .sort((a, z) => (z._count?.listings ?? 0) - (a._count?.listings ?? 0))
-      .slice(0, 6)
+      .slice(0, 8)
       .map(mapApiBlockListRowToResidentialComplex);
     return pick;
   }, [blocksFeatured.data]);
@@ -82,10 +82,9 @@ const RedesignIndex = () => {
           </div>
         </div>
 
-        {/* Mobile: 1, tablet: 2, desktop: 3 */}
-        <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 items-start">
+        <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-start">
           {featured.map((c) => (
-            <ComplexCard key={c.id} complex={c} variant="popular" coverAspect="4/3" />
+            <ComplexCard key={c.id} complex={c} variant="compact" coverAspect="16/9" />
           ))}
         </div>
 
@@ -93,7 +92,7 @@ const RedesignIndex = () => {
         <div className="flex sm:hidden gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4">
           {featured.map(c => (
             <div key={c.id} className="min-w-[260px] snap-start shrink-0">
-              <ComplexCard complex={c} variant="popular" coverAspect="4/3" />
+              <ComplexCard complex={c} variant="compact" coverAspect="16/9" />
             </div>
           ))}
         </div>

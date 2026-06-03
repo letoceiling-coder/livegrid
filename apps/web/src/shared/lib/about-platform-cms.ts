@@ -67,11 +67,14 @@ export const DEFAULT_ABOUT_PLATFORM_SETTINGS: AboutPlatformSettings = {
   imageUrlMobile: '',
   backgroundVariant: 'muted',
   stats: [
-    { id: 's1', value: '65 122', label: 'объектов в каталоге', icon: 'layers', enabled: true, order: 0 },
-    { id: 's2', value: '480+', label: 'жилых комплексов', icon: 'building2', enabled: true, order: 1 },
-    { id: 's3', value: '120+', label: 'застройщиков', icon: 'users', enabled: true, order: 2 },
+    { id: 's1', value: '—', label: 'квартир в каталоге', icon: 'layers', enabled: true, order: 0 },
+    { id: 's2', value: '—', label: 'жилых комплексов', icon: 'building2', enabled: true, order: 1 },
+    { id: 's3', value: '—', label: 'регионов на платформе', icon: 'map-pin', enabled: true, order: 2 },
   ],
 };
+
+const DEMO_STAT_LABEL_BLOCK =
+  /пользовател|10\s*лет|85\s*регион|100\s*000|50\s*000/i;
 
 function statId(): string {
   return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -143,7 +146,18 @@ export function normalizeAboutPlatformSettings(
 }
 
 export function sortedEnabledStats(settings: AboutPlatformSettings): AboutPlatformStat[] {
-  return settings.stats.filter((s) => s.enabled && s.value.trim()).sort((a, b) => a.order - b.order);
+  return settings.stats
+    .filter((s) => s.enabled && s.value.trim() && !DEMO_STAT_LABEL_BLOCK.test(s.label))
+    .sort((a, b) => a.order - b.order)
+    .slice(0, 3);
+}
+
+export function aboutPlatformStatHref(label: string): string | null {
+  const l = label.toLowerCase();
+  if (l.includes('квартир') || l.includes('объект')) return '/catalog';
+  if (l.includes('жк') || l.includes('комплекс')) return '/catalog?type=apartments';
+  if (l.includes('регион')) return '/catalog';
+  return null;
 }
 
 export function aboutPlatformSectionBg(variant: AboutPlatformBackground): string {

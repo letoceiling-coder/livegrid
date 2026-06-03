@@ -459,37 +459,46 @@ const RedesignApartment = () => {
           </div>
         ) : null}
 
-        <ApartmentMediaGallery
-          planSrc={apt.planImage}
-          finishingSrc={apt.finishingImage}
-          gallerySrcs={mediaImages}
-          title={`${roomLabel}, ${apt.area} м²`}
-        />
-
-        <ComplexAnchorNav
-          sections={navSections}
-          activeId={activeSection || navSections[0]?.id || ''}
-          onNavigate={scrollToSection}
-        />
-
-        <div className="space-y-8 sm:space-y-10">
-          <ApartmentPriceTrust
-            apartment={apt}
-            complexName={complex.name}
-            complexSlug={complex.slug}
-            buildingName={building.name}
-            address={complex.address}
-            roomLabel={roomLabel}
-          />
-
-          <section id="cta" className="scroll-mt-28">
-            <ConversionCTABar
-              context={baseConsultContext}
-              onConsultation={openConsultation}
-              consultationLabel={isSold ? CONVERSION_CTA.consultation : CONVERSION_CTA.viewing}
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_min(40%,340px)] lg:gap-8 xl:gap-10 lg:items-start">
+          <div className="min-w-0">
+            <ApartmentMediaGallery
+              planSrc={apt.planImage}
+              finishingSrc={apt.finishingImage}
+              gallerySrcs={mediaImages}
+              title={`${roomLabel}, ${apt.area} м²`}
             />
-          </section>
 
+            <ComplexAnchorNav
+              sections={navSections}
+              activeId={activeSection || navSections[0]?.id || ''}
+              onNavigate={scrollToSection}
+            />
+
+            <div className="lg:hidden mt-4 space-y-4">
+              <ApartmentPriceTrust
+                apartment={apt}
+                complexName={complex.name}
+                complexSlug={complex.slug}
+                buildingName={building.name}
+                address={complex.address}
+                roomLabel={roomLabel}
+              />
+              <ConversionCTABar
+                context={baseConsultContext}
+                onConsultation={openConsultation}
+                consultationLabel={isSold ? CONVERSION_CTA.consultation : CONVERSION_CTA.viewing}
+              />
+              {listingId != null ? (
+                <Button variant="outline" className="w-full" asChild>
+                  <Link to={`/presentation/listing/${listingId}`}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Презентация PDF
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
+
+        <div className="space-y-8 sm:space-y-10 mt-6 lg:mt-6">
           <ApartmentCharacteristics
             apartment={apt}
             building={building}
@@ -643,9 +652,42 @@ const RedesignApartment = () => {
             </div>
           </section>
         </div>
+          </div>
+
+          <aside className="hidden lg:block sticky top-20 self-start space-y-4">
+            <ApartmentPriceTrust
+              apartment={apt}
+              complexName={complex.name}
+              complexSlug={complex.slug}
+              buildingName={building.name}
+              address={complex.address}
+              roomLabel={roomLabel}
+            />
+            <ConversionCTABar
+              context={baseConsultContext}
+              onConsultation={openConsultation}
+              consultationLabel={isSold ? CONVERSION_CTA.consultation : CONVERSION_CTA.viewing}
+            />
+            {listingId != null ? (
+              <Button variant="outline" className="w-full" asChild>
+                <Link to={`/presentation/listing/${listingId}`}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Презентация PDF
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" className="w-full" asChild>
+                <Link to={`/presentation/${complex.slug}`}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Презентация PDF
+                </Link>
+              </Button>
+            )}
+          </aside>
+        </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm p-3 lg:hidden safe-area-pb">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm p-3 lg:hidden safe-area-pb min-h-14">
         <ConversionCTABar
           context={baseConsultContext}
           onConsultation={openConsultation}

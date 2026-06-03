@@ -239,7 +239,7 @@ const Profile = () => {
       <RedesignHeader />
       <div className="max-w-[1400px] mx-auto px-4 py-8 sm:py-12">
         <h1 className="text-2xl sm:text-3xl font-bold mb-8">Личный кабинет</h1>
-        <div className="grid lg:grid-cols-[280px_1fr] gap-8">
+        <div className="grid lg:grid-cols-[280px_1fr] gap-8 items-start">
           <div className="bg-card border border-border rounded-xl p-6 text-center">
             <div className="relative mx-auto mb-4 h-20 w-20">
               <div className="h-20 w-20 overflow-hidden rounded-full bg-muted flex items-center justify-center">

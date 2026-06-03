@@ -26,6 +26,7 @@ const ContactsSection = React.forwardRef<HTMLElement>((_, ref) => {
       ? yandexMapsHref({ address, officeLat: lat, officeLng: lng })
       : undefined;
   const officeTitle = settingOptional(s, 'office_title');
+  const contactImage = settingOptional(s, 'contact_block_image') || contactMap;
 
   const socials = SOCIAL_DEFS.map(({ label, key }) => ({
     label,
@@ -99,7 +100,7 @@ const ContactsSection = React.forwardRef<HTMLElement>((_, ref) => {
             ) : null}
           </div>
           <div className="relative rounded-xl overflow-hidden min-h-[240px] sm:min-h-[300px]">
-            <img src={contactMap} alt="Расположение офиса LiveGrid" className="w-full h-full object-cover" loading="lazy" />
+            <img src={contactImage} alt="Расположение офиса LiveGrid" className="w-full h-full object-cover" loading="lazy" />
             <div className="absolute inset-0 bg-gradient-to-t from-foreground/30 via-transparent to-transparent" />
             {showOverlay ? (
               <div className="absolute bottom-4 left-4 bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2 max-w-[min(100%-2rem,320px)]">

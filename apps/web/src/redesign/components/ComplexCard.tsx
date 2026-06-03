@@ -24,13 +24,14 @@ import {
 
 interface Props {
   complex: ResidentialComplex;
-  variant?: 'grid' | 'list' | 'popular';
+  variant?: 'grid' | 'list' | 'popular' | 'compact';
   coverAspect?: '16/9' | '4/3';
 }
 
 const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props) => {
   const isPopular = variant === 'popular';
-  const cardVariant = variant === 'popular' ? 'grid' : variant;
+  const isCompact = variant === 'compact';
+  const cardVariant = variant === 'popular' || variant === 'compact' ? 'grid' : variant;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
@@ -102,13 +103,18 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
 
   const contentBlock = (
     <>
-      <h3 className={cn(cardVisual.complexTitle, 'group-hover:text-primary transition-colors')}>
+      <h3
+        className={cn(
+          isCompact ? 'text-base font-bold leading-snug tracking-tight text-foreground line-clamp-2' : cardVisual.complexTitle,
+          'group-hover:text-primary transition-colors',
+        )}
+      >
         {complex.name}
       </h3>
 
       {metroLine ? (
         <div className={cardVisual.complexMetaRow}>
-          {isPopular ? (
+          {isPopular || isCompact ? (
             <span className={cardVisual.complexMetroDot} aria-hidden />
           ) : (
             <TrainFront className={cardVisual.complexMetaIcon} aria-hidden />
@@ -278,7 +284,7 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
         </div>
       ) : null}
 
-      <div className={cn(cardVisual.complexBody, 'flex-1')}>{contentBlock}</div>
+      <div className={cn(cardVisual.complexBody, isCompact && 'p-3 gap-2', 'flex-1')}>{contentBlock}</div>
     </Link>
   );
 };

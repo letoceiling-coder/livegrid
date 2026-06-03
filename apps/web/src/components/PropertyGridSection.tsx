@@ -2,9 +2,6 @@ import { useMemo, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import ComplexCard from '@/redesign/components/ComplexCard';
 import { mapApiBlockListRowToResidentialComplex } from '@/redesign/lib/blocks-from-api';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import LeadForm from '@/shared/components/LeadForm';
 import { ChevronLeft, ChevronRight, Flame, ArrowRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -36,14 +33,12 @@ function startDateRange(windowDays: number): { from: string; to: string } {
 const PropertyGridSection = ({ title, type }: Props) => {
   const { data: regionId } = useDefaultRegionId();
   const { data: siteMap } = useSiteSettings();
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [helpFormKey, setHelpFormKey] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isHot = type === 'hot';
   const isStart = type === 'start';
 
   const hotPer = intSetting(siteMap, 'home_hot_per_page', 8);
-  const startPer = intSetting(siteMap, 'home_start_per_page', 8);
+  const startPer = intSetting(siteMap, 'home_start_per_page', 3);
   const windowDays = intSetting(siteMap, 'home_start_window_days', 180);
   const hotMode = (setting(siteMap, 'home_hot_mode', 'latest') || 'latest').toLowerCase().trim();
   const hotSlugs = (setting(siteMap, 'home_hot_fixed_slugs', '') || '').trim();
@@ -127,7 +122,7 @@ const PropertyGridSection = ({ title, type }: Props) => {
 
   const startComplexes = useMemo(() => {
     const rows = startQuery.data?.data ?? [];
-    return rows.map((b) => mapApiBlockListRowToResidentialComplex(b));
+    return rows.map((b) => mapApiBlockListRowToResidentialComplex(b)).slice(0, 3);
   }, [startQuery.data]);
 
   const listingFallbackCards = listingFallbackQuery.data?.data ?? [];
@@ -165,9 +160,12 @@ const PropertyGridSection = ({ title, type }: Props) => {
               </button>
             </div>
             {isStart ? (
-              <Button size="sm" className="hidden sm:flex rounded-xl text-xs" onClick={() => setHelpOpen(true)}>
+              <Link
+                to="/contacts"
+                className="hidden sm:flex items-center px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
+              >
                 Помощь с подбором
-              </Button>
+              </Link>
             ) : (
               <Link
                 to="/catalog"
@@ -220,7 +218,12 @@ const PropertyGridSection = ({ title, type }: Props) => {
         {!loading && !empty && (
           <div
             ref={scrollRef}
-            className="flex lg:grid lg:grid-cols-3 items-start gap-3 sm:gap-4 overflow-x-auto lg:overflow-visible snap-x snap-mandatory scrollbar-hide -mx-4 px-4 lg:mx-0 lg:px-0"
+            className={cn(
+              'items-start gap-3 sm:gap-4',
+              isStart
+                ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                : 'flex lg:grid lg:grid-cols-4 overflow-x-auto lg:overflow-visible snap-x snap-mandatory scrollbar-hide -mx-4 px-4 lg:mx-0 lg:px-0',
+            )}
           >
             {showListingFallback
               ? listingFallbackCards.map((listing) => (
@@ -230,19 +233,19 @@ const PropertyGridSection = ({ title, type }: Props) => {
                 ))
               : (isStart ? startComplexes : hotComplexes).map((c) => (
                   <div key={c.id} className="min-w-[260px] sm:min-w-[280px] lg:min-w-0 snap-start shrink-0">
-                    <ComplexCard complex={c} />
+                    <ComplexCard complex={c} variant="compact" coverAspect="16/9" />
                   </div>
                 ))}
           </div>
         )}
 
         {isStart ? (
-          <button
-            onClick={() => setHelpOpen(true)}
+          <Link
+            to="/contacts"
             className="flex sm:hidden items-center justify-center gap-1.5 mt-3 py-2 w-full rounded-xl border border-border text-xs font-medium hover:bg-secondary transition-colors"
           >
             Помощь с подбором
-          </button>
+          </Link>
         ) : (
           <Link
             to="/catalog"
@@ -254,27 +257,6 @@ const PropertyGridSection = ({ title, type }: Props) => {
         )}
       </div>
 
-      <Dialog
-        open={helpOpen}
-        onOpenChange={(open) => {
-          setHelpOpen(open);
-          if (open) setHelpFormKey((k) => k + 1);
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Помощь с подбором</DialogTitle>
-          </DialogHeader>
-          <LeadForm
-            key={helpFormKey}
-            embedded
-            title=""
-            source="home_start_sales_section"
-            requestType="SELECTION"
-            contextFooter="Заявка из блока «Старт продаж» на главной / в каталоге."
-          />
-        </DialogContent>
-      </Dialog>
     </section>
   );
 };

@@ -60,7 +60,7 @@ export const DEFAULT_HOMEPAGE_SITE_SETTINGS: Array<{
   },
   {
     key: 'home_start_per_page',
-    value: '8',
+    value: '3',
     groupName: 'homepage',
     label: 'Сколько карточек в «Старте продаж»',
     fieldType: SiteSettingFieldType.TEXT,
@@ -129,6 +129,22 @@ export const DEFAULT_HOMEPAGE_SITE_SETTINGS: Array<{
     label: 'Trust strip: подпись проверенных данных',
     fieldType: SiteSettingFieldType.TEXT,
     sortOrder: 33,
+  },
+  {
+    key: 'about_platform_image',
+    value: '',
+    groupName: 'homepage',
+    label: 'Фото блока «О платформе»',
+    fieldType: SiteSettingFieldType.IMAGE,
+    sortOrder: 40,
+  },
+  {
+    key: 'contact_block_image',
+    value: '',
+    groupName: 'homepage',
+    label: 'Фото блока «Свяжитесь с нами»',
+    fieldType: SiteSettingFieldType.IMAGE,
+    sortOrder: 41,
   },
 ];
 

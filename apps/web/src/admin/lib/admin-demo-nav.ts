@@ -19,9 +19,7 @@ export const DEMO_HIDDEN_ADMIN_NAV_ROUTES = new Set([
   '/admin/ops',
   // Extra technical / unfinished (not in demo menu)
   '/admin/pages',
-  '/admin/settings/ai',
   '/admin/media',
-  '/admin/users',
   '/admin/tokens',
   '/admin/docs',
   '/admin/audit',

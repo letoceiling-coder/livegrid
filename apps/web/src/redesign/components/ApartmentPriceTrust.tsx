@@ -114,11 +114,7 @@ const ApartmentPriceTrust = ({
             </div>
           </div>
         </div>
-      ) : (
-        <div className="rounded-xl border border-dashed border-border bg-muted/10 px-4 py-3 text-sm text-muted-foreground">
-          Ипотечный расчёт доступен после указания цены объекта
-        </div>
-      )}
+      ) : null}
     </section>
   );
 };

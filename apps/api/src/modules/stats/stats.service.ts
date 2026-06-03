@@ -39,16 +39,27 @@ export class StatsService {
   }
 
   async getCounters() {
-    const [blocks, apartments, builders, regions] = await Promise.all([
+    const [blocks, apartments, builders, regions, regionRows] = await Promise.all([
       this.prisma.block.count(),
       this.prisma.listing.count({
         where: { status: { in: [ListingStatus.ACTIVE, ListingStatus.RESERVED] }, kind: ListingKind.APARTMENT, isPublished: true },
       }),
       this.prisma.builder.count(),
       this.prisma.feedRegion.count({ where: { isEnabled: true } }),
+      this.prisma.feedRegion.findMany({
+        where: { isEnabled: true },
+        select: { name: true },
+        orderBy: { name: 'asc' },
+      }),
     ]);
 
-    return { blocks, apartments, builders, regions };
+    return {
+      blocks,
+      apartments,
+      builders,
+      regions,
+      regionNames: regionRows.map((r) => r.name),
+    };
   }
 
   async getAdminDashboardStats(days = 14) {
