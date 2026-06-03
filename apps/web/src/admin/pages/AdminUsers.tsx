@@ -56,6 +56,7 @@ const permissionRows = [
   { key: 'reference', label: 'Справочники и регионы', roles: ['admin', 'editor'] },
   { key: 'news-media', label: 'Новости и медиа', roles: ['admin', 'editor'] },
   { key: 'users', label: 'Пользователи, роли и права', roles: ['admin'] },
+  { key: 'agents', label: 'Карточки агентов (каталог /agents)', roles: ['admin', 'editor', 'manager'] },
   { key: 'settings', label: 'Настройки', roles: ['admin', 'editor'] },
 ] satisfies Array<{ key: string; label: string; roles: UserRole[] }>;
 

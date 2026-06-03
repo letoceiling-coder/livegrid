@@ -56,6 +56,60 @@ export class UpsertAgencyProfileDto {
   socialLinks?: Record<string, string>;
 }
 
+export class AdminSaveAgentDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  fullName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(64)
+  slug?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  specializations?: string[];
+
+  @ApiPropertyOptional({ type: [Number] })
+  @IsOptional()
+  @IsArray()
+  regionIds?: number[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  showPhone?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  showEmail?: boolean;
+
+  @ApiPropertyOptional({ enum: PUBLIC_PROFILE_STATUSES })
+  @IsOptional()
+  @IsIn(PUBLIC_PROFILE_STATUSES)
+  status?: 'DRAFT' | 'PUBLISHED' | 'SUSPENDED';
+}
+
 export class UpsertAgentProfileDto {
   @ApiPropertyOptional()
   @IsOptional()

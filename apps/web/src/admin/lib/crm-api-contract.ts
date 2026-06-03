@@ -29,6 +29,9 @@ export const CRM_API_CONTRACT: CrmApiEndpoint[] = [
   { id: 'billing_metrics', method: 'GET', path: '/admin/billing/metrics', roles: ['admin', 'editor', 'manager'], responseShape: 'BillingMetrics' },
   { id: 'moderation_listings', method: 'GET', path: '/admin/moderation/listings', roles: ['admin', 'editor', 'manager'], responseShape: 'ModerationQueue' },
   { id: 'ecosystem_profiles', method: 'GET', path: '/admin/ecosystem/profiles', roles: ['admin', 'editor', 'manager'], responseShape: 'EcosystemProfiles' },
+  { id: 'agents_list', method: 'GET', path: '/admin/agents', roles: ['admin', 'editor', 'manager'], responseShape: 'AdminAgentsList' },
+  { id: 'agents_detail', method: 'GET', path: '/admin/agents/:userId', roles: ['admin', 'editor', 'manager'], responseShape: 'AdminAgentDetail' },
+  { id: 'agents_save', method: 'PUT', path: '/admin/agents/:userId', roles: ['admin', 'editor', 'manager'], responseShape: 'AdminAgentDetail' },
   { id: 'request_automation', method: 'GET', path: '/admin/requests/:id/automation', roles: ['admin', 'editor', 'manager'], responseShape: 'RequestAutomation' },
   { id: 'tasks_dismiss', method: 'POST', path: '/admin/tasks/:id/dismiss', roles: ['admin', 'editor', 'manager'], responseShape: 'TaskRow' },
 ];
