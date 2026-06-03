@@ -210,7 +210,8 @@ export class EcosystemAgentService {
       }),
     );
 
-    return { data: data.filter((a) => a.listingCount > 0 || a.name) };
+    // Show every published profile; empty name falls back to slug on the client.
+    return { data };
   }
 
   async listCandidates(limit = 80) {

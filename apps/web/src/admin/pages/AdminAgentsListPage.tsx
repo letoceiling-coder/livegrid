@@ -118,15 +118,18 @@ export default function AdminAgentsListPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {a.status ? (
-                  <AdminStatusBadge
-                    tone={a.status === 'PUBLISHED' ? 'ok' : a.status === 'SUSPENDED' ? 'warn' : 'neutral'}
-                  >
+                {a.status === 'PUBLISHED' ? (
+                  <AdminStatusBadge tone="ok">{profileStatusLabel.PUBLISHED}</AdminStatusBadge>
+                ) : a.status ? (
+                  <AdminStatusBadge tone={a.status === 'SUSPENDED' ? 'warn' : 'neutral'}>
                     {profileStatusLabel[a.status] ?? a.status}
                   </AdminStatusBadge>
                 ) : (
-                  <AdminStatusBadge>Нет профиля</AdminStatusBadge>
+                  <AdminStatusBadge tone="warn">Нет профиля</AdminStatusBadge>
                 )}
+                {a.status && a.status !== 'PUBLISHED' ? (
+                  <span className="text-[10px] text-muted-foreground hidden sm:inline">не в каталоге</span>
+                ) : null}
                 {!a.isActive ? (
                   <AdminStatusBadge tone="warn">Неактивен</AdminStatusBadge>
                 ) : null}

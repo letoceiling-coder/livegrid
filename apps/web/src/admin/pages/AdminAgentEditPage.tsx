@@ -187,6 +187,16 @@ export default function AdminAgentEditPage() {
         ) : null}
       </div>
 
+      {form.status !== 'PUBLISHED' ? (
+        <div className="mb-6 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+          Карточка не отображается на{' '}
+          <a href="/agents" target="_blank" rel="noreferrer" className="underline font-medium">
+            livegrid.ru/agents
+          </a>
+          , пока статус не «На сайте». Выберите «На сайте» и нажмите «Сохранить».
+        </div>
+      ) : null}
+
       <form onSubmit={submit} className="space-y-6">
         <section className="rounded-xl border bg-card p-5 space-y-4">
           <h2 className="font-semibold text-sm">Фото и контакты</h2>
