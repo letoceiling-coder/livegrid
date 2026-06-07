@@ -58,7 +58,7 @@ export class NewsService implements OnModuleInit {
         void this.runScheduledTelegramSync();
       }, 60 * 60 * 1000);
       this.telegramDailyTimer.unref?.();
-      void this.runScheduledTelegramSync();
+      // Do not sync on API boot — only at 09:00 via the hourly timer (avoids hang on pm2 restart).
     }
   }
 

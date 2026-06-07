@@ -78,6 +78,11 @@ else
 fi
 pm2 save
 
+echo "→ Installing API health watchdog cron..."
+if [ -f deploy/install-api-watchdog-cron.sh ]; then
+  bash deploy/install-api-watchdog-cron.sh || echo "WARN: API watchdog cron install failed"
+fi
+
 # ── 7. Update nginx config ──
 echo "→ Updating nginx config..."
 cp deploy/livegrid.ru.ssl.conf "$NGINX_CONF"

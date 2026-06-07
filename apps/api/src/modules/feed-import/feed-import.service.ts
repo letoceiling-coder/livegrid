@@ -46,6 +46,7 @@ const REQUIRED_FEED_FILES = [
 export class FeedImportService implements OnModuleInit {
   private readonly logger = new Logger(FeedImportService.name);
   private currentProgress: ImportProgress | null = null;
+  private stuckBatchWatchdog?: NodeJS.Timeout;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -59,6 +60,12 @@ export class FeedImportService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    void this.recoverStuckBatches('startup').catch((e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`Startup stuck-batch recovery failed: ${msg}`);
+    });
+    this.scheduleStuckBatchWatchdog();
+
     if (this.config.get('FEED_IMPORT_DISABLE_REPEAT') === 'true') {
       this.logger.log('Repeatable feed import cron disabled (FEED_IMPORT_DISABLE_REPEAT)');
       return;
@@ -577,6 +584,65 @@ export class FeedImportService implements OnModuleInit {
       stopped.push(await this.stopBatch(batch.id, reason));
     }
     return { stopped };
+  }
+
+  /** Auto-fail PENDING/RUNNING batches older than FEED_HEALTH_STUCK_MINUTES (startup + periodic watchdog). */
+  async recoverStuckBatches(source: 'startup' | 'watchdog' = 'startup') {
+    if (this.config.get('FEED_STUCK_RECOVERY_DISABLE') === 'true') {
+      return { recovered: [], skipped: true as const };
+    }
+
+    const stuckMinutes = Number(this.config.get('FEED_HEALTH_STUCK_MINUTES') || 120);
+    const stuckCutoff = new Date(Date.now() - stuckMinutes * 60_000);
+
+    const stuck = await this.prisma.importBatch.findMany({
+      where: {
+        status: { in: ['PENDING', 'RUNNING'] },
+        OR: [
+          { startedAt: { lt: stuckCutoff } },
+          { startedAt: null, createdAt: { lt: stuckCutoff } },
+        ],
+      },
+      select: { id: true, status: true, startedAt: true, createdAt: true },
+      orderBy: { id: 'asc' },
+    });
+
+    if (!stuck.length) {
+      return { recovered: [], skipped: false as const };
+    }
+
+    const reason = `Auto-recovered (${source}): import stuck > ${stuckMinutes} min`;
+    const recovered = [];
+    for (const batch of stuck) {
+      try {
+        const result = await this.stopBatch(batch.id, reason);
+        recovered.push(result);
+        this.logger.warn(
+          `Recovered stuck import batch #${batch.id} [${batch.status}] via ${source}`,
+        );
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.error(`Failed to recover import batch #${batch.id}: ${msg}`);
+      }
+    }
+    return { recovered, skipped: false as const };
+  }
+
+  private scheduleStuckBatchWatchdog() {
+    if (this.config.get('FEED_STUCK_RECOVERY_DISABLE') === 'true') return;
+
+    const intervalMs = Number(this.config.get('FEED_STUCK_RECOVERY_INTERVAL_MS') ?? 15 * 60 * 1000);
+    const safeInterval =
+      Number.isFinite(intervalMs) && intervalMs >= 60_000 ? intervalMs : 15 * 60 * 1000;
+
+    this.stuckBatchWatchdog = setInterval(() => {
+      void this.recoverStuckBatches('watchdog').catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`Watchdog stuck-batch recovery failed: ${msg}`);
+      });
+    }, safeInterval);
+    this.stuckBatchWatchdog.unref?.();
+    this.logger.log(`Stuck import watchdog every ${Math.round(safeInterval / 60_000)} min`);
   }
 
   /**
