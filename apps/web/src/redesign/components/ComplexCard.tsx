@@ -113,91 +113,60 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
         {complex.name}
       </h3>
 
-      <div className={cn(cardVisual.complexMetaRow, isCompact && 'min-h-[1.125rem]')}>
-        {metroLine ? (
-          <>
-            {isPopular || isCompact ? (
-              <span className={cardVisual.complexMetroDot} aria-hidden />
-            ) : (
-              <TrainFront className={cardVisual.complexMetaIcon} aria-hidden />
-            )}
-            <span className="min-w-0 line-clamp-1 text-foreground/85">{metroLine}</span>
-          </>
-        ) : isCompact ? (
-          <span className="invisible select-none" aria-hidden>—</span>
-        ) : null}
-      </div>
+      {metroLine ? (
+        <div className={cardVisual.complexMetaRow}>
+          {isPopular || isCompact ? (
+            <span className={cardVisual.complexMetroDot} aria-hidden />
+          ) : (
+            <TrainFront className={cardVisual.complexMetaIcon} aria-hidden />
+          )}
+          <span className="min-w-0 line-clamp-1 text-foreground/85">{metroLine}</span>
+        </div>
+      ) : null}
 
-      <div className={cn(cardVisual.complexMetaRow, isCompact && 'min-h-[2.5rem]')}>
-        {fullAddressLine ? (
-          <>
-            <MapPin className={cardVisual.complexMetaIcon} aria-hidden />
-            <span className="min-w-0 line-clamp-2 text-muted-foreground/90">{fullAddressLine}</span>
-          </>
-        ) : isCompact ? (
-          <span className="invisible select-none line-clamp-2" aria-hidden>—</span>
-        ) : null}
-      </div>
+      {fullAddressLine ? (
+        <div className={cardVisual.complexMetaRow}>
+          <MapPin className={cardVisual.complexMetaIcon} aria-hidden />
+          <span className="min-w-0 line-clamp-2 text-muted-foreground/90">{fullAddressLine}</span>
+        </div>
+      ) : null}
 
-      <div className={cn(cardVisual.complexMetaRow, isCompact && 'min-h-[1.125rem]')}>
-        {showBuilder ? (
-          <>
-            {isPopular ? (
-              <HardHat className={cardVisual.complexMetaIcon} aria-hidden />
-            ) : (
-              <Building2 className={cardVisual.complexMetaIcon} aria-hidden />
-            )}
-            <span className="min-w-0 line-clamp-1">
-              <span className="text-muted-foreground">Застройщик: </span>
-              <span className={isPopular ? 'font-semibold text-foreground/90' : 'font-semibold text-foreground/85'}>
-                {builderName}
-              </span>
+      {showBuilder ? (
+        <div className={cardVisual.complexMetaRow}>
+          {isPopular ? (
+            <HardHat className={cardVisual.complexMetaIcon} aria-hidden />
+          ) : (
+            <Building2 className={cardVisual.complexMetaIcon} aria-hidden />
+          )}
+          <span className="min-w-0 line-clamp-1">
+            <span className="text-muted-foreground">Застройщик: </span>
+            <span className={isPopular ? 'font-semibold text-foreground/90' : 'font-semibold text-foreground/85'}>
+              {builderName}
             </span>
-          </>
-        ) : isCompact ? (
-          <span className="invisible select-none" aria-hidden>—</span>
-        ) : null}
-      </div>
+          </span>
+        </div>
+      ) : null}
 
       {completion ? (
         <p
-          className={cn(cardVisual.complexCompletion, isCompact && 'min-h-[1.125rem] line-clamp-1')}
+          className={cn(cardVisual.complexCompletion, isCompact && 'line-clamp-1')}
           aria-label={`Срок сдачи: ${completion}`}
         >
           {completion}
         </p>
-      ) : isCompact ? (
-        <p className={cn(cardVisual.complexCompletion, 'invisible min-h-[1.125rem] select-none')} aria-hidden>
-          —
-        </p>
       ) : null}
 
-      <div
-        className={cn(
-          cardVisual.dottedBlock,
-          isCompact && (priceBandRows.length > 0 ? 'min-h-[6.5rem]' : 'min-h-[1.5rem]'),
-        )}
-        role="list"
-        aria-label="Цены по типам квартир"
-      >
-        {priceBandRows.length > 0 || fallbackRow ? (
-          <>
-            {priceBandRows.map((row) => (
-              <CardDottedPriceRow key={row.rooms} label={row.label} price={row.price} />
-            ))}
-            {fallbackRow ? <CardDottedPriceRow label={fallbackRow.label} price={fallbackRow.price} /> : null}
-          </>
-        ) : isCompact ? (
-          <span className="invisible select-none text-xs" aria-hidden>—</span>
-        ) : null}
-      </div>
+      {priceBandRows.length > 0 || fallbackRow ? (
+        <div className={cardVisual.dottedBlock} role="list" aria-label="Цены по типам квартир">
+          {priceBandRows.map((row) => (
+            <CardDottedPriceRow key={row.rooms} label={row.label} price={row.price} />
+          ))}
+          {fallbackRow ? <CardDottedPriceRow label={fallbackRow.label} price={fallbackRow.price} /> : null}
+        </div>
+      ) : null}
 
       {inventoryLine ? (
         <p className={cardVisual.complexInventory}>{inventoryLine}</p>
-      ) : isCompact ? (
-        <p className={cn(cardVisual.complexInventory, 'invisible select-none')} aria-hidden>
-          Квартир 0
-        </p>
       ) : null}
     </>
   );
