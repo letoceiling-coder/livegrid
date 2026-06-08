@@ -18,6 +18,8 @@ export const CONVERSION_CTA = {
   share: 'Поделиться',
   mortgage: 'Ипотека',
   viewing: 'Записаться на просмотр',
+  /** Короткая подпись для узких горизонтальных CTA */
+  viewingShort: 'На просмотр',
   details: 'Подробнее',
   submit: 'Отправить заявку',
   submitting: 'Отправка…',

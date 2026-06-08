@@ -164,6 +164,7 @@ const ComplexHero = ({ complex, blockId }: { complex: ResidentialComplex; blockI
         ) : null}
 
         <ConversionCTABar
+          layout="row"
           context={baseContext}
           onConsultation={openConsultation}
           consultationLabel={CONVERSION_CTA.viewing}

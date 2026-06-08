@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { usePhoneAction } from '@/redesign/hooks/usePhoneAction';
@@ -12,6 +13,7 @@ type Props = {
   context: ConsultationContext;
   disabled?: boolean;
   className?: string;
+  /** stack — колонка (сайдбар, карта); row — в ряд только на широких экранах */
   layout?: 'row' | 'stack';
   size?: 'default' | 'sm';
   /** Primary consultation label override */
@@ -21,11 +23,30 @@ type Props = {
   onConsultation: (ctx: ConsultationContext) => void;
 };
 
+function consultationLabelContent(
+  fullLabel: string,
+  layout: 'row' | 'stack',
+): ReactNode {
+  const shortLabel =
+    fullLabel === CONVERSION_CTA.viewing ? CONVERSION_CTA.viewingShort : fullLabel;
+
+  if (layout === 'stack' || shortLabel === fullLabel) {
+    return fullLabel;
+  }
+
+  return (
+    <>
+      <span className="sm:hidden">{fullLabel}</span>
+      <span className="hidden sm:inline">{shortLabel}</span>
+    </>
+  );
+}
+
 const ConversionCTABar = ({
   context,
   disabled = false,
   className,
-  layout = 'row',
+  layout = 'stack',
   size = 'default',
   consultationLabel,
   showPhone = true,
@@ -34,8 +55,8 @@ const ConversionCTABar = ({
   const { handlePhoneClick, isAvailable } = usePhoneAction();
   const PhoneIcon = CONVERSION_CTA_ICON.phone;
   const ConsultIcon = CONVERSION_CTA_ICON.consultation;
+  const btnSize = size === 'sm' ? 'sm' : 'default';
 
-  const btnH = size === 'sm' ? 'h-9' : 'h-11';
   const consultLabel =
     consultationLabel ??
     (context.requestType === 'CALLBACK'
@@ -49,11 +70,16 @@ const ConversionCTABar = ({
     onConsultation(ctx);
   };
 
+  const btnClass = cn(
+    'w-full min-w-0 whitespace-normal text-center leading-snug',
+    layout === 'row' && 'sm:flex-1',
+  );
+
   return (
     <div
       className={cn(
-        'flex gap-2',
-        layout === 'stack' ? 'flex-col' : 'flex-col sm:flex-row',
+        'flex flex-col gap-2',
+        layout === 'row' && 'sm:flex-row sm:items-stretch',
         className,
       )}
     >
@@ -61,7 +87,8 @@ const ConversionCTABar = ({
         <Button
           type="button"
           variant="primary"
-          className={cn('flex-1', btnH)}
+          size={btnSize}
+          className={btnClass}
           disabled={disabled || context.sold}
           onClick={() =>
             handlePhoneClick({
@@ -71,19 +98,21 @@ const ConversionCTABar = ({
           }
           title={!isAvailable ? 'Телефон недоступен — откроется форма обратного звонка' : undefined}
         >
-          <PhoneIcon className="w-4 h-4 mr-2 shrink-0" />
+          <PhoneIcon className="shrink-0" />
           {CONVERSION_CTA.phone}
         </Button>
       ) : null}
       <Button
         type="button"
         variant={showPhone ? 'secondary' : 'primary'}
-        className={cn('flex-1', btnH)}
+        size={btnSize}
+        className={btnClass}
         disabled={disabled}
         onClick={() => openConsult(context)}
+        title={consultLabel}
       >
-        <ConsultIcon className="w-4 h-4 mr-2 shrink-0" />
-        {consultLabel}
+        <ConsultIcon className="shrink-0" />
+        {consultationLabelContent(consultLabel, layout)}
       </Button>
     </div>
   );

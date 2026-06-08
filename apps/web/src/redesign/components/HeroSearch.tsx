@@ -153,6 +153,7 @@ const HeroSearch = () => {
   const deadlineLabel = heroDeadlineFromFilters(filters.deadline);
 
   const showHintsPanel = hintsEnabled && filters.search.trim().length >= 2;
+  const filterOverlayOpen = showHintsPanel || ptOpen || dlOpen || filtersOpen;
 
   const heroSubtitle = useMemo(() => {
     switch (filters.objectType) {
@@ -182,7 +183,12 @@ const HeroSearch = () => {
   }, [isApartmentMode, filters.objectType]);
 
   return (
-    <section className={cn('relative bg-background overflow-x-hidden', showHintsPanel && 'z-40 isolate overflow-visible')}>
+    <section
+      className={cn(
+        'relative bg-background overflow-visible',
+        filterOverlayOpen && 'z-40 isolate',
+      )}
+    >
       <div className="max-w-[1400px] mx-auto px-4 pt-6 pb-6 sm:pt-10 sm:pb-8">
         <div className="flex flex-col items-center gap-3 sm:gap-4 mb-5 sm:mb-6 max-w-3xl mx-auto">
           <RegionSelector
@@ -221,9 +227,9 @@ const HeroSearch = () => {
 
         <div
           ref={searchRef}
-          className="w-full max-w-[900px] mx-auto bg-card rounded-2xl border border-border/60 shadow-[0_8px_32px_rgba(15,23,42,0.06)] px-4 sm:px-6 py-4 sm:py-5 relative"
+          className="w-full max-w-[900px] mx-auto bg-card rounded-2xl border border-border/60 shadow-[0_8px_32px_rgba(15,23,42,0.06)] px-4 sm:px-6 py-4 sm:py-5 relative overflow-visible"
         >
-          <div className="relative z-20">
+          <div className="relative z-20 overflow-visible">
             <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-0 lg:h-[52px]">
               <div className="relative flex-1 lg:min-w-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -257,7 +263,7 @@ const HeroSearch = () => {
                         <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', ptOpen && 'rotate-180')} />
                       </button>
                       {ptOpen && (
-                        <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-50 min-w-[180px]">
+                        <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-[60] min-w-[180px]">
                           {HERO_ROOM_TYPE_LABELS.map((t) => (
                             <li key={t}>
                               <button
@@ -326,7 +332,7 @@ const HeroSearch = () => {
                         <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', dlOpen && 'rotate-180')} />
                       </button>
                       {dlOpen && (
-                        <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-50 min-w-[140px]">
+                        <ul className="absolute top-full right-0 mt-1 py-2 bg-card border border-border rounded-xl shadow-lg z-[60] min-w-[140px]">
                           {HERO_DEADLINE_LABELS.map((d) => (
                             <li key={d}>
                               <button

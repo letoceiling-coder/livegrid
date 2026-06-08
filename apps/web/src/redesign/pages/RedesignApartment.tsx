@@ -484,6 +484,7 @@ const RedesignApartment = () => {
                 roomLabel={roomLabel}
               />
               <ConversionCTABar
+                layout="stack"
                 context={baseConsultContext}
                 onConsultation={openConsultation}
                 consultationLabel={isSold ? CONVERSION_CTA.consultation : CONVERSION_CTA.viewing}
@@ -664,6 +665,7 @@ const RedesignApartment = () => {
               roomLabel={roomLabel}
             />
             <ConversionCTABar
+              layout="stack"
               context={baseConsultContext}
               onConsultation={openConsultation}
               consultationLabel={isSold ? CONVERSION_CTA.consultation : CONVERSION_CTA.viewing}
@@ -689,6 +691,7 @@ const RedesignApartment = () => {
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm p-3 lg:hidden safe-area-pb min-h-14">
         <ConversionCTABar
+          layout="stack"
           context={baseConsultContext}
           onConsultation={openConsultation}
           consultationLabel={isSold ? CONVERSION_CTA.consultation : CONVERSION_CTA.viewing}
