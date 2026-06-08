@@ -92,9 +92,9 @@ function pickImage(l: ApiListingCardRow): string {
   };
   if (l.kind === 'APARTMENT') {
     return (
+      tryUrl(l.apartment?.planUrl) ??
       tryUrl(l.apartment?.finishingPhotoUrl) ??
       fromArray(l.apartment?.extraPhotoUrls) ??
-      tryUrl(l.apartment?.planUrl) ??
       null
     );
   }
@@ -170,6 +170,7 @@ const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
 
   const isList = variant === 'list';
   const isHome = variant === 'home';
+  const isApartment = listing.kind === 'APARTMENT';
   const completionLine = formatQuarterFromDate(listing.apartment?.buildingDeadline ?? null);
   const freshness = listingFreshnessBadge({
     dataSource: listing.dataSource,
@@ -189,16 +190,19 @@ const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
     >
       <div
         className={cn(
-          'relative w-full shrink-0 overflow-hidden',
-          isHome && cardVisual.complexMedia,
-          isList ? 'sm:w-56 sm:shrink-0' : 'w-full',
+          'relative w-full shrink-0 overflow-hidden bg-[#f3f4f6]',
+          isList ? 'sm:w-56 sm:shrink-0 aspect-[4/3] sm:aspect-video' : 'aspect-video w-full',
+          isHome && 'rounded-t-[20px]',
         )}
       >
         <StableMediaFrame
           src={img}
-          aspect="16/9"
-          className={cn(isList ? 'sm:w-56' : 'w-full', isHome && 'rounded-t-[20px]')}
-          imgClassName="object-cover object-center group-hover:scale-[1.02] transition-transform duration-200"
+          aspect="none"
+          fit={isApartment ? 'contain' : 'cover'}
+          decorative={false}
+          altContext={title}
+          className="absolute inset-0 h-full w-full"
+          imgClassName={isApartment ? '' : 'group-hover:scale-[1.02] transition-transform duration-200'}
         />
         <span
           className={cn(

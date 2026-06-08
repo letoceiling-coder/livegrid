@@ -22,6 +22,8 @@ type Props = {
   fixedHeightClass?: string;
   fallback?: MediaFallback;
   loading?: 'lazy' | 'eager';
+  /** cover — фото ЖК; contain — планировки квартир целиком */
+  fit?: 'cover' | 'contain';
   className?: string;
   imgClassName?: string;
   imgStyle?: CSSProperties;
@@ -68,6 +70,7 @@ const StableMediaFrame = ({
   fixedHeightClass,
   fallback = 'branded',
   loading = 'lazy',
+  fit = 'cover',
   className,
   imgClassName,
   imgStyle,
@@ -83,33 +86,61 @@ const StableMediaFrame = ({
 
   const containerClass = fixedHeightClass ?? aspectClass(aspect);
 
+  const isContain = fit === 'contain';
+
   return (
     <div
-      className={cn('relative shrink-0 overflow-hidden bg-muted', containerClass, className)}
+      className={cn(
+        'relative shrink-0 overflow-hidden bg-[#f3f4f6]',
+        containerClass,
+        className,
+      )}
       aria-busy={!useFallback && !loaded}
     >
       {!useFallback ? (
         <>
           {!loaded ? (
-            <div className="absolute inset-0 animate-pulse bg-muted" aria-hidden="true" />
+            <div className="absolute inset-0 animate-pulse bg-[#f3f4f6]" aria-hidden="true" />
           ) : null}
-          <img
-            src={getSafeImageUrl(src)}
-            alt={imageAltText(altContext, decorative)}
-            loading={loading}
-            decoding="async"
-            onLoad={(e) => {
-              setLoaded(true);
-              onImageLoad?.(e);
-            }}
-            onError={() => setUseFallback(true)}
-            style={imgStyle}
-            className={cn(
-              'absolute inset-0 h-full w-full object-cover transition-opacity duration-200',
-              loaded ? 'opacity-100' : 'opacity-0',
-              imgClassName,
-            )}
-          />
+          {isContain ? (
+            <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-4">
+              <img
+                src={getSafeImageUrl(src)}
+                alt={imageAltText(altContext, decorative)}
+                loading={loading}
+                decoding="async"
+                onLoad={(e) => {
+                  setLoaded(true);
+                  onImageLoad?.(e);
+                }}
+                onError={() => setUseFallback(true)}
+                style={imgStyle}
+                className={cn(
+                  'max-h-full max-w-full object-contain transition-opacity duration-200',
+                  loaded ? 'opacity-100' : 'opacity-0',
+                  imgClassName,
+                )}
+              />
+            </div>
+          ) : (
+            <img
+              src={getSafeImageUrl(src)}
+              alt={imageAltText(altContext, decorative)}
+              loading={loading}
+              decoding="async"
+              onLoad={(e) => {
+                setLoaded(true);
+                onImageLoad?.(e);
+              }}
+              onError={() => setUseFallback(true)}
+              style={imgStyle}
+              className={cn(
+                'absolute inset-0 h-full w-full object-cover transition-opacity duration-200',
+                loaded ? 'opacity-100' : 'opacity-0',
+                imgClassName,
+              )}
+            />
+          )}
         </>
       ) : (
         <div className="absolute inset-0">
