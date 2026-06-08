@@ -79,10 +79,10 @@ export default function ComplexStickySidebar({ complex, availableCount, onConsul
       </dl>
 
       <div className="space-y-2 pt-0.5">
-        <Button className="w-full h-11 text-sm font-semibold" type="button" onClick={onConsultation}>
+        <Button variant="primary" className="w-full" type="button" onClick={onConsultation}>
           {CONVERSION_CTA.viewing}
         </Button>
-        <Button variant="outline" className="w-full h-9 text-xs gap-1.5" asChild>
+        <Button variant="secondary" className="w-full gap-1.5" asChild>
           <Link to={`/presentation/${complex.slug}`}>Презентация PDF</Link>
         </Button>
       </div>

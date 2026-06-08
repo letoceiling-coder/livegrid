@@ -237,18 +237,20 @@ const QuizSection = () => {
 
             {/* Navigation */}
             <div className="flex items-center justify-between gap-3 mt-5 sm:mt-6">
-              <button
+              <Button
+                type="button"
+                variant="ghost"
                 disabled={step === 0}
                 onClick={() => setStep(s => s - 1)}
-                className="px-4 py-2.5 rounded-xl border border-border text-xs sm:text-sm font-medium disabled:opacity-30 hover:bg-background transition-colors min-h-[44px] touch-manipulation"
+                className="touch-manipulation disabled:opacity-30"
               >
                 Назад
-              </button>
+              </Button>
               {error && <p className="text-xs text-destructive">{error}</p>}
               <Button
+                variant="primary"
                 disabled={!canNext || submitting}
                 onClick={handleNext}
-                className="rounded-xl h-10 sm:h-11 px-6 text-xs sm:text-sm font-medium min-h-[44px]"
               >
                 {submitting ? 'Отправка…' : step === 2 ? 'Получить подборку' : 'Далее'}
               </Button>

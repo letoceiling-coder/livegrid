@@ -27,7 +27,7 @@ const catalogCategories = [
 ];
 
 const navLinkClass =
-  'px-2 py-2 text-[15px] font-medium rounded-lg transition-colors text-[#111827] hover:text-[#2563EB]';
+  'px-2 py-2 text-[15px] font-medium rounded-lg transition-colors text-[#111827] hover:text-primary';
 
 const RedesignHeader = () => {
   const { data: siteSettings } = useSiteSettings();
@@ -237,7 +237,7 @@ const RedesignHeader = () => {
             {!isAuthenticated ? (
               <button
                 onClick={() => setLoginModalOpen(true)}
-                className="bg-primary text-primary-foreground px-5 py-2 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-1.5 shrink-0"
+                className={cn(btnClass('primary'), 'gap-1.5 shrink-0')}
               >
                 <LogIn className="w-4 h-4" />
                 Войти
@@ -408,15 +408,15 @@ const RedesignHeader = () => {
       {/* Mobile bottom nav */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom,0px)]">
         <div className="grid grid-cols-4 h-14 min-h-[56px]">
-          <Link to="/" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium', location.pathname === '/' ? 'text-[#2563EB]' : 'text-[#6b7280]')}>
+          <Link to="/" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium', location.pathname === '/' ? 'text-primary' : 'text-[#6b7280]')}>
             <Home className="w-6 h-6" />
             <span>Главная</span>
           </Link>
-          <Link to="/catalog" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium', location.pathname.startsWith('/catalog') ? 'text-[#2563EB]' : 'text-[#6b7280]')}>
+          <Link to="/catalog" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium', location.pathname.startsWith('/catalog') ? 'text-primary' : 'text-[#6b7280]')}>
             <LayoutGrid className="w-6 h-6" />
             <span>Каталог</span>
           </Link>
-          <Link to="/map" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium', location.pathname === '/map' ? 'text-[#2563EB]' : 'text-[#6b7280]')}>
+          <Link to="/map" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium', location.pathname === '/map' ? 'text-primary' : 'text-[#6b7280]')}>
             <MapPin className="w-6 h-6" />
             <span>Карта</span>
           </Link>
@@ -454,7 +454,7 @@ const RedesignHeader = () => {
             <Link
               to="/login"
               onClick={() => setLoginModalOpen(false)}
-              className="flex w-full h-11 items-center justify-center rounded-xl bg-[#2563EB] text-sm font-medium text-white transition-colors hover:bg-[#1d4ed8]"
+              className={btnClass('primary', { block: true })}
             >
               Войти по email и паролю
             </Link>

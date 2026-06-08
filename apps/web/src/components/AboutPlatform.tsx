@@ -47,10 +47,10 @@ function CtaLink({
   children: React.ReactNode;
 }) {
   const className = cn(
-    'inline-flex h-9 items-center justify-center rounded-lg px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+    'inline-flex h-11 min-h-12 sm:min-h-11 items-center justify-center rounded-[10px] px-6 py-3 text-[15px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
     variant === 'primary'
-      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-      : 'border border-border bg-background text-foreground hover:bg-muted/60',
+      ? 'bg-primary text-primary-foreground font-semibold hover:opacity-90'
+      : 'border-[1.5px] border-primary bg-transparent text-primary font-medium hover:bg-primary/[0.08]',
   );
   const external = /^https?:\/\//i.test(href);
   if (external) {

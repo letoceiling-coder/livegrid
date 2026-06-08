@@ -128,7 +128,8 @@ const Register = () => {
             )}
             <Button
               type="submit"
-              className="w-full rounded-full"
+              variant="primary"
+              className="w-full"
               disabled={submitting || !consentAccepted}
             >
               {submitting ? 'Создание…' : 'Создать аккаунт'}

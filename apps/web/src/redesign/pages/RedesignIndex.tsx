@@ -72,15 +72,15 @@ const RedesignIndex = () => {
             <button
               type="button"
               onClick={() => navigate('/map')}
-              className={cn(btnClass('secondary', { compact: true }), 'hidden sm:inline-flex')}
+              className={cn(btnClass('secondary'), 'hidden sm:inline-flex')}
             >
-              <MapPin className="w-3.5 h-3.5 text-primary" />
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
               На карте
             </button>
             <button
               type="button"
               onClick={() => navigate('/catalog')}
-              className={cn(btnClass('secondary', { compact: true }), 'hidden sm:inline-flex')}
+              className={cn(btnClass('secondary'), 'hidden sm:inline-flex')}
             >
               Все предложения
               <ArrowRight className="w-3.5 h-3.5" />

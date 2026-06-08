@@ -58,7 +58,7 @@ const ResetPassword = () => {
                     />
                   </div>
                 </div>
-                <Button type="submit" className="w-full rounded-full">Сохранить пароль</Button>
+                <Button type="submit" variant="primary" className="w-full">Сохранить пароль</Button>
               </form>
             </>
           ) : (
@@ -69,7 +69,7 @@ const ResetPassword = () => {
               <h1 className="text-2xl font-bold">Пароль изменён</h1>
               <p className="text-sm text-muted-foreground">Теперь вы можете войти с новым паролем</p>
               <Link to="/login">
-                <Button className="rounded-full">Войти</Button>
+                <Button variant="primary">Войти</Button>
               </Link>
             </div>
           )}

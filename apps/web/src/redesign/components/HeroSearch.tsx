@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, SlidersHorizontal, ChevronDown, Building2, Home, TreePine, Store } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { btnClass } from '@/redesign/lib/button-styles';
 import { apiGet } from '@/lib/api';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 import CatalogSearchHintsDropdown from '@/redesign/components/CatalogSearchHintsDropdown';
@@ -191,7 +192,7 @@ const HeroSearch = () => {
             className="w-full"
           />
           <h1 className="text-2xl sm:text-3xl md:text-[2.5rem] font-bold leading-tight text-center tracking-tight">
-            <span className="text-[#2563EB]">Live Grid.</span>{' '}
+            <span className="text-primary">Live Grid.</span>{' '}
             <span className="text-foreground">{heroSubtitle}</span>
           </h1>
         </div>
@@ -447,15 +448,15 @@ const HeroSearch = () => {
             <button
               type="button"
               onClick={() => navigate('/map')}
-              className="hidden sm:inline-flex items-center gap-2 h-12 min-h-12 px-6 rounded-xl border-[1.5px] border-[#d1d5db] bg-white text-base font-semibold text-[#111827] hover:bg-[#f9fafb] transition-colors"
+              className={cn(btnClass('secondary'), 'hidden sm:inline-flex gap-2')}
             >
-              <MapPin className="w-4 h-4 text-primary" />
+              <MapPin className="w-4 h-4 shrink-0" />
               На карте
             </button>
             <button
               type="button"
               onClick={doSearch}
-              className="h-12 min-h-12 px-6 flex-1 sm:flex-none rounded-xl bg-[#2563EB] text-white text-base font-semibold hover:bg-[#1d4ed8] transition-colors shadow-sm w-full sm:w-auto"
+              className={cn(btnClass('primary'), 'flex-1 sm:flex-none w-full sm:w-auto shadow-sm')}
             >
               Найти
             </button>

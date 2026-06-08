@@ -141,11 +141,11 @@ const PropertyGridSection = ({ title, type }: Props) => {
           </div>
           <div className="hidden sm:flex items-center gap-2 shrink-0">
             {isStart ? (
-              <Link to="/contacts" className={btnClass('primary', { compact: true })}>
+              <Link to="/contacts" className={btnClass('primary')}>
                 Помощь с подбором
               </Link>
             ) : (
-              <Link to="/catalog?type=apartments" className={btnClass('secondary', { compact: true })}>
+              <Link to="/catalog?type=apartments" className={btnClass('secondary')}>
                 Все предложения
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>

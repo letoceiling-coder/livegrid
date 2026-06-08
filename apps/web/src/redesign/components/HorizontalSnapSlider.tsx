@@ -96,7 +96,7 @@ const HorizontalSnapSlider = ({
                   onClick={() => scrollTo(i)}
                   className={cn(
                     'h-1.5 rounded-full transition-all',
-                    i === activeIndex ? 'w-4 bg-[#2563EB]' : 'w-1.5 bg-[#d1d5db]',
+                    i === activeIndex ? 'w-4 bg-primary' : 'w-1.5 bg-[#d1d5db]',
                   )}
                 />
               ))}
@@ -114,7 +114,7 @@ const HorizontalSnapSlider = ({
           <button
             type="button"
             onClick={() => scroll('left')}
-            className="w-9 h-9 rounded-full border border-[#d1d5db] bg-white flex items-center justify-center hover:bg-[#f9fafb] transition-colors"
+            className="w-9 h-9 rounded-[10px] border-[1.5px] border-primary bg-transparent flex items-center justify-center text-primary hover:bg-primary/[0.08] transition-colors"
             aria-label="Назад"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -122,7 +122,7 @@ const HorizontalSnapSlider = ({
           <button
             type="button"
             onClick={() => scroll('right')}
-            className="w-9 h-9 rounded-full border border-[#d1d5db] bg-white flex items-center justify-center hover:bg-[#f9fafb] transition-colors"
+            className="w-9 h-9 rounded-[10px] border-[1.5px] border-primary bg-transparent flex items-center justify-center text-primary hover:bg-primary/[0.08] transition-colors"
             aria-label="Вперёд"
           >
             <ChevronRight className="w-4 h-4" />
@@ -159,7 +159,7 @@ const HorizontalSnapSlider = ({
               onClick={() => scrollTo(i)}
               className={cn(
                 'h-1.5 rounded-full transition-all',
-                i === activeIndex ? 'w-4 bg-[#2563EB]' : 'w-1.5 bg-[#d1d5db]',
+                i === activeIndex ? 'w-4 bg-primary' : 'w-1.5 bg-[#d1d5db]',
               )}
             />
           ))}

@@ -10,7 +10,7 @@ const ForgotPassword = () => {
       <Header />
       <div className="flex-1 flex items-center justify-center py-12 px-4">
         <div className="w-full max-w-md space-y-6">
-          <Link to="/login" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link to="/login" className="inline-flex items-center gap-1 text-sm text-primary hover:underline transition-colors">
             <ArrowLeft className="w-4 h-4" /> Назад ко входу
           </Link>
 
@@ -34,7 +34,7 @@ const ForgotPassword = () => {
             </div>
           </div>
 
-          <Button variant="outline" className="w-full rounded-full" asChild>
+          <Button variant="secondary" className="w-full" asChild>
             <Link to="/login">Перейти ко входу</Link>
           </Button>
         </div>

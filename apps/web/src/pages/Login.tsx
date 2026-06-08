@@ -185,7 +185,8 @@ const Login = () => {
             )}
             <Button
               type="submit"
-              className="w-full rounded-full"
+              variant="primary"
+              className="w-full"
               disabled={submitting || !consentAccepted}
             >
               {submitting ? 'Вход…' : 'Войти'}
@@ -203,8 +204,8 @@ const Login = () => {
           )}
 
           <Button
-            variant="outline"
-            className="w-full rounded-full"
+            variant="secondary"
+            className="w-full"
             onClick={requestTelegramCode}
             disabled={tgCodeLoading}
           >

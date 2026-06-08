@@ -835,13 +835,14 @@ const RedesignComplex = () => {
       <div className="fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm p-3 lg:hidden safe-area-pb">
         <div className="flex gap-2 max-w-[1400px] mx-auto">
           <Button
-            className="flex-1 h-11"
+            variant="primary"
+            className="flex-1"
             type="button"
             onClick={() => openComplexConsult(`complex:${complex.slug}:sticky`)}
           >
             {CONVERSION_CTA.consultation}
           </Button>
-          <Button variant="outline" className="h-11 px-4" asChild>
+          <Button variant="secondary" className="px-4" asChild>
             <Link to={`/presentation/${complex.slug}`}>PDF</Link>
           </Button>
         </div>

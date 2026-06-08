@@ -60,6 +60,7 @@ const ConversionCTABar = ({
       {showPhone ? (
         <Button
           type="button"
+          variant="primary"
           className={cn('flex-1', btnH)}
           disabled={disabled || context.sold}
           onClick={() =>
@@ -76,7 +77,7 @@ const ConversionCTABar = ({
       ) : null}
       <Button
         type="button"
-        variant={showPhone ? 'outline' : 'default'}
+        variant={showPhone ? 'secondary' : 'primary'}
         className={cn('flex-1', btnH)}
         disabled={disabled}
         onClick={() => openConsult(context)}

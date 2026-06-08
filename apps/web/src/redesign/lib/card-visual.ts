@@ -65,7 +65,7 @@ export const cardVisual = {
     'flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-md backdrop-blur-sm transition-colors hover:bg-white dark:bg-background/80',
   complexFooter: 'flex items-center justify-between gap-2 pt-3 mt-1 border-t border-neutral-200/70 min-h-[36px]',
   complexFooterPill:
-    'inline-flex items-center rounded-full border border-neutral-200/80 bg-neutral-50/90 px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground dark:bg-muted/40',
+    'inline-flex h-8 min-h-8 items-center rounded-[10px] border-[1.5px] border-primary bg-transparent px-3 py-1.5 text-xs font-medium text-primary',
   complexYield: 'inline-flex items-center gap-1 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-400',
   dottedLabel: 'text-xs text-muted-foreground leading-none',
   dottedPrice: 'text-xs font-semibold tabular-nums text-foreground leading-none',
@@ -85,7 +85,7 @@ export function cardBadgeClass(
     const map = {
       emerald: 'bg-emerald-600 text-white',
       amber: 'bg-amber-600 text-white',
-      blue: 'bg-[#2563EB] text-white',
+      blue: 'bg-primary text-primary-foreground',
       green: 'bg-[#16A34A] text-white',
       orange: 'bg-[#EA580C] text-white',
       red: 'bg-red-600 text-white',
@@ -97,7 +97,7 @@ export function cardBadgeClass(
     const map = {
       emerald: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
       amber: 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
-      blue: 'bg-[#EFF6FF] text-[#2563EB]',
+      blue: 'bg-primary/10 text-primary',
       green: 'bg-[#F0FDF4] text-[#16A34A]',
       orange: 'bg-[#FFF7ED] text-[#EA580C]',
       red: 'bg-red-50 text-red-800',

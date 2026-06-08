@@ -1,7 +1,9 @@
 import { User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const AGENT_AVATAR_BLUE = '#2563EB';
+import { BRAND_PRIMARY_HEX } from '@/redesign/lib/button-styles';
+
+const AGENT_AVATAR_BLUE = BRAND_PRIMARY_HEX;
 
 function initialsFromName(name: string | null | undefined): string {
   const parts = (name ?? '')

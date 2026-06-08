@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import type { MockApartment, MockHouse, MockLand, MockCommercial } from '@/shared/data/catalog-mock';
 
 const statusStyles: Record<string, { bg: string; text: string; label: string }> = {
-  building: { bg: 'bg-[#EFF6FF]', text: 'text-[#2563EB]', label: 'Строится' },
+  building: { bg: 'bg-primary/10', text: 'text-primary', label: 'Строится' },
   completed: { bg: 'bg-[#F0FDF4]', text: 'text-[#16A34A]', label: 'Сдан' },
   planned: { bg: 'bg-[#FFF7ED]', text: 'text-[#EA580C]', label: 'Проект' },
 };
@@ -115,7 +115,7 @@ export const LandCard = ({ item, variant = 'grid' }: { item: MockLand; variant?:
     return (
       <div className="group flex rounded-xl overflow-hidden bg-card border border-border hover:shadow-md transition-all">
         <CardImage src={item.image} alt={item.title} className="w-[220px] shrink-0 h-[140px]"
-          badge={<span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#EFF6FF] text-[#2563EB]">{item.purpose}</span>}
+          badge={<span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-primary/10 text-primary">{item.purpose}</span>}
         />
         <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
           <div>
@@ -134,7 +134,7 @@ export const LandCard = ({ item, variant = 'grid' }: { item: MockLand; variant?:
   return (
     <div className="group flex flex-col rounded-xl overflow-hidden bg-card border border-border hover:shadow-md hover:-translate-y-px transition-all">
       <CardImage src={item.image} alt={item.title} className="h-[160px]"
-        badge={<span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#EFF6FF] text-[#2563EB]">{item.purpose}</span>}
+        badge={<span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-primary/10 text-primary">{item.purpose}</span>}
       />
       <div className="p-3 space-y-0.5">
         <div className="flex justify-between items-start gap-2">

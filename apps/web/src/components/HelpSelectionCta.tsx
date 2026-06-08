@@ -27,7 +27,7 @@ export default function HelpSelectionCta({ pageSlug = '/', settings: settingsPro
     if (consult && onConsult) onConsult();
   };
 
-  const buttonClass = btnClass('primary', { compact: true, className: 'shrink-0 w-full sm:w-auto' });
+  const buttonClass = btnClass('primary', { className: 'shrink-0 w-full sm:w-auto' });
 
   return (
     <section className="py-5 sm:py-6" aria-labelledby="help-selection-title">

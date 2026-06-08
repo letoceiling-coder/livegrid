@@ -5,7 +5,9 @@ import {
 } from '@/redesign/lib/display-price';
 
 /** Primary map marker color (TZ Iteration 2) */
-export const MARKER_BLUE = '#2563EB';
+import { BRAND_PRIMARY_HEX } from '@/redesign/lib/button-styles';
+
+export const MARKER_BLUE = BRAND_PRIMARY_HEX;
 export const MARKER_ACTIVE_BLUE = '#1D4ED8';
 
 export const ZOOM_DOT_MAX = 12;
