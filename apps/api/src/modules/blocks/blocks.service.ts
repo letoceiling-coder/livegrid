@@ -742,54 +742,109 @@ export class BlocksService {
     return map;
   }
 
+  private roomBandSortKey(rooms: number): number {
+    return rooms === 21 ? 2.5 : rooms;
+  }
+
+  private async roomTypeCategoryMap(): Promise<Map<number, number>> {
+    const roomTypes = await this.prisma.roomType.findMany({
+      select: { id: true, name: true, nameOne: true },
+    });
+    const rtToCat = new Map<number, number>();
+    for (const rt of roomTypes) {
+      const cat = this.roomCategoryFromName(rt.nameOne ?? rt.name);
+      if (cat != null) rtToCat.set(rt.id, cat);
+    }
+    return rtToCat;
+  }
+
+  private aggregateListingPriceRanges(
+    rows: Array<{ block_id: number; room_type_id: number; min_p: unknown }>,
+    rtToCat: Map<number, number>,
+  ): Map<number, Array<{ rooms: number; priceMin: number }>> {
+    const map = new Map<number, Array<{ rooms: number; priceMin: number }>>();
+    const minPrice = BlocksService.MIN_REASONABLE_PRICE_RUB;
+    const byBlock = new Map<number, Map<number, number>>();
+    for (const row of rows) {
+      const blockId = Number(row.block_id);
+      const rooms = rtToCat.get(Number(row.room_type_id));
+      if (rooms == null || row.min_p == null) continue;
+      const priceMin = Number(row.min_p);
+      if (!Number.isFinite(priceMin) || priceMin < minPrice) continue;
+      if (!byBlock.has(blockId)) byBlock.set(blockId, new Map());
+      const inner = byBlock.get(blockId)!;
+      const prev = inner.get(rooms);
+      if (prev == null || priceMin < prev) inner.set(rooms, priceMin);
+    }
+    for (const [blockId, inner] of byBlock) {
+      map.set(
+        blockId,
+        Array.from(inner.entries())
+          .map(([rooms, priceMin]) => ({ rooms, priceMin }))
+          .sort((a, b) => this.roomBandSortKey(a.rooms) - this.roomBandSortKey(b.rooms)),
+      );
+    }
+    return map;
+  }
+
   private async listingPriceRangesByBlockIds(
     blockIds: number[],
   ): Promise<Map<number, Array<{ rooms: number; priceMin: number }>>> {
     const map = new Map<number, Array<{ rooms: number; priceMin: number }>>();
     if (!blockIds.length) return map;
-    if (!(await this.isCatalogMvAvailable())) return map;
+
+    const rtToCat = await this.roomTypeCategoryMap();
+    const minPrice = BlocksService.MIN_REASONABLE_PRICE_RUB;
+
+    if (await this.isCatalogMvAvailable()) {
+      try {
+        const rows = await this.prisma.$queryRaw<
+          Array<{ block_id: number; room_type_id: number; min_p: unknown }>
+        >`
+          SELECT block_id, room_type_id, MIN(price) AS min_p
+          FROM catalog_apartment_active_mv
+          WHERE block_id IN (${Prisma.join(blockIds)})
+            AND price >= ${minPrice}
+            AND room_type_id IS NOT NULL
+          GROUP BY block_id, room_type_id
+        `;
+        for (const [blockId, ranges] of this.aggregateListingPriceRanges(rows, rtToCat)) {
+          map.set(blockId, ranges);
+        }
+      } catch (e: unknown) {
+        this.logger.warn(
+          `MV price ranges skipped: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+
+    const missingIds = blockIds.filter((id) => (map.get(id)?.length ?? 0) === 0);
+    if (missingIds.length === 0) return map;
+
     try {
       const rows = await this.prisma.$queryRaw<
         Array<{ block_id: number; room_type_id: number; min_p: unknown }>
       >`
-        SELECT block_id, room_type_id, MIN(price) AS min_p
-        FROM catalog_apartment_active_mv
-        WHERE block_id IN (${Prisma.join(blockIds)})
-        GROUP BY block_id, room_type_id
+        SELECT l.block_id, la.room_type_id, MIN(l.price) AS min_p
+        FROM listings l
+        INNER JOIN listing_apartments la ON la.listing_id = l.id
+        WHERE l.block_id IN (${Prisma.join(missingIds)})
+          AND l.status IN ('ACTIVE'::"ListingStatus", 'RESERVED'::"ListingStatus")
+          AND l.kind = 'APARTMENT'::"ListingKind"
+          AND l.is_published = true
+          AND l.price >= ${minPrice}
+          AND la.room_type_id IS NOT NULL
+        GROUP BY l.block_id, la.room_type_id
       `;
-      const roomTypes = await this.prisma.roomType.findMany({
-        select: { id: true, name: true, nameOne: true },
-      });
-      const rtToCat = new Map<number, number>();
-      for (const rt of roomTypes) {
-        const cat = this.roomCategoryFromName(rt.nameOne ?? rt.name);
-        if (cat != null) rtToCat.set(rt.id, cat);
-      }
-      const byBlock = new Map<number, Map<number, number>>();
-      for (const row of rows) {
-        const blockId = Number(row.block_id);
-        const rooms = rtToCat.get(Number(row.room_type_id));
-        if (rooms == null || row.min_p == null) continue;
-        const priceMin = Number(row.min_p);
-        if (!Number.isFinite(priceMin)) continue;
-        if (!byBlock.has(blockId)) byBlock.set(blockId, new Map());
-        const inner = byBlock.get(blockId)!;
-        const prev = inner.get(rooms);
-        if (prev == null || priceMin < prev) inner.set(rooms, priceMin);
-      }
-      for (const [blockId, inner] of byBlock) {
-        map.set(
-          blockId,
-          Array.from(inner.entries())
-            .map(([rooms, priceMin]) => ({ rooms, priceMin }))
-            .sort((a, b) => a.rooms - b.rooms),
-        );
+      for (const [blockId, ranges] of this.aggregateListingPriceRanges(rows, rtToCat)) {
+        if (ranges.length > 0) map.set(blockId, ranges);
       }
     } catch (e: unknown) {
       this.logger.warn(
-        `MV price ranges fallback skipped: ${e instanceof Error ? e.message : String(e)}`,
+        `Base-table price ranges fallback failed: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
+
     return map;
   }
 

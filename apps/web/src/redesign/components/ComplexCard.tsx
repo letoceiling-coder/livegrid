@@ -100,7 +100,7 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
     </div>
   );
 
-  const showBuilder = hasBuilder && !isCompact;
+  const showBuilder = hasBuilder;
 
   const contentMain = (
     <>
@@ -139,21 +139,25 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
         ) : null}
       </div>
 
-      {showBuilder ? (
-        <div className={cardVisual.complexMetaRow}>
-          {isPopular ? (
-            <HardHat className={cardVisual.complexMetaIcon} aria-hidden />
-          ) : (
-            <Building2 className={cardVisual.complexMetaIcon} aria-hidden />
-          )}
-          <span className="min-w-0 line-clamp-1">
-            <span className="text-muted-foreground">Застройщик: </span>
-            <span className={isPopular ? 'font-semibold text-foreground/90' : 'text-foreground/85'}>
-              {builderName}
+      <div className={cn(cardVisual.complexMetaRow, isCompact && 'min-h-[1.125rem]')}>
+        {showBuilder ? (
+          <>
+            {isPopular ? (
+              <HardHat className={cardVisual.complexMetaIcon} aria-hidden />
+            ) : (
+              <Building2 className={cardVisual.complexMetaIcon} aria-hidden />
+            )}
+            <span className="min-w-0 line-clamp-1">
+              <span className="text-muted-foreground">Застройщик: </span>
+              <span className={isPopular ? 'font-semibold text-foreground/90' : 'font-semibold text-foreground/85'}>
+                {builderName}
+              </span>
             </span>
-          </span>
-        </div>
-      ) : null}
+          </>
+        ) : isCompact ? (
+          <span className="invisible select-none" aria-hidden>—</span>
+        ) : null}
+      </div>
 
       {completion ? (
         <p
@@ -169,7 +173,10 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
       ) : null}
 
       <div
-        className={cn(cardVisual.dottedBlock, isCompact && 'min-h-[5.5rem]')}
+        className={cn(
+          cardVisual.dottedBlock,
+          isCompact && (priceBandRows.length > 0 ? 'min-h-[6.5rem]' : 'min-h-[1.5rem]'),
+        )}
         role="list"
         aria-label="Цены по типам квартир"
       >
