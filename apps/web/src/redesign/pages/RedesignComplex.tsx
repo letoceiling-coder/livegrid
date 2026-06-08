@@ -811,9 +811,11 @@ const RedesignComplex = () => {
           {similarComplexes.length > 0 ? (
             <section id="similar" className="scroll-mt-32">
               {sectionHeading('Похожие жилые комплексы')}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-stretch">
                 {similarComplexes.map((c) => (
-                  <ComplexCard key={c.id} complex={c} variant="compact" coverAspect="16/9" />
+                  <div key={c.id} className="flex h-full min-h-0">
+                    <ComplexCard complex={c} variant="compact" coverAspect="16/9" />
+                  </div>
                 ))}
               </div>
             </section>

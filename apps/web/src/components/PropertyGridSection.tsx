@@ -124,10 +124,6 @@ const PropertyGridSection = ({ title, type }: Props) => {
     <ListingCard key={listing.id} listing={listing} variant="home" />
   ));
 
-  const startCards = startComplexes.map((c) => (
-    <ComplexCard key={c.id} complex={c} variant="compact" coverAspect="16/9" />
-  ));
-
   return (
     <section className={cn('py-8 sm:py-12', isHot && 'bg-accent/30')}>
       <div className="max-w-[1400px] mx-auto px-4">
@@ -181,7 +177,11 @@ const PropertyGridSection = ({ title, type }: Props) => {
 
         {!loading && !empty && isStart && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
-            {startCards}
+            {startComplexes.map((c) => (
+              <div key={c.id} className="flex h-full min-h-0">
+                <ComplexCard complex={c} variant="compact" coverAspect="16/9" />
+              </div>
+            ))}
           </div>
         )}
 

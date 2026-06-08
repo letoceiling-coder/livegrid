@@ -44,7 +44,9 @@ export const cardVisual = {
   /** ЖК marketplace card */
   complexShell:
     'rounded-[20px] border border-neutral-200/80 bg-card overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow duration-200 hover:shadow-lg',
-  complexMedia: 'relative shrink-0 overflow-hidden rounded-t-[20px] bg-muted aspect-video',
+  complexMedia: 'relative w-full shrink-0 overflow-hidden rounded-t-[20px] bg-[#f3f4f6]',
+  complexMediaAspect16: 'aspect-video',
+  complexMediaAspect43: 'aspect-[4/3]',
   complexCoverBadge:
     'absolute left-2.5 top-2.5 z-10 rounded-lg px-2.5 py-1 text-[10px] font-semibold leading-tight shadow-md pointer-events-none',
   complexBody: 'flex flex-col gap-2.5 p-4 min-w-0',

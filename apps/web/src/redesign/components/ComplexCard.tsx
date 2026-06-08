@@ -42,7 +42,6 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
   const liked = blockNum != null && isBlockFavorite(blockNum);
   const inCompare = isCompared(complex.slug);
   const coverImages = complex.images.filter((src) => Boolean(src?.trim()));
-  const hasCoverImage = coverImages.length > 0;
   const coverImage = coverImages[currentImageIndex] ?? coverImages[0] ?? '';
   const builderName = complex.builder?.trim();
   const hasBuilder = Boolean(builderName && builderName !== '—');
@@ -101,36 +100,46 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
     </div>
   );
 
-  const contentBlock = (
+  const showBuilder = hasBuilder && !isCompact;
+
+  const contentMain = (
     <>
       <h3
         className={cn(
-          isCompact ? 'text-base font-bold leading-snug tracking-tight text-foreground line-clamp-2' : cardVisual.complexTitle,
+          isCompact ? 'text-base font-bold leading-snug tracking-tight text-foreground line-clamp-2 min-h-[2.5rem]' : cardVisual.complexTitle,
           'group-hover:text-primary transition-colors',
         )}
       >
         {complex.name}
       </h3>
 
-      {metroLine ? (
-        <div className={cardVisual.complexMetaRow}>
-          {isPopular || isCompact ? (
-            <span className={cardVisual.complexMetroDot} aria-hidden />
-          ) : (
-            <TrainFront className={cardVisual.complexMetaIcon} aria-hidden />
-          )}
-          <span className="min-w-0 line-clamp-1 text-foreground/85">{metroLine}</span>
-        </div>
-      ) : null}
+      <div className={cn(cardVisual.complexMetaRow, isCompact && 'min-h-[1.125rem]')}>
+        {metroLine ? (
+          <>
+            {isPopular || isCompact ? (
+              <span className={cardVisual.complexMetroDot} aria-hidden />
+            ) : (
+              <TrainFront className={cardVisual.complexMetaIcon} aria-hidden />
+            )}
+            <span className="min-w-0 line-clamp-1 text-foreground/85">{metroLine}</span>
+          </>
+        ) : isCompact ? (
+          <span className="invisible select-none" aria-hidden>—</span>
+        ) : null}
+      </div>
 
-      {fullAddressLine ? (
-        <div className={cardVisual.complexMetaRow}>
-          <MapPin className={cardVisual.complexMetaIcon} aria-hidden />
-          <span className="min-w-0 line-clamp-2 text-muted-foreground/90">{fullAddressLine}</span>
-        </div>
-      ) : null}
+      <div className={cn(cardVisual.complexMetaRow, isCompact && 'min-h-[2.5rem]')}>
+        {fullAddressLine ? (
+          <>
+            <MapPin className={cardVisual.complexMetaIcon} aria-hidden />
+            <span className="min-w-0 line-clamp-2 text-muted-foreground/90">{fullAddressLine}</span>
+          </>
+        ) : isCompact ? (
+          <span className="invisible select-none line-clamp-2" aria-hidden>—</span>
+        ) : null}
+      </div>
 
-      {hasBuilder ? (
+      {showBuilder ? (
         <div className={cardVisual.complexMetaRow}>
           {isPopular ? (
             <HardHat className={cardVisual.complexMetaIcon} aria-hidden />
@@ -147,39 +156,114 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
       ) : null}
 
       {completion ? (
-        <p className={cardVisual.complexCompletion} aria-label={`Срок сдачи: ${completion}`}>
+        <p
+          className={cn(cardVisual.complexCompletion, isCompact && 'min-h-[1.125rem] line-clamp-1')}
+          aria-label={`Срок сдачи: ${completion}`}
+        >
           {completion}
+        </p>
+      ) : isCompact ? (
+        <p className={cn(cardVisual.complexCompletion, 'invisible min-h-[1.125rem] select-none')} aria-hidden>
+          —
         </p>
       ) : null}
 
-      {priceBandRows.length > 0 || fallbackRow ? (
-        <div className={cardVisual.dottedBlock} role="list" aria-label="Цены по типам квартир">
-          {priceBandRows.map((row) => (
-            <CardDottedPriceRow key={row.rooms} label={row.label} price={row.price} />
-          ))}
-          {fallbackRow ? <CardDottedPriceRow label={fallbackRow.label} price={fallbackRow.price} /> : null}
-        </div>
-      ) : null}
+      <div
+        className={cn(cardVisual.dottedBlock, isCompact && 'min-h-[5.5rem]')}
+        role="list"
+        aria-label="Цены по типам квартир"
+      >
+        {priceBandRows.length > 0 || fallbackRow ? (
+          <>
+            {priceBandRows.map((row) => (
+              <CardDottedPriceRow key={row.rooms} label={row.label} price={row.price} />
+            ))}
+            {fallbackRow ? <CardDottedPriceRow label={fallbackRow.label} price={fallbackRow.price} /> : null}
+          </>
+        ) : isCompact ? (
+          <span className="invisible select-none text-xs" aria-hidden>—</span>
+        ) : null}
+      </div>
 
       {inventoryLine ? (
         <p className={cardVisual.complexInventory}>{inventoryLine}</p>
-      ) : null}
-
-      {!isPopular ? (
-        <div className={cardVisual.complexFooter}>
-          <span className={cardVisual.complexFooterPill}>Новостройки</span>
-          {yieldLabel ? (
-            <span className={cardVisual.complexYield} aria-label={`Доходность ${yieldLabel}`}>
-              <span aria-hidden>🏦</span>
-              {yieldLabel}
-            </span>
-          ) : null}
-        </div>
+      ) : isCompact ? (
+        <p className={cn(cardVisual.complexInventory, 'invisible select-none')} aria-hidden>
+          Квартир 0
+        </p>
       ) : null}
     </>
   );
 
-  const mediaAspectClass = coverAspect === '16/9' ? 'aspect-video' : 'aspect-[4/3]';
+  const contentFooter = !isPopular ? (
+    <div className={cn(cardVisual.complexFooter, 'mt-auto shrink-0')}>
+      <span className={cardVisual.complexFooterPill}>Новостройки</span>
+      {yieldLabel ? (
+        <span className={cardVisual.complexYield} aria-label={`Доходность ${yieldLabel}`}>
+          <span aria-hidden>🏦</span>
+          {yieldLabel}
+        </span>
+      ) : null}
+    </div>
+  ) : null;
+
+  const mediaAspectProp = coverAspect === '16/9' ? '16/9' : '4/3';
+
+  const coverMedia = (
+    <div className={cn(cardVisual.complexMedia, 'relative')}>
+      <StableMediaFrame
+        src={coverImage || null}
+        altContext={complex.name}
+        decorative={false}
+        aspect={mediaAspectProp}
+        className="w-full rounded-t-[20px]"
+        imgClassName="object-cover object-center transition-transform duration-200 group-hover:scale-[1.02]"
+      />
+      {coverBadge ? (
+        <span
+          className={cn(
+            cardVisual.complexCoverBadge,
+            cardBadgeClass('primary', complex.salesStartDate ? 'amber' : 'blue'),
+          )}
+        >
+          {coverBadge}
+        </span>
+      ) : null}
+      {showOverlay ? (
+        <div className={cardVisual.complexOverlayStack}>
+          {overlay.primary ? <span className={cardVisual.complexOverlayPill}>{overlay.primary}</span> : null}
+          {overlay.secondary ? (
+            <span className={cardVisual.complexOverlayPill}>{overlay.secondary}</span>
+          ) : null}
+        </div>
+      ) : null}
+      {actionButtons}
+      {!isPopular && coverImages.length > 1 ? (
+        <div
+          className={cn(
+            'absolute left-1/2 z-10 flex -translate-x-1/2 gap-1',
+            showOverlay ? 'bottom-10' : 'bottom-2',
+          )}
+        >
+          {coverImages.map((_, index) => (
+            <button
+              key={index}
+              type="button"
+              className={cn(
+                'h-1.5 w-1.5 rounded-full transition-colors',
+                index === currentImageIndex ? 'bg-background shadow-sm' : 'bg-background/50',
+              )}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentImageIndex(index);
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 
   if (cardVariant === 'list') {
     return (
@@ -187,15 +271,14 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
         to={`/complex/${complex.slug}`}
         className={cn(cardVisual.complexShell, 'group flex')}
       >
-        {hasCoverImage ? (
-          <div className="relative w-[200px] shrink-0 overflow-hidden bg-muted min-h-[148px] sm:w-[220px]">
+        <div className="relative w-[200px] shrink-0 overflow-hidden bg-muted sm:w-[220px]">
             <StableMediaFrame
-              src={coverImages[0]}
+              src={coverImages[0] || null}
               altContext={complex.name}
               decorative={false}
               aspect="4/3"
-              className="h-full min-h-[148px] rounded-none"
-              imgClassName="transition-transform duration-200 group-hover:scale-[1.02]"
+              className="h-full w-full rounded-none"
+              imgClassName="object-cover object-center transition-transform duration-200 group-hover:scale-[1.02]"
             />
           {coverBadge ? (
             <span
@@ -217,8 +300,10 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
           ) : null}
           {actionButtons}
         </div>
-      ) : null}
-      <div className={cn(cardVisual.complexBody, 'flex-1 justify-between')}>{contentBlock}</div>
+      <div className={cn(cardVisual.complexBody, 'flex flex-1 flex-col')}>
+        <div className="flex flex-1 flex-col gap-2.5">{contentMain}</div>
+        {contentFooter}
+      </div>
       </Link>
     );
   }
@@ -226,65 +311,13 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
   return (
     <Link
       to={`/complex/${complex.slug}`}
-      className={cn(cardVisual.complexShell, 'group flex h-full flex-col')}
+      className={cn(cardVisual.complexShell, 'group flex h-full w-full flex-col')}
     >
-      {hasCoverImage ? (
-        <div className={cn(cardVisual.complexMedia, mediaAspectClass)}>
-          <StableMediaFrame
-            src={coverImage}
-            altContext={complex.name}
-            decorative={false}
-            aspect="none"
-            className="absolute inset-0"
-            imgClassName="transition-transform duration-200 group-hover:scale-[1.02]"
-          />
-          {coverBadge ? (
-            <span
-              className={cn(
-                cardVisual.complexCoverBadge,
-                cardBadgeClass('primary', complex.salesStartDate ? 'amber' : 'blue'),
-              )}
-            >
-              {coverBadge}
-            </span>
-          ) : null}
-          {showOverlay ? (
-            <div className={cardVisual.complexOverlayStack}>
-              {overlay.primary ? <span className={cardVisual.complexOverlayPill}>{overlay.primary}</span> : null}
-              {overlay.secondary ? (
-                <span className={cardVisual.complexOverlayPill}>{overlay.secondary}</span>
-              ) : null}
-            </div>
-          ) : null}
-          {actionButtons}
-          {!isPopular && coverImages.length > 1 ? (
-            <div
-              className={cn(
-                'absolute left-1/2 z-10 flex -translate-x-1/2 gap-1',
-                showOverlay ? 'bottom-10' : 'bottom-2',
-              )}
-            >
-              {coverImages.map((_, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  className={cn(
-                    'h-1.5 w-1.5 rounded-full transition-colors',
-                    index === currentImageIndex ? 'bg-background shadow-sm' : 'bg-background/50',
-                  )}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setCurrentImageIndex(index);
-                  }}
-                />
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className={cn(cardVisual.complexBody, isCompact && 'p-3 gap-2', 'flex-1')}>{contentBlock}</div>
+      {coverMedia}
+      <div className={cn(cardVisual.complexBody, isCompact && 'p-3 gap-2', 'flex flex-1 flex-col min-h-0')}>
+        <div className="flex flex-1 flex-col gap-2.5 min-h-0">{contentMain}</div>
+        {contentFooter}
+      </div>
     </Link>
   );
 };

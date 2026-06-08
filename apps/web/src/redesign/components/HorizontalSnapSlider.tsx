@@ -67,7 +67,7 @@ const HorizontalSnapSlider = ({
       <>
         <div className={cn('hidden sm:grid', desktopGridClass)}>
           {children.map((child, i) => (
-            <div key={i} className="h-full flex min-h-0">
+            <div key={i} className="h-full min-h-0 flex w-full">
               {child}
             </div>
           ))}
