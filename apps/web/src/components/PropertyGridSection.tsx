@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import ComplexCard from '@/redesign/components/ComplexCard';
+import ListingCard, { type ApiListingCardRow } from '@/redesign/components/ListingCard';
 import HorizontalSnapSlider from '@/redesign/components/HorizontalSnapSlider';
 import { mapApiBlockListRowToResidentialComplex } from '@/redesign/lib/blocks-from-api';
 import { ArrowRight, Flame, Loader2 } from 'lucide-react';
@@ -57,31 +58,24 @@ const PropertyGridSection = ({ title, type }: Props) => {
   const hotPer = intSetting(siteMap, 'home_hot_per_page', 8);
   const startPer = intSetting(siteMap, 'home_start_per_page', 3);
   const windowDays = intSetting(siteMap, 'home_start_window_days', 180);
-  const hotMode = (setting(siteMap, 'home_hot_mode', 'latest') || 'latest').toLowerCase().trim();
-  const hotSlugs = (setting(siteMap, 'home_hot_fixed_slugs', '') || '').trim();
-
   const displayTitle = isHot
     ? setting(siteMap, 'home_hot_title', title)
     : setting(siteMap, 'home_start_title', title);
 
   const hotQuery = useQuery({
-    queryKey: ['blocks', 'home', 'hot', regionId, hotPer, hotMode, hotSlugs],
+    queryKey: ['listings', 'home', 'hot', regionId, hotPer],
     enabled: isHot && regionId != null,
     staleTime: 300_000,
     queryFn: async () => {
       const sp = new URLSearchParams();
       sp.set('region_id', String(regionId));
+      sp.set('kind', 'APARTMENT');
+      sp.set('statuses', 'ACTIVE,RESERVED');
+      sp.set('is_published', 'true');
       sp.set('per_page', String(hotPer));
       sp.set('page', '1');
-      sp.set('require_active_listings', 'true');
       sp.set('sort', 'created_desc');
-      const useSlugs = hotMode === 'fixed_slugs' && hotSlugs.length > 0;
-      if (useSlugs) {
-        sp.set('block_slugs', hotSlugs);
-      } else if (hotMode === 'promoted') {
-        sp.set('is_promoted', 'true');
-      }
-      return apiGet<{ data: ApiBlockListRow[] }>(`/blocks?${sp}`);
+      return apiGet<{ data: ApiListingCardRow[] }>(`/listings?${sp}`);
     },
   });
 
@@ -110,9 +104,9 @@ const PropertyGridSection = ({ title, type }: Props) => {
     },
   });
 
-  const hotComplexes = useMemo(() => {
+  const hotListings = useMemo(() => {
     const rows = hotQuery.data?.data ?? [];
-    return rows.map((b) => mapApiBlockListRowToResidentialComplex(b));
+    return rows.filter((l) => l.kind === 'APARTMENT');
   }, [hotQuery.data]);
 
   const startComplexes = useMemo(() => {
@@ -121,13 +115,19 @@ const PropertyGridSection = ({ title, type }: Props) => {
   }, [startQuery.data]);
 
   const loading = isHot ? hotQuery.isLoading : startQuery.isLoading;
-  const empty = !loading && (isHot ? hotComplexes.length === 0 : startComplexes.length === 0);
+  const empty = !loading && (isHot ? hotListings.length === 0 : startComplexes.length === 0);
 
   if (isStart && empty) return null;
 
   const complexCard = (c: ReturnType<typeof mapApiBlockListRowToResidentialComplex>) => (
     <div key={c.id} className="flex h-full min-h-0 w-full">
       <ComplexCard complex={c} variant="compact" coverAspect="16/9" />
+    </div>
+  );
+
+  const listingCard = (l: ApiListingCardRow) => (
+    <div key={l.id} className="flex h-full min-h-0 w-full">
+      <ListingCard listing={l} variant="home" />
     </div>
   );
 
@@ -145,7 +145,7 @@ const PropertyGridSection = ({ title, type }: Props) => {
                 Помощь с подбором
               </Link>
             ) : (
-              <Link to="/catalog" className={btnClass('secondary', { compact: true })}>
+              <Link to="/catalog?type=apartments" className={btnClass('secondary', { compact: true })}>
                 Все предложения
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
@@ -166,7 +166,7 @@ const PropertyGridSection = ({ title, type }: Props) => {
         {empty && (
           <p className="text-sm text-muted-foreground text-center py-12 max-w-lg mx-auto">
             {isHot
-              ? 'Нет жилых комплексов для этого блока. Включите «Реклама» у ЖК или задайте slug в настройках главной.'
+              ? 'Нет активных квартир для этого блока.'
               : 'Нет ЖК со стартом продаж в выбранном периоде.'}
           </p>
         )}
@@ -178,7 +178,7 @@ const PropertyGridSection = ({ title, type }: Props) => {
             showArrows
             showDots
           >
-            {hotComplexes.map((c) => complexCard(c))}
+            {hotListings.map((l) => listingCard(l))}
           </HorizontalSnapSlider>
         )}
 
@@ -198,7 +198,7 @@ const PropertyGridSection = ({ title, type }: Props) => {
           </Link>
         ) : (
           <Link
-            to="/catalog"
+            to="/catalog?type=apartments"
             className={cn(btnClass('secondary', { block: true }), 'mt-4 sm:hidden')}
           >
             Все предложения

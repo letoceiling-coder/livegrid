@@ -37,6 +37,7 @@ export type ApiListingCardRow = {
     finishingPhotoUrl?: string | null;
     extraPhotoUrls?: unknown;
     roomType?: { name: string } | null;
+    buildingDeadline?: string | null;
   } | null;
   house?: {
     areaTotal?: string | number | null;
@@ -89,6 +90,14 @@ function pickImage(l: ApiListingCardRow): string {
     }
     return null;
   };
+  if (l.kind === 'APARTMENT') {
+    return (
+      tryUrl(l.apartment?.finishingPhotoUrl) ??
+      fromArray(l.apartment?.extraPhotoUrls) ??
+      tryUrl(l.apartment?.planUrl) ??
+      null
+    );
+  }
   return (
     tryUrl(l.house?.photoUrl) ??
     fromArray(l.house?.extraPhotoUrls) ??
@@ -172,22 +181,24 @@ const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
     <Link
       to={linkTo}
       className={cn(
-        cardVisual.cardShell,
+        isHome ? cardVisual.complexShell : cardVisual.cardShell,
+        'group',
         isList ? 'sm:flex sm:items-stretch' : '',
-        isHome && 'h-full flex flex-col',
+        isHome && 'h-full w-full flex flex-col',
       )}
     >
       <div
         className={cn(
-          'relative w-full overflow-hidden',
+          'relative w-full shrink-0 overflow-hidden',
+          isHome && cardVisual.complexMedia,
           isList ? 'sm:w-56 sm:shrink-0' : 'w-full',
         )}
       >
         <StableMediaFrame
           src={img}
           aspect="16/9"
-          className={isList ? 'sm:w-56' : 'w-full'}
-          imgClassName="group-hover:scale-[1.02] transition-transform duration-200"
+          className={cn(isList ? 'sm:w-56' : 'w-full', isHome && 'rounded-t-[20px]')}
+          imgClassName="object-cover object-center group-hover:scale-[1.02] transition-transform duration-200"
         />
         <span
           className={cn(
@@ -216,19 +227,42 @@ const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
           </div>
         ) : null}
       </div>
-      <div className={cn(cardVisual.cardBody, isHome && 'flex-1 p-3 gap-1.5')}>
+      <div
+        className={cn(
+          isHome ? cn(cardVisual.complexBody, 'flex-1 p-3 gap-2') : cardVisual.cardBody,
+        )}
+      >
         <p
-          className={cn(priceIsFallback ? cardVisual.priceFallback : cardVisual.price)}
+          className={cn(
+            isHome
+              ? priceIsFallback
+                ? cardVisual.priceGridFallback
+                : cardVisual.priceGrid
+              : priceIsFallback
+                ? cardVisual.priceFallback
+                : cardVisual.price,
+          )}
           aria-label={priceAriaLabel(formatted)}
         >
           {formatted}
         </p>
-        <h3 className={cn(cardVisual.title, 'line-clamp-2')}>{title}</h3>
+        <h3
+          className={cn(
+            isHome ? 'text-base font-bold leading-snug tracking-tight text-foreground line-clamp-2 min-h-[2.5rem]' : cardVisual.title,
+            'line-clamp-2',
+          )}
+        >
+          {title}
+        </h3>
         {locationLine ? (
-          <p className={cardVisual.metaMuted}>{locationLine}</p>
+          <p className={isHome ? cardVisual.metaDot : cardVisual.metaMuted}>{locationLine}</p>
         ) : null}
         {completionLine ? (
-          <p className="text-xs font-semibold text-foreground leading-snug">{completionLine}</p>
+          <p className={cn(cardVisual.complexCompletion, 'line-clamp-1')}>{completionLine}</p>
+        ) : isHome ? (
+          <p className={cn(cardVisual.complexCompletion, 'invisible min-h-[1.125rem] select-none')} aria-hidden>
+            —
+          </p>
         ) : null}
       </div>
     </Link>
