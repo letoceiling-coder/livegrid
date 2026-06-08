@@ -66,6 +66,11 @@ export class FeedImportService implements OnModuleInit {
     });
     this.scheduleStuckBatchWatchdog();
 
+    if (process.env.FEED_IMPORT_CRON_REGISTER === 'false') {
+      this.logger.log('Feed import cron registration skipped (FEED_IMPORT_CRON_REGISTER=false)');
+      return;
+    }
+
     if (this.config.get('FEED_IMPORT_DISABLE_REPEAT') === 'true') {
       this.logger.log('Repeatable feed import cron disabled (FEED_IMPORT_DISABLE_REPEAT)');
       return;

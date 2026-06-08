@@ -11,6 +11,8 @@ import { FeedProcessorService } from './feed-processor.service';
 import { FeedImportProcessor } from './feed-import.processor';
 import { FEED_IMPORT_QUEUE } from './feed-import.constants';
 
+const feedImportProcessorEnabled = process.env.FEED_IMPORT_PROCESSOR_ENABLED !== 'false';
+
 @Module({
   imports: [
     BlocksModule,
@@ -24,7 +26,7 @@ import { FEED_IMPORT_QUEUE } from './feed-import.constants';
     FeedRecoveryService,
     FeedFetcherService,
     FeedProcessorService,
-    FeedImportProcessor,
+    ...(feedImportProcessorEnabled ? [FeedImportProcessor] : []),
   ],
   exports: [FeedImportService, FeedRecoveryService],
 })

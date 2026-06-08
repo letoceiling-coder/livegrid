@@ -8,6 +8,7 @@ import { SiteSettingFieldType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { INTEGRATIONS_SITE_SETTINGS_GROUP } from '../content/content-defaults';
 import { PrismaService } from '../../prisma/prisma.service';
+import { createTelegramClientOptions } from './telegram-client-options';
 
 type QrPhase = 'starting' | 'awaiting_scan' | 'awaiting_password' | 'success' | 'error' | 'cancelled';
 
@@ -120,7 +121,7 @@ export class TelegramNewsQrAuthService {
     const { StringSession } = await import('telegram/sessions');
 
     const session = new StringSession('');
-    const client = new TelegramClient(session, apiId, apiHash, { connectionRetries: 3 });
+    const client = new TelegramClient(session, apiId, apiHash, createTelegramClientOptions(3));
     this.disconnectInFlight = async () => {
       try {
         await client.disconnect();

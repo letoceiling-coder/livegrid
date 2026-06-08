@@ -20,6 +20,7 @@ import {
   saveLocalMediaFile,
   verifyFileOnDisk,
 } from './telegram-media-downloader';
+import { createTelegramClientOptions } from './telegram-client-options';
 
 const RSS_SETTING_KEY = 'home_news_rss_url';
 const DEFAULT_TELEGRAM_LIMIT_PER_CHANNEL = 20;
@@ -553,9 +554,7 @@ export class NewsService implements OnModuleInit {
     const { StringSession } = await import('telegram/sessions');
 
     const session = new StringSession(sessionString);
-    const client = new TelegramClient(session, apiId, apiHash, {
-      connectionRetries: 3,
-    });
+    const client = new TelegramClient(session, apiId, apiHash, createTelegramClientOptions(3));
 
     let imported = 0;
     let skipped = 0;
@@ -756,9 +755,7 @@ export class NewsService implements OnModuleInit {
     const { TelegramClient } = await import('telegram');
     const { StringSession } = await import('telegram/sessions');
     const session = new StringSession(sessionString);
-    const client = new TelegramClient(session, apiId, apiHash, {
-      connectionRetries: 5,
-    });
+    const client = new TelegramClient(session, apiId, apiHash, createTelegramClientOptions(5));
 
     let updated = 0;
     let skipped = 0;

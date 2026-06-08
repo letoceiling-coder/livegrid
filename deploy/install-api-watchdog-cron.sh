@@ -4,7 +4,7 @@ set -euo pipefail
 
 _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WATCHDOG="$_script_dir/lg-api-watchdog.sh"
-CRON_LINE="*/2 * * * * bash $WATCHDOG >/dev/null 2>&1"
+CRON_LINE="*/2 * * * * HOME=/root PM2_HOME=/root/.pm2 LG_DEPLOY_ROOT=/var/www/lg bash $WATCHDOG >/dev/null 2>&1"
 
 chmod +x "$WATCHDOG"
 
@@ -12,13 +12,10 @@ mkdir -p /var/log/lg
 touch /var/log/lg/api-watchdog.log
 
 existing="$(crontab -l 2>/dev/null || true)"
-if echo "$existing" | grep -Fq "$WATCHDOG"; then
-  echo "API watchdog cron already installed"
-  exit 0
-fi
+filtered="$(echo "$existing" | grep -Fv 'lg-api-watchdog.sh' | grep -Fv 'LiveGrid API health watchdog' || true)"
 
 {
-  echo "$existing"
+  echo "$filtered"
   echo "# LiveGrid API health watchdog (auto-restart on hung process)"
   echo "$CRON_LINE"
 } | crontab -

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { yieldEventLoop } from '../../common/yield-event-loop';
 import { PrismaService } from '../../prisma/prisma.service';
 
 interface ProcessApartmentsProgress {
@@ -499,10 +500,15 @@ export class FeedProcessorService {
     const existingExtIds = new Set<string>();
 
     const batchSize = 500;
+    const yieldEvery = 25;
     for (let i = 0; i < data.length; i += batchSize) {
       const batch = data.slice(i, i + batchSize);
 
-      for (const apt of batch) {
+      for (let j = 0; j < batch.length; j++) {
+        const apt = batch[j]!;
+        if (j > 0 && j % yieldEvery === 0) {
+          await yieldEventLoop();
+        }
         existingExtIds.add(apt._id);
 
         const blockId = blockMap.get(apt.block_id) || null;
@@ -709,6 +715,7 @@ export class FeedProcessorService {
       const processed = Math.min(i + batchSize, data.length);
       this.logger.log(`Apartments progress: ${processed}/${data.length}`);
       await options.onBatchProgress?.({ processed, total: data.length });
+      await yieldEventLoop();
     }
 
     const feedCount = data.length;
