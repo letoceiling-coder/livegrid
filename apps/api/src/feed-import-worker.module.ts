@@ -4,6 +4,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from './prisma/prisma.module';
 import { BullSharedModule } from './bull/bull-shared.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
+import { CacheModule } from './common/cache/cache.module';
 import { BlocksModule } from './modules/blocks/blocks.module';
 import { SitemapModule } from './modules/sitemap/sitemap.module';
 import { FEED_IMPORT_QUEUE } from './modules/feed-import/feed-import.constants';
@@ -18,6 +19,7 @@ import { FeedImportProcessor } from './modules/feed-import/feed-import.processor
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '../../.env' }),
     PrismaModule,
+    CacheModule,
     MonitoringModule,
     BullSharedModule,
     BlocksModule,
