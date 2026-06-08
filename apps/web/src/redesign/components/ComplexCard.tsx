@@ -51,7 +51,7 @@ const ComplexCard = ({ complex, variant = 'grid', coverAspect = '16/9' }: Props)
   const metroLine = complexMetroDisplayLine(complex);
   const completion = complexPopularCompletionLine(complex);
   const overlay = complexImageOverlayLines(complex);
-  const coverBadge = complexCoverBadgeLabel(complex);
+  const coverBadge = complex.salesStartDate?.trim() ? null : complexCoverBadgeLabel(complex);
   const showOverlay = Boolean(overlay.primary || overlay.secondary);
   const priceBandRows = complexPriceBandRows(complex);
   const fallbackRow = priceBandRows.length === 0 ? complexFallbackPriceRow(complex) : null;

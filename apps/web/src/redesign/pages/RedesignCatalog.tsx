@@ -345,6 +345,7 @@ const RedesignCatalog = () => {
       return page + 1;
     },
     enabled: useBlocksCatalog && regionId != null,
+    staleTime: 300_000,
   });
 
   // Pass listing kind to districts query so only relevant districts are shown

@@ -5,7 +5,7 @@ import StableMediaFrame from '@/redesign/components/StableMediaFrame';
 import PromotionBadge from '@/redesign/components/PromotionBadge';
 import TrustBadgeRow, { type TrustBadgeView } from '@/redesign/components/TrustBadgeRow';
 import { listingFreshnessBadge } from '@lg/shared';
-import { cardBadgeClass, cardVisual, metaDotLine } from '@/redesign/lib/card-visual';
+import { cardBadgeClass, cardVisual, formatQuarterFromDate, metaDotLine } from '@/redesign/lib/card-visual';
 
 export type ListingPromotionView = {
   tier: string;
@@ -66,7 +66,7 @@ export type ApiListingCardRow = {
 
 interface Props {
   listing: ApiListingCardRow;
-  variant?: 'grid' | 'list';
+  variant?: 'grid' | 'list' | 'home';
   trustBadges?: TrustBadgeView[];
 }
 
@@ -160,6 +160,8 @@ const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
   const linkTo = listing.kind === 'APARTMENT' ? `/apartment/${listing.id}` : `/listing/${listing.id}`;
 
   const isList = variant === 'list';
+  const isHome = variant === 'home';
+  const completionLine = formatQuarterFromDate(listing.apartment?.buildingDeadline ?? null);
   const freshness = listingFreshnessBadge({
     dataSource: listing.dataSource,
     lastActivityAt: listing.lastActivityAt,
@@ -172,6 +174,7 @@ const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
       className={cn(
         cardVisual.cardShell,
         isList ? 'sm:flex sm:items-stretch' : '',
+        isHome && 'h-full flex flex-col',
       )}
     >
       <div
@@ -213,7 +216,7 @@ const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
           </div>
         ) : null}
       </div>
-      <div className={cardVisual.cardBody}>
+      <div className={cn(cardVisual.cardBody, isHome && 'flex-1 p-3 gap-1.5')}>
         <p
           className={cn(priceIsFallback ? cardVisual.priceFallback : cardVisual.price)}
           aria-label={priceAriaLabel(formatted)}
@@ -223,6 +226,9 @@ const ListingCard = ({ listing, variant = 'grid', trustBadges }: Props) => {
         <h3 className={cn(cardVisual.title, 'line-clamp-2')}>{title}</h3>
         {locationLine ? (
           <p className={cardVisual.metaMuted}>{locationLine}</p>
+        ) : null}
+        {completionLine ? (
+          <p className="text-xs font-semibold text-foreground leading-snug">{completionLine}</p>
         ) : null}
       </div>
     </Link>

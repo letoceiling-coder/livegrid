@@ -55,6 +55,7 @@ describe('card-visual complex helpers', () => {
   it('formats completion quarter text', () => {
     expect(formatCompletionQuarterText('2029 2 квартал')).toBe('2 кв. 2029');
     expect(formatCompletionQuarterText('2027 3 квартал')).toBe('3 кв. 2027');
+    expect(formatCompletionQuarterText('2026-01-30T00:00:00.000Z')).toBe('1 кв. 2026');
   });
 
   it('builds sales overlay lines', () => {
@@ -73,8 +74,8 @@ describe('card-visual complex helpers', () => {
         },
       ],
     });
-    expect(lines.primary).toBe('Старт продаж');
-    expect(lines.secondary).toMatch(/корпус 4\.1/i);
+    expect(lines.primary).toMatch(/^Старт продаж · /);
+    expect(lines.secondary).toBeNull();
   });
 
   it('formats metro display line with transport time', () => {

@@ -1,4 +1,4 @@
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Newspaper } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
@@ -6,6 +6,10 @@ import { useSiteSettings } from '@/redesign/hooks/useSiteSettings';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 import CardShell from './CardShell';
 import PropertyBadge from './PropertyBadge';
+import HorizontalSnapSlider from '@/redesign/components/HorizontalSnapSlider';
+import { btnClass } from '@/redesign/lib/button-styles';
+import { formatNewsDateShort, formatNewsSource } from '@/redesign/lib/news-source';
+import { cn } from '@/lib/utils';
 
 type NewsRow = {
   id: number;
@@ -21,17 +25,48 @@ type NewsResponse = {
   meta: { page: number; per_page: number; total: number; total_pages: number };
 };
 
-function formatNewsDate(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function newsPerPage(map: Map<string, string> | undefined): number {
   const raw = map?.get('home_news_per_page');
   const n = parseInt(String(raw ?? '').trim(), 10);
   return Number.isFinite(n) && n > 0 && n <= 24 ? n : 4;
+}
+
+function NewsCard({ n, className }: { n: NewsRow; className?: string }) {
+  const sourceLabel = formatNewsSource(n.source);
+  const dateLabel = formatNewsDateShort(n.publishedAt);
+  const hasImage = Boolean(n.imageUrl?.trim());
+
+  return (
+    <CardShell className={cn('h-full', className)}>
+      <Link
+        to={`/news/${encodeURIComponent(n.slug)}`}
+        className="flex flex-col flex-1 min-h-0 h-full"
+      >
+        <div className="overflow-hidden aspect-video bg-[#f3f4f6] shrink-0">
+          {hasImage ? (
+            <img
+              src={n.imageUrl!}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover group-hover:scale-[1.02] transition-opacity duration-300 opacity-100"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+              <Newspaper className="w-8 h-8 opacity-40" aria-hidden />
+            </div>
+          )}
+        </div>
+        <div className="p-3 flex-1 flex flex-col gap-1 min-h-[88px]">
+          <PropertyBadge label={sourceLabel} type="new" className="self-start" />
+          <h3 className="font-semibold text-sm leading-tight line-clamp-2 flex-1">{n.title}</h3>
+          {dateLabel ? (
+            <span className="text-[11px] text-muted-foreground">{dateLabel}</span>
+          ) : null}
+        </div>
+      </Link>
+    </CardShell>
+  );
 }
 
 const LatestNews = () => {
@@ -46,107 +81,53 @@ const LatestNews = () => {
         `/news?per_page=${perPage}&page=1${regionId != null ? `&region_id=${regionId}` : ''}`,
       ),
     enabled: regionId != null,
-    staleTime: 60_000,
+    staleTime: 300_000,
   });
 
-  const items = (data?.data ?? []).filter((n) => {
-    const url = n.imageUrl?.trim() ?? '';
-    return url.startsWith('/uploads/media/');
-  });
+  const items = data?.data ?? [];
   if (!isLoading && items.length === 0) return null;
+
+  const cards = items.map((n) => <NewsCard key={n.id} n={n} />);
 
   return (
     <section className="py-8 sm:py-12">
       <div className="max-w-[1400px] mx-auto px-4">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h2 className="text-base sm:text-xl font-bold">Последние новости</h2>
-          <Link
-            to="/news"
-            className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-border text-xs sm:text-sm font-medium hover:bg-secondary transition-colors"
-          >
+          <Link to="/news" className={cn(btnClass('secondary', { compact: true }), 'hidden sm:inline-flex')}>
             Все новости
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
         {isLoading && (
-          <div className="text-sm text-muted-foreground py-8 text-center">Загрузка новостей…</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-pulse">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border overflow-hidden">
+                <div className="aspect-video bg-muted" />
+                <div className="p-3 space-y-2">
+                  <div className="h-3 bg-muted rounded w-1/3" />
+                  <div className="h-4 bg-muted rounded w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         {!isLoading && items.length > 0 && (
-          <>
-            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              {items.map((n) => (
-                <CardShell key={n.id}>
-                  <Link
-                    to={`/news/${encodeURIComponent(n.slug)}`}
-                    className="flex flex-col flex-1 min-h-0"
-                  >
-                    <div className="overflow-hidden h-[160px] bg-muted shrink-0">
-                      {n.imageUrl ? (
-                        <img
-                          src={n.imageUrl}
-                          alt=""
-                          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground px-2 text-center">
-                          Без фото
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3 flex-1 flex flex-col gap-0.5">
-                      <PropertyBadge label={n.source || 'Новости'} type="new" className="self-start mb-1" />
-                      <h3 className="font-semibold text-sm leading-tight line-clamp-2">{n.title}</h3>
-                      <span className="text-[11px] text-muted-foreground mt-auto block">
-                        {formatNewsDate(n.publishedAt)}
-                      </span>
-                    </div>
-                  </Link>
-                </CardShell>
-              ))}
-            </div>
-
-            <div className="flex sm:hidden gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4">
-              {items.map((n) => (
-                <div key={n.id} className="min-w-[260px] snap-start shrink-0">
-                  <CardShell>
-                    <Link
-                      to={`/news/${encodeURIComponent(n.slug)}`}
-                      className="flex flex-col flex-1 min-h-0"
-                    >
-                      <div className="overflow-hidden h-[140px] bg-muted shrink-0">
-                        {n.imageUrl ? (
-                          <img
-                            src={n.imageUrl}
-                            alt=""
-                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Нет фото</div>
-                        )}
-                      </div>
-                      <div className="p-3 flex-1 flex flex-col gap-0.5">
-                        <PropertyBadge label={n.source || 'Новости'} type="new" className="self-start mb-1" />
-                        <h3 className="font-semibold text-sm leading-tight line-clamp-2">{n.title}</h3>
-                        <span className="text-[11px] text-muted-foreground mt-auto block">
-                          {formatNewsDate(n.publishedAt)}
-                        </span>
-                      </div>
-                    </Link>
-                  </CardShell>
-                </div>
-              ))}
-            </div>
-          </>
+          <HorizontalSnapSlider
+            mobileItemClass="w-[calc(100vw-32px)]"
+            desktopGridClass="sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-stretch"
+            showDots
+            showArrows={false}
+          >
+            {cards}
+          </HorizontalSnapSlider>
         )}
 
-        <Link
-          to="/news"
-          className="flex sm:hidden items-center justify-center gap-1.5 mt-3 py-2 rounded-xl border border-border text-xs font-medium hover:bg-secondary transition-colors"
-        >
+        <Link to="/news" className={cn(btnClass('secondary', { block: true }), 'mt-4 sm:hidden')}>
           Все новости
-          <ArrowRight className="w-3.5 h-3.5" />
+          <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
     </section>

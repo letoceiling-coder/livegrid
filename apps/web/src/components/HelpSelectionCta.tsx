@@ -7,6 +7,7 @@ import {
   type HelpSelectionSettings,
 } from '@/shared/lib/help-selection-cms';
 import { useHelpSelectionSection } from '@/shared/hooks/useHelpSelectionSection';
+import { btnClass } from '@/redesign/lib/button-styles';
 
 type Props = {
   pageSlug?: string;
@@ -26,8 +27,7 @@ export default function HelpSelectionCta({ pageSlug = '/', settings: settingsPro
     if (consult && onConsult) onConsult();
   };
 
-  const buttonClass =
-    'inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary';
+  const buttonClass = btnClass('primary', { compact: true, className: 'shrink-0 w-full sm:w-auto' });
 
   return (
     <section className="py-5 sm:py-6" aria-labelledby="help-selection-title">

@@ -127,7 +127,16 @@ export function complexRoomBandLabel(rooms: number): string {
   if (rooms === 2) return '2Е-к.кв';
   if (rooms === 21) return '2-к.кв';
   if (rooms === 3) return '3-к.кв';
-  return '4+ к.кв';
+  return '4+-к.кв';
+}
+
+/** ISO or Date → «N кв. YYYY» */
+export function formatQuarterFromDate(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(d.getTime())) return null;
+  const quarter = Math.ceil((d.getMonth() + 1) / 3);
+  return `${quarter} кв. ${d.getFullYear()}`;
 }
 
 /** Top-left cover badge — «Новый ЖК» or «Старт продаж». */
@@ -148,6 +157,9 @@ function capitalizeRuMonthYear(iso: string): string | null {
 export function formatCompletionQuarterText(deadline: string): string | null {
   const dl = deadline.trim();
   if (!dl || dl === '—') return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(dl) || dl.includes('T')) {
+    return formatQuarterFromDate(dl);
+  }
   const ru = dl.match(/(\d{4})\s+(\d)\s*кв(?:артал)?/i);
   if (ru) return `${ru[2]} кв. ${ru[1]}`;
   const q = dl.match(/Q([1-4])\s+(\d{4})/i);
@@ -166,11 +178,8 @@ export function complexImageOverlayLines(complex: ResidentialComplex): {
   let secondary: string | null = null;
   if (complex.salesStartDate?.trim()) {
     const monthYear = capitalizeRuMonthYear(complex.salesStartDate);
-    const corp = complex.buildings[0]?.name?.trim();
-    const primary = 'Старт продаж';
-    if (monthYear && corp) secondary = `${monthYear} — ${corp}`;
-    else if (monthYear) secondary = monthYear;
-    return { primary, secondary };
+    const primary = monthYear ? `Старт продаж · ${monthYear}` : 'Старт продаж';
+    return { primary, secondary: null };
   }
   if (complex.status === 'planned') {
     return { primary: 'Планируется', secondary: null };
@@ -263,7 +272,7 @@ export function complexPriceBandRows(complex: ResidentialComplex): ComplexPriceB
   const fromApi = (complex.priceRanges ?? [])
     .filter((r) => normalizePriceValue(r.priceMin) != null)
     .sort((a, b) => bandSortKey(a.rooms) - bandSortKey(b.rooms))
-    .slice(0, 3)
+    .slice(0, 4)
     .map((r) => ({
       rooms: r.rooms,
       label: complexRoomBandLabel(r.rooms),
@@ -283,7 +292,7 @@ export function complexPriceBandRows(complex: ResidentialComplex): ComplexPriceB
 
   return Array.from(priceBands.entries())
     .sort(([a], [b]) => a - b)
-    .slice(0, 3)
+    .slice(0, 4)
     .map(([rooms, price]) => ({
       rooms,
       label: complexRoomBandLabel(rooms),

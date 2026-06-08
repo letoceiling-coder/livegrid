@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, MapPin } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { ApiConnectionStrip } from '@/components/ApiConnectionStrip';
 import RedesignHeader from '@/redesign/components/RedesignHeader';
 import HeroSearch from '@/redesign/components/HeroSearch';
@@ -19,6 +20,8 @@ import type { ConsultationContext } from '@/redesign/lib/conversion-cta';
 import { apiGet } from '@/lib/api';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 import { mapApiBlockListRowToResidentialComplex, type ApiBlockListRow } from '@/redesign/lib/blocks-from-api';
+import { btnClass } from '@/redesign/lib/button-styles';
+import HorizontalSnapSlider from '@/redesign/components/HorizontalSnapSlider';
 
 const RedesignIndex = () => {
   const navigate = useNavigate();
@@ -38,6 +41,7 @@ const RedesignIndex = () => {
       return apiGet<{ data: ApiBlockListRow[] }>(`/blocks?${sp}`);
     },
     enabled: regionId != null,
+    staleTime: 300_000,
   });
 
   const featured = useMemo(() => {
@@ -66,15 +70,17 @@ const RedesignIndex = () => {
           <h2 className="text-base sm:text-xl font-bold">Популярные ЖК</h2>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => navigate('/map')}
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-border text-xs sm:text-sm font-medium hover:bg-secondary transition-colors"
+              className={cn(btnClass('secondary', { compact: true }), 'hidden sm:inline-flex')}
             >
               <MapPin className="w-3.5 h-3.5 text-primary" />
               На карте
             </button>
             <button
+              type="button"
               onClick={() => navigate('/catalog')}
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-border text-xs sm:text-sm font-medium hover:bg-secondary transition-colors"
+              className={cn(btnClass('secondary', { compact: true }), 'hidden sm:inline-flex')}
             >
               Все предложения
               <ArrowRight className="w-3.5 h-3.5" />
@@ -82,27 +88,24 @@ const RedesignIndex = () => {
           </div>
         </div>
 
-        <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-start">
+        <HorizontalSnapSlider
+          mobileItemClass="w-[calc(100vw-32px)]"
+          desktopGridClass="sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-3 lg:gap-4 items-stretch"
+          showDots
+          showArrows={false}
+        >
           {featured.map((c) => (
             <ComplexCard key={c.id} complex={c} variant="compact" coverAspect="16/9" />
           ))}
-        </div>
-
-        {/* Mobile swiper */}
-        <div className="flex sm:hidden gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide -mx-4 px-4">
-          {featured.map(c => (
-            <div key={c.id} className="min-w-[260px] snap-start shrink-0">
-              <ComplexCard complex={c} variant="compact" coverAspect="16/9" />
-            </div>
-          ))}
-        </div>
+        </HorizontalSnapSlider>
 
         <button
+          type="button"
           onClick={() => navigate('/catalog')}
-          className="flex sm:hidden items-center justify-center gap-1.5 mt-3 w-full py-2 rounded-xl border border-border text-xs font-medium hover:bg-secondary transition-colors"
+          className={cn(btnClass('secondary', { block: true }), 'mt-4 sm:hidden')}
         >
           Все предложения
-          <ArrowRight className="w-3.5 h-3.5" />
+          <ArrowRight className="w-4 h-4" />
         </button>
       </section>
       )}

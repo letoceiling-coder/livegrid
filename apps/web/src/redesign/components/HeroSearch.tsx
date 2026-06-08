@@ -447,7 +447,7 @@ const HeroSearch = () => {
             <button
               type="button"
               onClick={() => navigate('/map')}
-              className="hidden sm:flex items-center gap-2 py-2.5 px-5 rounded-[10px] border border-[#cbd5e1] bg-white text-sm font-medium hover:bg-muted/30 transition-colors"
+              className="hidden sm:inline-flex items-center gap-2 h-12 min-h-12 px-6 rounded-xl border-[1.5px] border-[#d1d5db] bg-white text-base font-semibold text-[#111827] hover:bg-[#f9fafb] transition-colors"
             >
               <MapPin className="w-4 h-4 text-primary" />
               На карте
@@ -455,9 +455,9 @@ const HeroSearch = () => {
             <button
               type="button"
               onClick={doSearch}
-              className="py-2.5 px-6 flex-1 sm:flex-none rounded-[10px] bg-[#2563EB] text-white text-xs sm:text-sm font-semibold hover:bg-[#1d4ed8] transition-colors shadow-sm"
+              className="h-12 min-h-12 px-6 flex-1 sm:flex-none rounded-xl bg-[#2563EB] text-white text-base font-semibold hover:bg-[#1d4ed8] transition-colors shadow-sm w-full sm:w-auto"
             >
-              'Найти'
+              Найти
             </button>
           </div>
         </div>

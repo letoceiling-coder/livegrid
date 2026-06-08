@@ -14,6 +14,7 @@ import { telHref } from '@/lib/contact-links';
 import { useDefaultRegionId } from '@/redesign/hooks/useDefaultRegionId';
 import CatalogSearchHintsDropdown from '@/redesign/components/CatalogSearchHintsDropdown';
 import type { CatalogHints } from '@/redesign/lib/catalog-hints-types';
+import { btnClass } from '@/redesign/lib/button-styles';
 
 const catalogCategories = [
   { label: 'Квартиры', href: '/catalog?type=apartments', sub: [
@@ -26,7 +27,7 @@ const catalogCategories = [
 ];
 
 const navLinkClass =
-  'px-3.5 py-2 text-sm rounded-lg transition-colors text-[#111827] hover:bg-[#f3f4f6]';
+  'px-2 py-2 text-[15px] font-medium rounded-lg transition-colors text-[#111827] hover:text-[#2563EB]';
 
 const RedesignHeader = () => {
   const { data: siteSettings } = useSiteSettings();
@@ -85,17 +86,17 @@ const RedesignHeader = () => {
   return (
     <>
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#e5e7eb] shadow-sm">
-        <div className="max-w-[1400px] mx-auto px-4 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-[1400px] mx-auto px-4 h-16 flex items-center gap-4">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 shrink-0">
+          <Link to="/" className="flex items-center gap-2.5 shrink-0 lg:min-w-[140px]">
             <div className="w-9 h-9 flex items-center justify-center">
               <img src="/logo.svg" alt="Live Grid" className="w-full h-full object-contain" />
             </div>
             <span className="hidden sm:block font-semibold text-sm tracking-tight">Live Grid</span>
           </Link>
 
-          {/* Desktop nav */}
-          <nav className="hidden lg:flex items-center gap-1 text-[#111827]">
+          {/* Desktop nav — centered */}
+          <nav className="hidden lg:flex flex-1 items-center justify-center gap-8 text-[#111827]">
             <div
               ref={catalogRef}
               className="relative"
@@ -159,7 +160,7 @@ const RedesignHeader = () => {
           </nav>
 
           {/* Desktop right */}
-          <div className="hidden lg:flex items-center gap-2 shrink-0 flex-1 justify-end max-w-xl">
+          <div className="hidden lg:flex items-center gap-2 shrink-0 lg:min-w-[280px] justify-end">
             <div
               ref={searchRef}
               className={cn(
@@ -280,26 +281,28 @@ const RedesignHeader = () => {
             )}
           </div>
 
+          <div className="flex-1 lg:hidden" aria-hidden />
+
           {/* Mobile buttons */}
-          <div className="flex lg:hidden items-center gap-2">
+          <div className="flex lg:hidden items-center gap-4 shrink-0">
             <button
               type="button"
               onClick={handleHeartClick}
-              className="relative w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#f3f4f6]"
+              className="relative min-w-[44px] min-h-[44px] w-11 h-11 flex items-center justify-center rounded-lg hover:bg-[#f3f4f6]"
               aria-label="Избранное"
             >
-              <Heart className="w-5 h-5" />
+              <Heart className="w-6 h-6" />
               {favoritesCount > 0 ? (
                 <span className="absolute top-1 right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground flex items-center justify-center">
                   {favoritesCount > 9 ? '9+' : favoritesCount}
                 </span>
               ) : null}
             </button>
-            <button type="button" onClick={() => setSearchOpen(!searchOpen)} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#f3f4f6]">
-              <Search className="w-5 h-5" />
+            <button type="button" onClick={() => setSearchOpen(!searchOpen)} className="min-w-[44px] min-h-[44px] w-11 h-11 flex items-center justify-center rounded-lg hover:bg-[#f3f4f6]" aria-label="Поиск">
+              <Search className="w-6 h-6" />
             </button>
-            <button type="button" onClick={() => setMenuOpen(true)} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[#f3f4f6]">
-              <Menu className="w-5 h-5" />
+            <button type="button" onClick={() => setMenuOpen(true)} className="min-w-[44px] min-h-[44px] w-11 h-11 flex items-center justify-center rounded-lg hover:bg-[#f3f4f6]" aria-label="Меню">
+              <Menu className="w-6 h-6" />
             </button>
           </div>
         </div>
@@ -347,7 +350,7 @@ const RedesignHeader = () => {
             aria-label="Закрыть меню"
             onClick={() => setMenuOpen(false)}
           />
-          <div className="fixed inset-y-0 right-0 z-[60] w-[min(100%,320px)] bg-white flex flex-col shadow-xl lg:hidden animate-in slide-in-from-right duration-[250ms] ease-out">
+          <div className="fixed inset-y-0 right-0 z-[60] w-[85vw] max-w-[320px] bg-white flex flex-col shadow-xl lg:hidden animate-in slide-in-from-right duration-[250ms] ease-out">
           <div className="flex items-center justify-between h-16 px-4 border-b border-[#e5e7eb]">
             <span className="font-semibold">Меню</span>
             <button onClick={() => setMenuOpen(false)} className="w-10 h-10 flex items-center justify-center"><X className="w-5 h-5" /></button>
@@ -357,7 +360,7 @@ const RedesignHeader = () => {
             {catalogCategories.map(item => (
               <div key={item.href}>
                 <Link to={item.href} onClick={() => setMenuOpen(false)}
-                  className="py-3 px-4 rounded-xl text-sm font-medium hover:bg-[#f3f4f6] transition-colors block min-h-[48px] flex items-center">{item.label}</Link>
+                  className="py-3 px-4 rounded-xl text-lg font-medium hover:bg-[#f3f4f6] transition-colors block min-h-[52px] flex items-center">{item.label}</Link>
                 {'sub' in item && item.sub && item.sub.map(sub => (
                   <Link key={sub.href} to={sub.href} onClick={() => setMenuOpen(false)}
                     className="py-2 px-8 rounded-xl text-xs text-muted-foreground hover:bg-accent transition-colors block">{sub.label}</Link>
@@ -365,10 +368,10 @@ const RedesignHeader = () => {
               </div>
             ))}
             <div className="h-px bg-border my-2" />
-            <Link to="/catalog?type=apartments&market=new" onClick={() => setMenuOpen(false)} className="py-3 px-4 rounded-xl text-sm font-medium hover:bg-[#f3f4f6] min-h-[48px] flex items-center">Новостройки</Link>
-            <Link to="/catalog?city=belgorod" onClick={() => setMenuOpen(false)} className="py-3 px-4 rounded-xl text-sm font-medium hover:bg-[#f3f4f6] min-h-[48px] flex items-center">Белгород</Link>
-            <Link to="/agents" onClick={() => setMenuOpen(false)} className="py-3 px-4 rounded-xl text-sm font-medium hover:bg-[#f3f4f6] min-h-[48px] flex items-center">Наши агенты</Link>
-            <Link to="/contacts" onClick={() => setMenuOpen(false)} className="py-3 px-4 rounded-xl text-sm font-medium hover:bg-[#f3f4f6] min-h-[48px] flex items-center">Контакты</Link>
+            <Link to="/catalog?type=apartments&market=new" onClick={() => setMenuOpen(false)} className="py-3 px-4 rounded-xl text-lg font-medium hover:bg-[#f3f4f6] min-h-[52px] flex items-center">Новостройки</Link>
+            <Link to="/catalog?city=belgorod" onClick={() => setMenuOpen(false)} className="py-3 px-4 rounded-xl text-lg font-medium hover:bg-[#f3f4f6] min-h-[52px] flex items-center">Белгород</Link>
+            <Link to="/agents" onClick={() => setMenuOpen(false)} className="py-3 px-4 rounded-xl text-lg font-medium hover:bg-[#f3f4f6] min-h-[52px] flex items-center">Агенты</Link>
+            <Link to="/contacts" onClick={() => setMenuOpen(false)} className="py-3 px-4 rounded-xl text-lg font-medium hover:bg-[#f3f4f6] min-h-[52px] flex items-center">Контакты</Link>
           </nav>
           <div className="mt-auto p-4 border-t border-border space-y-3">
             {phoneMain && phoneHref ? (
@@ -378,8 +381,9 @@ const RedesignHeader = () => {
             ) : null}
             {!isAuthenticated ? (
               <button
+                type="button"
                 onClick={() => { setMenuOpen(false); setLoginModalOpen(true); }}
-                className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground rounded-full py-2.5 text-sm font-medium"
+                className={cn(btnClass('primary', { block: true }), 'gap-2')}
               >
                 <LogIn className="w-4 h-4" /> Войти
               </button>
@@ -402,26 +406,26 @@ const RedesignHeader = () => {
       )}
 
       {/* Mobile bottom nav */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t border-border safe-area-bottom">
-        <div className="grid grid-cols-4 h-14">
-          <Link to="/" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px]', location.pathname === '/' ? 'text-primary' : 'text-muted-foreground')}>
-            <Home className="w-5 h-5" />
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom,0px)]">
+        <div className="grid grid-cols-4 h-14 min-h-[56px]">
+          <Link to="/" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium', location.pathname === '/' ? 'text-[#2563EB]' : 'text-[#6b7280]')}>
+            <Home className="w-6 h-6" />
             <span>Главная</span>
           </Link>
-          <Link to="/catalog" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px]', location.pathname.startsWith('/catalog') ? 'text-primary' : 'text-muted-foreground')}>
-            <LayoutGrid className="w-5 h-5" />
+          <Link to="/catalog" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium', location.pathname.startsWith('/catalog') ? 'text-[#2563EB]' : 'text-[#6b7280]')}>
+            <LayoutGrid className="w-6 h-6" />
             <span>Каталог</span>
           </Link>
-          <Link to="/map" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px]', location.pathname === '/map' ? 'text-primary' : 'text-muted-foreground')}>
-            <MapPin className="w-5 h-5" />
+          <Link to="/map" className={cn('flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium', location.pathname === '/map' ? 'text-[#2563EB]' : 'text-[#6b7280]')}>
+            <MapPin className="w-6 h-6" />
             <span>Карта</span>
           </Link>
           <button
             type="button"
             onClick={handleHeartClick}
-            className={cn('relative flex flex-col items-center justify-center gap-0.5 text-[10px]', 'text-muted-foreground')}
+            className={cn('relative flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-[#6b7280]')}
           >
-            <Heart className="w-5 h-5" />
+            <Heart className="w-6 h-6" />
             {favoritesCount > 0 ? (
               <span className="absolute top-1 right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground flex items-center justify-center leading-none">
                 {favoritesCount > 9 ? '9+' : favoritesCount}

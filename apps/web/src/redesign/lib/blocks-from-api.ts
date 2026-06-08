@@ -119,15 +119,23 @@ function buildingDeadlineLabel(bg: {
   deadline?: string | null;
   deadlineKey?: string | Date | null;
 }): string {
-  if (bg.deadlineKey != null) {
-    const d =
-      bg.deadlineKey instanceof Date ? bg.deadlineKey : new Date(String(bg.deadlineKey));
+  const key = bg.deadlineKey;
+  if (key != null) {
+    const d = key instanceof Date ? key : new Date(String(key));
     if (!Number.isNaN(d.getTime())) {
       const quarter = Math.ceil((d.getMonth() + 1) / 3);
-      return `${d.getFullYear()} ${quarter} квартал`;
+      return `${quarter} кв. ${d.getFullYear()}`;
     }
   }
-  return bg.deadline?.trim() || '';
+  const raw = bg.deadline?.trim() || '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw) || raw.includes('T')) {
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) {
+      const quarter = Math.ceil((d.getMonth() + 1) / 3);
+      return `${quarter} кв. ${d.getFullYear()}`;
+    }
+  }
+  return raw;
 }
 
 /** Плоский список ЖК (каталог, автодополнение). */

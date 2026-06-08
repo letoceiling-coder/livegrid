@@ -95,6 +95,7 @@ const RedesignComplex = () => {
     queryKey: ['block', 'slug', resolvedSlug],
     queryFn: () => apiGetOrNull<ApiBlockDetail>(`/blocks/${encodeURIComponent(resolvedSlug || '')}`),
     enabled: Boolean(resolvedSlug),
+    staleTime: 600_000,
   });
 
   const listingsQuery = useQuery({
