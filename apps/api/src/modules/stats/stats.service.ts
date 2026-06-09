@@ -1,13 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { ListingStatus, ListingKind, RequestStatus } from '@prisma/client';
+import { ListingStatus, ListingKind, RequestStatus, Prisma } from '@prisma/client';
+import { resolveRoomListingTypeIds } from '@lg/shared';
 import { PrismaService } from '../../prisma/prisma.service';
-
-const HERO_LISTING_KINDS: ListingKind[] = [
-  ListingKind.APARTMENT,
-  ListingKind.HOUSE,
-  ListingKind.LAND,
-  ListingKind.COMMERCIAL,
-];
 
 @Injectable()
 export class StatsService {
@@ -15,27 +9,52 @@ export class StatsService {
 
   /** Публичные счётчики активных опубликованных лотов по типу (для табов на главной). */
   async listingKindCounts(regionId: number): Promise<Record<string, number>> {
-    const rows = await this.prisma.listing.groupBy({
-      by: ['kind'],
-      where: {
-        regionId,
-        status: { in: [ListingStatus.ACTIVE, ListingStatus.RESERVED] },
-        isPublished: true,
-        kind: { in: HERO_LISTING_KINDS },
-      },
-      _count: { _all: true },
-    });
-    const out: Record<string, number> = {
-      APARTMENT: 0,
-      HOUSE: 0,
-      LAND: 0,
-      COMMERCIAL: 0,
+    const pubBase: Prisma.ListingWhereInput = {
+      regionId,
+      status: { in: [ListingStatus.ACTIVE, ListingStatus.RESERVED] },
+      isPublished: true,
+      visibility: 'PUBLIC',
     };
-    for (const r of rows) {
-      const k = String(r.kind);
-      if (k in out) out[k] = r._count._all;
-    }
-    return out;
+
+    const roomRows = await this.prisma.roomType.findMany({
+      select: { id: true, name: true, nameOne: true, crmId: true },
+    });
+    const roomListingTypeIds = resolveRoomListingTypeIds(
+      roomRows.map((rt) => ({
+        id: rt.id,
+        name: rt.name,
+        nameOne: rt.nameOne,
+        crmId: rt.crmId,
+      })),
+    );
+
+    const roomApartmentClause: Prisma.ListingWhereInput = {
+      kind: ListingKind.APARTMENT,
+      OR: [
+        { wizardSnapshot: { payload: { path: ['kind'], equals: 'ROOM' } } },
+        ...(roomListingTypeIds.length
+          ? [{ apartment: { roomTypeId: { in: roomListingTypeIds } } }]
+          : []),
+      ],
+    };
+
+    const [rooms, apartments, house, land, commercial] = await Promise.all([
+      this.prisma.listing.count({ where: { ...pubBase, ...roomApartmentClause } }),
+      this.prisma.listing.count({
+        where: { ...pubBase, kind: ListingKind.APARTMENT, NOT: roomApartmentClause },
+      }),
+      this.prisma.listing.count({ where: { ...pubBase, kind: ListingKind.HOUSE } }),
+      this.prisma.listing.count({ where: { ...pubBase, kind: ListingKind.LAND } }),
+      this.prisma.listing.count({ where: { ...pubBase, kind: ListingKind.COMMERCIAL } }),
+    ]);
+
+    return {
+      APARTMENT: apartments,
+      ROOM: rooms,
+      HOUSE: house,
+      LAND: land,
+      COMMERCIAL: commercial,
+    };
   }
 
   async getCounters() {

@@ -158,6 +158,8 @@ export function buildListingsSearchParams(args: {
   }
 
   if (kind === 'APARTMENT') {
+    if (filters.objectType === 'rooms') sp.set('apartment_category', 'room');
+    else if (filters.objectType === 'apartments') sp.set('apartment_category', 'standard');
     setCsv(sp, 'rooms', filters.rooms);
     setFinite(sp, 'floor_min', filters.floorMin);
     setFinite(sp, 'floor_max', filters.floorMax);

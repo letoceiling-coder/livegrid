@@ -4,7 +4,7 @@ import type { RegionRow } from '@/redesign/hooks/useDefaultRegionId';
 
 export const OBJECT_TYPE_TABS: { type: ObjectType; label: string; countKey: string }[] = [
   { type: 'apartments', label: 'Квартиры', countKey: 'APARTMENT' },
-  { type: 'rooms', label: 'Комнаты', countKey: 'APARTMENT' },
+  { type: 'rooms', label: 'Комнаты', countKey: 'ROOM' },
   { type: 'houses', label: 'Дома', countKey: 'HOUSE' },
   { type: 'land', label: 'Участки', countKey: 'LAND' },
   { type: 'dachas', label: 'Дачи', countKey: 'HOUSE' },
@@ -93,7 +93,7 @@ export function getCatalogFilterVisibility(
 
   return {
     marketType: isApartments,
-    rooms: isApartments,
+    rooms: isApartments || isRooms,
     floor: isApartments,
     deadline: isNewBuilding,
     status: isNewBuilding,

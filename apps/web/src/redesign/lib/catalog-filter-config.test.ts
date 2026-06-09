@@ -25,6 +25,7 @@ describe('catalog-filter-config', () => {
 
     const rooms = getCatalogFilterVisibility('rooms', { marketType: 'all', hasBlocks: false });
     expect(rooms.metro).toBe(true);
+    expect(rooms.rooms).toBe(true);
     expect(rooms.marketType).toBe(false);
   });
 

@@ -211,7 +211,7 @@ const RedesignCatalog = () => {
   const catalogSort = parseCatalogSort(searchParams.get('sort'));
 
   const isApartmentMode = filters.objectType === 'apartments';
-  const isUnsupportedSeparateType = filters.objectType === 'rooms' || filters.objectType === 'dachas';
+  const isUnsupportedSeparateType = filters.objectType === 'dachas';
   const useBlocksCatalog = isApartmentMode && filters.marketType !== 'secondary';
   const listingKind = LISTING_KIND_BY_OBJECT_TYPE[filters.objectType];
   const regionName = useMemo(
@@ -238,6 +238,7 @@ const RedesignCatalog = () => {
       'infinite',
       regionId,
       listingKind,
+      filters.objectType,
       debouncedSearch,
       filters.priceMin,
       filters.priceMax,
@@ -282,7 +283,7 @@ const RedesignCatalog = () => {
 
   // Flat (non-paginated) query for map view showing individual listings
   const listingsMapQuery = useQuery({
-    queryKey: ['listings', 'catalog', 'map', regionId, listingKind, debouncedSearch, filters.priceMin, filters.priceMax, filterKeyPart(filters.rooms), filters.areaMin, filters.areaMax, filters.landAreaMin, filters.landAreaMax, filters.distanceMin, filters.distanceMax, filterKeyPart(filters.directions), filterKeyPart(filters.houseLocation), filters.floorMin, filters.floorMax, filterKeyPart(filters.landPurpose), filterKeyPart(filters.commercialTypes), filterKeyPart(filters.houseMaterials), filterKeyPart(filters.district), filters.marketType],
+    queryKey: ['listings', 'catalog', 'map', regionId, listingKind, filters.objectType, debouncedSearch, filters.priceMin, filters.priceMax, filterKeyPart(filters.rooms), filters.areaMin, filters.areaMax, filters.landAreaMin, filters.landAreaMax, filters.distanceMin, filters.distanceMax, filterKeyPart(filters.directions), filterKeyPart(filters.houseLocation), filters.floorMin, filters.floorMax, filterKeyPart(filters.landPurpose), filterKeyPart(filters.commercialTypes), filterKeyPart(filters.houseMaterials), filterKeyPart(filters.district), filters.marketType],
     queryFn: async () => {
       const sp = buildListingsSearchParams({
         filters: { ...filters, search: debouncedSearch },

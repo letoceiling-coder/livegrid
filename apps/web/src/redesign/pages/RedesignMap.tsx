@@ -145,7 +145,7 @@ const RedesignMap = () => {
   }, [searchParams]);
 
   const objectType = filters.objectType;
-  const isUnsupportedSeparateType = objectType === 'rooms' || objectType === 'dachas';
+  const isUnsupportedSeparateType = objectType === 'dachas';
   const useBlocksForApartments = objectType === 'apartments' && filters.marketType !== 'secondary';
 
   // Kind counts – drives the type switcher
