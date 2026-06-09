@@ -19,6 +19,12 @@ import {
   LISTING_VISIBILITY_LABEL,
   listingVisibilityClass,
 } from '@/admin/lib/listingVisibility';
+import AdminListingsFilterPanel from '@/admin/components/AdminListingsFilterPanel';
+import {
+  applyExtendedFiltersToParams,
+  EMPTY_EXTENDED_FILTERS,
+  type AdminListingsExtendedFilters,
+} from '@/admin/lib/admin-listings-filters';
 
 type Kind = 'APARTMENT' | 'HOUSE' | 'LAND' | 'COMMERCIAL' | 'PARKING';
 type Source = 'all' | 'feed' | 'manual' | 'donor';
@@ -137,6 +143,7 @@ export default function AdminListings() {
   const [statusFilter, setStatusFilter] = useState<'all' | ListingStatus>('all');
   const [regionId, setRegionId] = useState<number | 'all'>('all');
   const [search, setSearch] = useState('');
+  const [extendedFilters, setExtendedFilters] = useState<AdminListingsExtendedFilters>(EMPTY_EXTENDED_FILTERS);
   const [page, setPage] = useState(1);
   const perPage = 30;
 
@@ -153,8 +160,22 @@ export default function AdminListings() {
   });
 
   const queryKey = useMemo(
-    () => ['admin', 'listings', regionId, page, source, kind, statusGroup, statusFilter, search.trim(), ownerFilter, visibilityFilter, staleOnly],
-    [regionId, page, source, kind, statusGroup, statusFilter, search, ownerFilter, visibilityFilter, staleOnly],
+    () => [
+      'admin',
+      'listings',
+      regionId,
+      page,
+      source,
+      kind,
+      statusGroup,
+      statusFilter,
+      search.trim(),
+      ownerFilter,
+      visibilityFilter,
+      staleOnly,
+      extendedFilters,
+    ],
+    [regionId, page, source, kind, statusGroup, statusFilter, search, ownerFilter, visibilityFilter, staleOnly, extendedFilters],
   );
 
   const queryString = useMemo(() => {
@@ -179,8 +200,9 @@ export default function AdminListings() {
       if (group?.statuses?.length) sp.set('statuses', group.statuses.join(','));
     }
     if (search.trim()) sp.set('search', search.trim());
+    applyExtendedFiltersToParams(sp, extendedFilters, kind);
     return sp.toString();
-  }, [page, perPage, kind, regionId, source, statusGroup, statusFilter, search, visibilityFilter, ownerFilter, staleOnly, user?.role]);
+  }, [page, perPage, kind, regionId, source, statusGroup, statusFilter, search, visibilityFilter, ownerFilter, staleOnly, user?.role, extendedFilters]);
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -254,7 +276,11 @@ export default function AdminListings() {
 
   const KindIcon = (KIND_TABS.find((t) => t.key === kind) ?? KIND_TABS[0]).icon;
 
-  const setKindAndReset = (k: Kind) => { setKind(k); setPage(1); };
+  const setKindAndReset = (k: Kind) => {
+    setKind(k);
+    setExtendedFilters(EMPTY_EXTENDED_FILTERS);
+    setPage(1);
+  };
   const setSourceAndReset = (s: Source) => { setSource(s); setPage(1); };
   const setStatusGroupAndReset = (g: StatusGroup) => {
     setStatusGroup(g);
@@ -278,7 +304,19 @@ export default function AdminListings() {
 
         {/* Filters bar */}
         <div className="flex flex-wrap gap-2 items-center">
-          <Select value={String(regionId)} onValueChange={(v) => { setRegionId(v === 'all' ? 'all' : Number(v)); setPage(1); }}>
+          <Select
+            value={String(regionId)}
+            onValueChange={(v) => {
+              setRegionId(v === 'all' ? 'all' : Number(v));
+              setExtendedFilters((prev) => ({
+                ...prev,
+                blockId: 'all',
+                districtKey: 'all',
+                builderId: 'all',
+              }));
+              setPage(1);
+            }}
+          >
             <SelectTrigger className="h-9 w-[200px] text-xs">
               <SelectValue placeholder="Регион" />
             </SelectTrigger>
@@ -396,6 +434,14 @@ export default function AdminListings() {
             ) : null}
           </div>
         </div>
+
+        <AdminListingsFilterPanel
+          kind={kind}
+          regionId={regionId}
+          filters={extendedFilters}
+          onChange={setExtendedFilters}
+          onPageReset={() => setPage(1)}
+        />
       </div>
 
       {/* Type tabs */}
