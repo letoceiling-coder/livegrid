@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -70,11 +70,20 @@ const KIND_OPTIONS: Array<{
   { kind: 'PARKING', ...listingWizardKindLabels.PARKING, icon: Car },
 ];
 
+const WIZARD_KIND_PARAM = new Set<ListingWizardKind>([
+  'APARTMENT', 'ROOM', 'HOUSE', 'DACHA', 'LAND', 'COMMERCIAL', 'PARKING',
+]);
+
 export default function AdminListingWizard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { listingId } = useParams<{ listingId?: string }>();
   const resumeId = listingId ? Number(listingId) : null;
   const editMode = resumeId != null && Number.isFinite(resumeId);
+  const presetKindRaw = searchParams.get('kind')?.toUpperCase() ?? '';
+  const presetKind = WIZARD_KIND_PARAM.has(presetKindRaw as ListingWizardKind)
+    ? (presetKindRaw as ListingWizardKind)
+    : null;
   const { user } = useAuth();
   const qc = useQueryClient();
   const hydratedRef = useRef(false);
@@ -95,6 +104,14 @@ export default function AdminListingWizard() {
   useEffect(() => {
     saveWizardDraft(draft);
   }, [draft]);
+
+  useEffect(() => {
+    if (editMode || !presetKind) return;
+    setDraft((prev) => {
+      if (prev.kind || prev.serverListingId) return prev;
+      return applyKindDefaults({ ...prev, kind: presetKind, isDirty: false });
+    });
+  }, [editMode, presetKind]);
 
   const { data: moderationConfig } = useQuery({
     queryKey: ['wizard', 'moderation-config'],

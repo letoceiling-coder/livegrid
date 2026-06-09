@@ -6,6 +6,7 @@ export * from './listings/listing-lifecycle.js';
 export * from './listings/listing-freshness.js';
 export * from './listings/listing-contact.js';
 export * from './listings/listing-field-registry.js';
+export * from './listings/room-listing-category.js';
 export * from './listings/wizard-validation.js';
 export * from './listings/api-validation.js';
 export * from './listings/wizard-payload.js';

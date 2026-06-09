@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import {
   applyLifecycleAction,
   isLiveListingVisibility,
+  resolveRoomListingTypeIds,
   resolveWizardApiKind,
   type ListingWizardUiKind,
   type WizardServerPayload,
@@ -381,7 +382,10 @@ export class ListingsWizardService {
   private inferUiKind(listing: {
     kind: string;
     apartment?: { roomTypeId?: number | null } | null;
+    wizardSnapshot?: { payload: unknown } | null;
   }): ListingWizardUiKind {
+    const snapKind = (listing.wizardSnapshot?.payload as WizardServerPayload | undefined)?.kind;
+    if (snapKind && UI_KINDS.includes(snapKind)) return snapKind;
     if (listing.kind === 'APARTMENT') return 'APARTMENT';
     if (listing.kind === 'HOUSE') return 'HOUSE';
     if (listing.kind === 'LAND') return 'LAND';
@@ -566,6 +570,21 @@ export class ListingsWizardService {
       const a = payload.apartment;
       const areaTotal = this.num(strField(a.areaTotal));
       if (areaTotal == null) return;
+      let roomTypeId = this.intNum(strField(a.roomTypeId)) ?? null;
+      if (payload.kind === 'ROOM') {
+        const roomRows = await tx.roomType.findMany({
+          select: { id: true, name: true, nameOne: true, crmId: true },
+        });
+        const roomListingIds = resolveRoomListingTypeIds(
+          roomRows.map((rt) => ({
+            id: rt.id,
+            name: rt.name,
+            nameOne: rt.nameOne,
+            crmId: rt.crmId,
+          })),
+        );
+        if (roomListingIds.length) roomTypeId = roomListingIds[0]!;
+      }
       await tx.listing.update({
         where: { id: listingId },
         data: {
@@ -577,7 +596,7 @@ export class ListingsWizardService {
                 areaKitchen: this.num(strField(a.areaKitchen)) != null ? new Prisma.Decimal(this.num(strField(a.areaKitchen))!) : null,
                 floor: this.intNum(strField(a.floor)) ?? null,
                 floorsTotal: this.intNum(strField(a.floorsTotal)) ?? null,
-                roomTypeId: this.intNum(strField(a.roomTypeId)) ?? null,
+                roomTypeId,
                 finishingId: this.intNum(strField(a.finishingId)) ?? null,
                 planUrl: payload.planUrl || null,
                 finishingPhotoUrl: payload.mainPhotoUrl || null,
@@ -591,7 +610,7 @@ export class ListingsWizardService {
                 areaKitchen: this.num(strField(a.areaKitchen)) != null ? new Prisma.Decimal(this.num(strField(a.areaKitchen))!) : null,
                 floor: this.intNum(strField(a.floor)) ?? null,
                 floorsTotal: this.intNum(strField(a.floorsTotal)) ?? null,
-                roomTypeId: this.intNum(strField(a.roomTypeId)) ?? null,
+                roomTypeId,
                 finishingId: this.intNum(strField(a.finishingId)) ?? null,
                 planUrl: payload.planUrl || null,
                 finishingPhotoUrl: payload.mainPhotoUrl || null,

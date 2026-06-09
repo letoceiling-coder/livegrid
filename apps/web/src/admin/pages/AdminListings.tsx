@@ -24,7 +24,6 @@ import {
   apiKindForAdminTab,
   applyExtendedFiltersToParams,
   EMPTY_EXTENDED_FILTERS,
-  resolveRoomListingTypeIds,
   type AdminListingsExtendedFilters,
 } from '@/admin/lib/admin-listings-filters';
 
@@ -77,7 +76,7 @@ const STATUS_GROUPS: Array<{ key: StatusGroup; label: string; statuses?: Listing
 ];
 const KIND_TABS: { key: Kind; label: string; icon: typeof Building; manualPath: string }[] = [
   { key: 'APARTMENT',  label: 'Квартиры',     icon: Building,      manualPath: '/admin/listings/manual/new' },
-  { key: 'ROOM',       label: 'Комнаты',     icon: DoorOpen,      manualPath: '/admin/listings/wizard/new' },
+  { key: 'ROOM',       label: 'Комнаты',     icon: DoorOpen,      manualPath: '/admin/listings/wizard/new?kind=ROOM' },
   { key: 'HOUSE',      label: 'Дома',          icon: TreePine,      manualPath: '/admin/listings/manual-house/new' },
   { key: 'LAND',       label: 'Участки',       icon: Trees,         manualPath: '/admin/listings/manual-land/new' },
   { key: 'COMMERCIAL', label: 'Коммерция',     icon: Hammer,        manualPath: '/admin/listings/manual-commercial/new' },
@@ -158,17 +157,6 @@ export default function AdminListings() {
     staleTime: 60 * 60 * 1000,
   });
 
-  const { data: roomTypes } = useQuery({
-    queryKey: ['reference', 'room-types'],
-    queryFn: () =>
-      apiGet<Array<{ id: number; name: string; nameOne?: string | null; crmId?: string | number | null }>>(
-        '/reference/room-types',
-      ),
-    staleTime: 60 * 60 * 1000,
-  });
-
-  const roomListingTypeIds = useMemo(() => resolveRoomListingTypeIds(roomTypes), [roomTypes]);
-
   const { data: agents } = useQuery({
     queryKey: ['admin', 'listings', 'agents'],
     queryFn: () => apiGet<AgentRow[]>('/admin/listings/agents'),
@@ -190,9 +178,8 @@ export default function AdminListings() {
       visibilityFilter,
       staleOnly,
       extendedFilters,
-      roomListingTypeIds,
     ],
-    [regionId, page, source, kind, statusGroup, statusFilter, search, ownerFilter, visibilityFilter, staleOnly, extendedFilters, roomListingTypeIds],
+    [regionId, page, source, kind, statusGroup, statusFilter, search, ownerFilter, visibilityFilter, staleOnly, extendedFilters],
   );
 
   const queryString = useMemo(() => {
@@ -203,10 +190,8 @@ export default function AdminListings() {
       kind: apiKind,
       admin_view: 'true',
     });
-    if (kind === 'ROOM') {
-      const ids = roomListingTypeIds.length ? roomListingTypeIds : [-1];
-      sp.set('room_type_ids', ids.join(','));
-    }
+    if (kind === 'ROOM') sp.set('apartment_category', 'room');
+    if (kind === 'APARTMENT') sp.set('apartment_category', 'standard');
     if (regionId !== 'all') sp.set('region_id', String(regionId));
     if (source === 'feed') sp.set('data_source', 'FEED');
     if (source === 'manual') sp.set('data_source', 'MANUAL');
@@ -224,7 +209,7 @@ export default function AdminListings() {
     if (search.trim()) sp.set('search', search.trim());
     applyExtendedFiltersToParams(sp, extendedFilters, kind);
     return sp.toString();
-  }, [page, perPage, kind, regionId, source, statusGroup, statusFilter, search, visibilityFilter, ownerFilter, staleOnly, user?.role, extendedFilters, roomListingTypeIds]);
+  }, [page, perPage, kind, regionId, source, statusGroup, statusFilter, search, visibilityFilter, ownerFilter, staleOnly, user?.role, extendedFilters]);
 
   const { data, isLoading } = useQuery({
     queryKey,

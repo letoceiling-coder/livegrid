@@ -81,6 +81,14 @@ export class QueryListingsDto {
   @IsOptional()
   @IsString()
   room_type_ids?: string;
+  @ApiPropertyOptional({
+    description:
+      'Admin APARTMENT split: room — только комнаты; standard — квартиры без комнат (фид crm 100 + wizard kind=ROOM)',
+    enum: ['room', 'standard'],
+  })
+  @IsOptional()
+  @IsIn(['room', 'standard'])
+  apartment_category?: 'room' | 'standard';
   @ApiPropertyOptional({ description: 'Comma-separated finishing IDs' }) @IsOptional() @IsString() finishing?: string;
   @ApiPropertyOptional({ description: 'Comma-separated building type IDs' }) @IsOptional() @IsString() building_type?: string;
 

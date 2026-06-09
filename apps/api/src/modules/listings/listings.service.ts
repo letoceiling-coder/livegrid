@@ -8,6 +8,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { Prisma, $Enums } from '@prisma/client';
+import {
+  resolveRoomListingTypeIds,
+  type ListingWizardUiKind,
+  type WizardServerPayload,
+} from '@lg/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GeoSpatialService } from '../geo/geo-spatial.service';
 import { QueryListingsDto } from './dto/query-listings.dto';
@@ -299,6 +304,9 @@ export class ListingsService implements OnModuleInit {
             agentProfile: { select: { slug: true } },
           },
         },
+        ...(opts?.authenticated
+          ? { wizardSnapshot: { select: { payload: true } } }
+          : {}),
       },
     });
     if (!listing) throw new NotFoundException('Listing not found');
@@ -309,8 +317,20 @@ export class ListingsService implements OnModuleInit {
       select: { id: true, url: true, kind: true, sortOrder: true },
     });
 
+    const { wizardSnapshot, ...listingRest } = listing as typeof listing & {
+      wizardSnapshot?: { payload: unknown } | null;
+    };
+    const wizardUiKind =
+      opts?.authenticated && listing.kind === 'APARTMENT'
+        ? await this.inferApartmentWizardUiKind(listingRest, wizardSnapshot?.payload)
+        : undefined;
+
     return this.governance.enrichPublicContact(
-      { ...listing, mediaFiles: media },
+      {
+        ...listingRest,
+        mediaFiles: media,
+        ...(wizardUiKind ? { wizardUiKind } : {}),
+      },
       opts?.authenticated === true,
     );
   }
@@ -488,6 +508,10 @@ export class ListingsService implements OnModuleInit {
     }
     const marketClause = this.apartmentMarketWhereClause(query.apartment_market, query.kind);
     if (marketClause) listingAndBuckets.push(marketClause);
+    if (query.apartment_category === 'room' || query.apartment_category === 'standard') {
+      const roomTypeIds = await this.resolveRoomListingTypeIds();
+      listingAndBuckets.push(this.apartmentCategoryWhere(query.apartment_category, roomTypeIds));
+    }
     if (listingAndBuckets.length) {
       where.AND = [
         ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
@@ -683,6 +707,129 @@ export class ListingsService implements OnModuleInit {
       };
     }
     return undefined;
+  }
+
+  private async resolveRoomListingTypeIds(): Promise<number[]> {
+    const rows = await this.prisma.roomType.findMany({
+      select: { id: true, name: true, nameOne: true, crmId: true },
+    });
+    return resolveRoomListingTypeIds(
+      rows.map((rt) => ({
+        id: rt.id,
+        name: rt.name,
+        nameOne: rt.nameOne,
+        crmId: rt.crmId,
+      })),
+    );
+  }
+
+  private async inferApartmentWizardUiKind(
+    listing: {
+      apartment?: { roomTypeId?: number | null } | null;
+    },
+    snapshotPayload?: unknown,
+  ): Promise<'APARTMENT' | 'ROOM'> {
+    const snapKind = (snapshotPayload as WizardServerPayload | undefined)?.kind;
+    if (snapKind === 'ROOM' || snapKind === 'APARTMENT') return snapKind;
+    const roomListingIds = await this.resolveRoomListingTypeIds();
+    const rtId = listing.apartment?.roomTypeId;
+    if (rtId != null && roomListingIds.includes(rtId)) return 'ROOM';
+    return 'APARTMENT';
+  }
+
+  private async applyApartmentWizardUiKind(
+    listingId: number,
+    uiKind: 'APARTMENT' | 'ROOM',
+    aptPatch: Prisma.ListingApartmentUpdateInput,
+    actorUserId?: string,
+  ): Promise<void> {
+    const roomListingIds = await this.resolveRoomListingTypeIds();
+    if (uiKind === 'ROOM' && roomListingIds.length) {
+      aptPatch.roomType = { connect: { id: roomListingIds[0]! } };
+    } else if (uiKind === 'APARTMENT') {
+      const current = await this.prisma.listingApartment.findUnique({
+        where: { listingId },
+        select: { roomTypeId: true },
+      });
+      if (
+        current?.roomTypeId != null &&
+        roomListingIds.includes(current.roomTypeId)
+      ) {
+        aptPatch.roomType = { disconnect: true };
+      }
+    }
+
+    const listing = await this.prisma.listing.findUnique({
+      where: { id: listingId },
+      include: {
+        apartment: true,
+        seller: true,
+        ownerUser: { select: { id: true } },
+      },
+    });
+    if (!listing) return;
+
+    const snap = await this.prisma.listingWizardSnapshot.findUnique({
+      where: { listingId },
+      select: { payload: true, wizardStep: true },
+    });
+    const prev = (snap?.payload as WizardServerPayload | undefined) ?? undefined;
+    const payload: WizardServerPayload = prev ?? {
+      kind: uiKind,
+      regionId: listing.regionId,
+      blockId: listing.blockId != null ? String(listing.blockId) : '',
+      address: listing.address ?? '',
+      lat: listing.lat != null ? String(listing.lat) : '',
+      lng: listing.lng != null ? String(listing.lng) : '',
+      price: listing.price != null ? String(listing.price) : '',
+      ownerUserId: listing.ownerUserId,
+      ownerMode: listing.ownerUserId ? 'self' : 'agency',
+      publishAction: 'draft',
+      apartment: {},
+      house: {},
+      land: {},
+      commercial: {},
+      parking: {},
+      mainPhotoUrl: '',
+      extraPhotoUrls: [],
+      planUrl: '',
+      seller: {
+        fullName: listing.seller?.fullName ?? '',
+        phone: listing.seller?.phone ?? '',
+        email: listing.seller?.email ?? '',
+        address: listing.seller?.address ?? '',
+      },
+    };
+    payload.kind = uiKind as ListingWizardUiKind;
+
+    await this.prisma.listingWizardSnapshot.upsert({
+      where: { listingId },
+      create: {
+        listingId,
+        payload: payload as unknown as Prisma.InputJsonValue,
+        wizardStep: snap?.wizardStep ?? 4,
+        updatedByUserId: actorUserId ?? null,
+      },
+      update: {
+        payload: payload as unknown as Prisma.InputJsonValue,
+        updatedByUserId: actorUserId ?? null,
+      },
+    });
+  }
+
+  /** Split APARTMENT listings into «комнаты» vs «квартиры» (feed crm 100 + wizard kind=ROOM). */
+  private apartmentCategoryWhere(
+    category: 'room' | 'standard',
+    roomTypeIds: number[],
+  ): Prisma.ListingWhereInput {
+    const isRoom: Prisma.ListingWhereInput[] = [
+      { wizardSnapshot: { payload: { path: ['kind'], equals: 'ROOM' } } },
+    ];
+    if (roomTypeIds.length) {
+      isRoom.unshift({ apartment: { roomTypeId: { in: roomTypeIds } } });
+    }
+    const roomClause: Prisma.ListingWhereInput = { OR: isRoom };
+    return category === 'room' ? roomClause : { NOT: roomClause };
   }
 
   private async buildApartmentWhereParts(query: QueryListingsDto): Promise<Prisma.ListingApartmentWhereInput[]> {
@@ -945,7 +1092,14 @@ export class ListingsService implements OnModuleInit {
           ? 'NEW_BUILDING'
           : 'SECONDARY';
 
-    return this.prisma.listing.create({
+    const uiKind = dto.wizardUiKind ?? 'APARTMENT';
+    let roomTypeId = a.roomTypeId ?? null;
+    if (uiKind === 'ROOM') {
+      const roomListingIds = await this.resolveRoomListingTypeIds();
+      if (roomListingIds.length) roomTypeId = roomListingIds[0]!;
+    }
+
+    const created = await this.prisma.listing.create({
       data: {
         regionId: dto.regionId,
         kind: 'APARTMENT',
@@ -968,7 +1122,7 @@ export class ListingsService implements OnModuleInit {
               a.areaKitchen != null ? new Prisma.Decimal(a.areaKitchen) : null,
             floor: a.floor ?? null,
             floorsTotal: a.floorsTotal ?? null,
-            roomTypeId: a.roomTypeId ?? null,
+            roomTypeId,
             finishingId: a.finishingId ?? null,
             planUrl: a.planUrl ?? null,
             finishingPhotoUrl: a.finishingPhotoUrl ?? null,
@@ -990,6 +1144,12 @@ export class ListingsService implements OnModuleInit {
         seller: true,
       },
     });
+
+    if (uiKind === 'ROOM') {
+      await this.applyApartmentWizardUiKind(created.id, 'ROOM', {}, actorUserId);
+    }
+
+    return created;
   }
 
   async createManualHouse(dto: CreateManualHouseDto, actorUserId?: string, actorRole?: string) {
@@ -1343,14 +1503,20 @@ export class ListingsService implements OnModuleInit {
       if (p.marketSegment !== undefined) aptPatch.marketSegment = p.marketSegment;
     }
 
+    if (dto.wizardUiKind) {
+      await this.applyApartmentWizardUiKind(id, dto.wizardUiKind, aptPatch, actorUserId);
+    }
+
     const hasListing = Object.keys(listingPatch).length > 0;
     const hasApt = Object.keys(aptPatch).length > 0;
-    if (!hasListing && !hasApt && !sellerUpdate.touched) {
+    if (!hasListing && !hasApt && !sellerUpdate.touched && !dto.wizardUiKind) {
       throw new BadRequestException('Укажите хотя бы одно поле для обновления');
     }
-    if (!hasListing && !hasApt && sellerUpdate.touched) return this.findOne(id);
+    if (!hasListing && !hasApt && sellerUpdate.touched && !dto.wizardUiKind) {
+      return this.findOne(id, { authenticated: true });
+    }
 
-    return this.prisma.listing.update({
+    const updated = await this.prisma.listing.update({
       where: { id },
       data: {
         ...listingPatch,
@@ -1363,6 +1529,12 @@ export class ListingsService implements OnModuleInit {
         seller: true,
       },
     });
+
+    if (!hasListing && !hasApt && dto.wizardUiKind) {
+      return this.findOne(id, { authenticated: true });
+    }
+
+    return updated;
   }
 
   async updateManualHouse(id: number, dto: UpdateManualHouseDto, actorUserId?: string, actorRole?: string) {

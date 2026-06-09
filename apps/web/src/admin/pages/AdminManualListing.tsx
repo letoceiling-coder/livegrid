@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { resolveRoomListingTypeIds } from '@lg/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ImageIcon, Loader2, Plus, X } from 'lucide-react';
@@ -17,7 +18,8 @@ import SellerFields, {
 import { listingStatusOptions, type ListingStatus } from '@/admin/lib/listingStatus';
 
 type RegionRow = { id: number; code: string; name: string };
-type RefOpt = { id: number; name: string };
+type RefOpt = { id: number; name: string; nameOne?: string | null; crmId?: string | number | null };
+type ApartmentUiKind = 'APARTMENT' | 'ROOM';
 
 export default function AdminManualListing() {
   const { pathname } = useLocation();
@@ -45,6 +47,7 @@ export default function AdminManualListing() {
   const [buildingName, setBuildingName] = useState('');
   const [number, setNumber] = useState('');
   const [marketSegment, setMarketSegment] = useState<'auto' | 'NEW_BUILDING' | 'SECONDARY'>('auto');
+  const [uiKind, setUiKind] = useState<ApartmentUiKind>('APARTMENT');
   const [seller, setSeller] = useState<SellerForm>(emptySellerForm);
   const [formError, setFormError] = useState('');
 
@@ -71,6 +74,16 @@ export default function AdminManualListing() {
     staleTime: 60 * 60 * 1000,
   });
 
+  const roomListingTypeIds = useMemo(() => resolveRoomListingTypeIds(roomTypes), [roomTypes]);
+
+  const selectableRoomTypes = useMemo(() => {
+    if (!roomTypes?.length) return [];
+    if (uiKind === 'ROOM') {
+      return roomTypes.filter((rt) => roomListingTypeIds.includes(rt.id));
+    }
+    return roomTypes.filter((rt) => !roomListingTypeIds.includes(rt.id));
+  }, [roomTypes, roomListingTypeIds, uiKind]);
+
   useEffect(() => {
     if (regionId === '' && regionIdDefault != null && isNew) setRegionId(regionIdDefault);
   }, [regionIdDefault, regionId, isNew]);
@@ -96,6 +109,12 @@ export default function AdminManualListing() {
     setStatus((editListing.status as ListingStatus) || 'DRAFT');
     setIsPublished(Boolean(editListing.isPublished));
     setSeller(sellerFormFromApi(editListing.seller as ApiSeller));
+    const inferredKind =
+      editListing.wizardUiKind === 'ROOM' || editListing.wizardUiKind === 'APARTMENT'
+        ? (editListing.wizardUiKind as ApartmentUiKind)
+        : 'APARTMENT';
+    setUiKind(inferredKind);
+
     if (apt) {
       setAreaTotal(apt.areaTotal != null ? String(apt.areaTotal) : '');
       setAreaKitchen(apt.areaKitchen != null ? String(apt.areaKitchen) : '');
@@ -167,7 +186,13 @@ export default function AdminManualListing() {
       const sellerPayload = normalizeSellerForm(seller);
 
       if (!isNew && editNumericId != null) {
-        const patch: Record<string, unknown> = { price: p, status, isPublished, apartment };
+        const patch: Record<string, unknown> = {
+          price: p,
+          status,
+          isPublished,
+          apartment,
+          wizardUiKind: uiKind,
+        };
         if (blockId.trim() === '') patch.blockId = null;
         else patch.blockId = bid;
         if (sellerPayload) patch.seller = sellerPayload;
@@ -180,6 +205,7 @@ export default function AdminManualListing() {
         status,
         isPublished,
         apartment,
+        wizardUiKind: uiKind,
       };
       if (bid != null) body.blockId = bid;
       if (sellerPayload) body.seller = sellerPayload;
@@ -235,7 +261,11 @@ export default function AdminManualListing() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">
-            {isNew ? 'Новая ручная квартира' : `Редактировать #${editNumericId}`}
+            {isNew
+              ? uiKind === 'ROOM'
+                ? 'Новая комната'
+                : 'Новая ручная квартира'
+              : `Редактировать #${editNumericId}`}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Фото планировки, отделки и галерея — только из{' '}
@@ -243,6 +273,19 @@ export default function AdminManualListing() {
               медиатеки
             </Link>
             .
+            {!isNew && editNumericId != null ? (
+              <>
+                {' '}
+                <Link
+                  to={`/admin/listings/wizard/${editNumericId}/edit`}
+                  className="text-primary underline-offset-2 hover:underline"
+                >
+                  Открыть в мастере
+                </Link>
+                {' '}
+                (дом, участок и др.).
+              </>
+            ) : null}
           </p>
         </div>
       </div>
@@ -265,11 +308,37 @@ export default function AdminManualListing() {
           </select>
         </div>
         <div className="space-y-1">
+          <Label>Тип объекта</Label>
+          <select
+            className="w-full border rounded-lg px-3 py-2 text-sm bg-background"
+            value={uiKind}
+            onChange={(e) => {
+              const next = e.target.value as ApartmentUiKind;
+              setUiKind(next);
+              if (next === 'ROOM' && roomListingTypeIds[0] != null) {
+                setRoomTypeId(String(roomListingTypeIds[0]));
+              } else if (next === 'APARTMENT' && roomTypeId && roomListingTypeIds.includes(Number(roomTypeId))) {
+                setRoomTypeId('');
+              }
+            }}
+          >
+            <option value="APARTMENT">Квартира</option>
+            <option value="ROOM">Комната</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Смена квартиры на комнату и обратно. Для дома, участка или коммерции —{' '}
+            <Link to="/admin/listings/wizard/new" className="text-primary underline-offset-2 hover:underline">
+              мастер добавления
+            </Link>
+            .
+          </p>
+        </div>
+        <div className="space-y-1">
           <Label>ID ЖК (необязательно)</Label>
           <Input value={blockId} onChange={(e) => setBlockId(e.target.value)} placeholder="Напр. 123" />
         </div>
         <div className="space-y-1">
-          <Label>Тип жилья</Label>
+          <Label>Тип рынка</Label>
           <select
             className="w-full border rounded-lg px-3 py-2 text-sm bg-background"
             value={marketSegment}
@@ -303,7 +372,7 @@ export default function AdminManualListing() {
           Публиковать на сайте
         </label>
         <div className="space-y-1">
-          <Label>Площадь общая, м² *</Label>
+          <Label>{uiKind === 'ROOM' ? 'Площадь комнаты, м² *' : 'Площадь квартиры, м² *'}</Label>
           <Input value={areaTotal} onChange={(e) => setAreaTotal(e.target.value)} placeholder="54.2" />
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -322,19 +391,27 @@ export default function AdminManualListing() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <Label>Комнатность (справочник)</Label>
-            <select
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-background h-10"
-              value={roomTypeId}
-              onChange={(e) => setRoomTypeId(e.target.value)}
-            >
-              <option value="">—</option>
-              {(roomTypes ?? []).map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.name}
-                </option>
-              ))}
-            </select>
+            <Label>{uiKind === 'ROOM' ? 'Категория' : 'Комнатность (справочник)'}</Label>
+            {uiKind === 'ROOM' ? (
+              <Input
+                readOnly
+                value={selectableRoomTypes[0]?.name ?? 'Комната'}
+                className="bg-muted/40"
+              />
+            ) : (
+              <select
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-background h-10"
+                value={roomTypeId}
+                onChange={(e) => setRoomTypeId(e.target.value)}
+              >
+                <option value="">—</option>
+                {selectableRoomTypes.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div className="space-y-1">
             <Label>Отделка</Label>
@@ -425,7 +502,7 @@ export default function AdminManualListing() {
           <Input value={buildingName} onChange={(e) => setBuildingName(e.target.value)} />
         </div>
         <div className="space-y-1">
-          <Label>Номер квартиры</Label>
+          <Label>{uiKind === 'ROOM' ? 'Номер комнаты' : 'Номер квартиры'}</Label>
           <Input value={number} onChange={(e) => setNumber(e.target.value)} />
         </div>
 

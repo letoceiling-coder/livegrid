@@ -147,6 +147,14 @@ export class CreateManualApartmentDto {
   @Type(() => ManualSellerDto)
   seller?: ManualSellerDto | null;
 
+  @ApiPropertyOptional({
+    enum: ['APARTMENT', 'ROOM'],
+    description: 'Подтип объекта: квартира или комната (оба сохраняются как kind=APARTMENT)',
+  })
+  @IsOptional()
+  @IsIn(['APARTMENT', 'ROOM'])
+  wizardUiKind?: 'APARTMENT' | 'ROOM';
+
   @ApiProperty({ type: ManualApartmentFieldsDto })
   @ValidateNested()
   @Type(() => ManualApartmentFieldsDto)
@@ -258,6 +266,14 @@ export class UpdateManualApartmentDto {
   @ValidateNested()
   @Type(() => ManualSellerDto)
   seller?: ManualSellerDto | null;
+
+  @ApiPropertyOptional({
+    enum: ['APARTMENT', 'ROOM'],
+    description: 'Смена подтипа: квартира ↔ комната',
+  })
+  @IsOptional()
+  @IsIn(['APARTMENT', 'ROOM'])
+  wizardUiKind?: 'APARTMENT' | 'ROOM';
 
   @ApiPropertyOptional({ type: ManualApartmentPatchDto })
   @IsOptional()
