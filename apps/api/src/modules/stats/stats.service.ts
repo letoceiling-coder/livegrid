@@ -38,12 +38,20 @@ export class StatsService {
       ],
     };
 
-    const [rooms, apartments, house, land, commercial] = await Promise.all([
+    const dachaHouseClause: Prisma.ListingWhereInput = {
+      kind: ListingKind.HOUSE,
+      wizardSnapshot: { payload: { path: ['kind'], equals: 'DACHA' } },
+    };
+
+    const [rooms, apartments, dachas, houses, land, commercial] = await Promise.all([
       this.prisma.listing.count({ where: { ...pubBase, ...roomApartmentClause } }),
       this.prisma.listing.count({
         where: { ...pubBase, kind: ListingKind.APARTMENT, NOT: roomApartmentClause },
       }),
-      this.prisma.listing.count({ where: { ...pubBase, kind: ListingKind.HOUSE } }),
+      this.prisma.listing.count({ where: { ...pubBase, ...dachaHouseClause } }),
+      this.prisma.listing.count({
+        where: { ...pubBase, kind: ListingKind.HOUSE, NOT: dachaHouseClause },
+      }),
       this.prisma.listing.count({ where: { ...pubBase, kind: ListingKind.LAND } }),
       this.prisma.listing.count({ where: { ...pubBase, kind: ListingKind.COMMERCIAL } }),
     ]);
@@ -51,7 +59,8 @@ export class StatsService {
     return {
       APARTMENT: apartments,
       ROOM: rooms,
-      HOUSE: house,
+      DACHA: dachas,
+      HOUSE: houses,
       LAND: land,
       COMMERCIAL: commercial,
     };

@@ -211,7 +211,6 @@ const RedesignCatalog = () => {
   const catalogSort = parseCatalogSort(searchParams.get('sort'));
 
   const isApartmentMode = filters.objectType === 'apartments';
-  const isUnsupportedSeparateType = filters.objectType === 'dachas';
   const useBlocksCatalog = isApartmentMode && filters.marketType !== 'secondary';
   const listingKind = LISTING_KIND_BY_OBJECT_TYPE[filters.objectType];
   const regionName = useMemo(
@@ -278,7 +277,7 @@ const RedesignCatalog = () => {
       if (page >= totalPages) return undefined;
       return page + 1;
     },
-    enabled: regionId != null && !isUnsupportedSeparateType,
+    enabled: regionId != null,
   });
 
   // Flat (non-paginated) query for map view showing individual listings
@@ -294,7 +293,7 @@ const RedesignCatalog = () => {
       });
       return apiGet<{ data: ApiListingCardRow[] }>(`/listings?${sp}`);
     },
-    enabled: regionId != null && view === 'map' && !isUnsupportedSeparateType,
+    enabled: regionId != null && view === 'map',
     staleTime: 2 * 60 * 1000,
   });
 
@@ -473,8 +472,8 @@ const RedesignCatalog = () => {
   }
   const loading = regionLoading
     || (showBlocks && blocksInfinite.isPending && !blocksInfinite.data)
-    || (!showBlocks && !isUnsupportedSeparateType && listingsInfinite.isPending && !listingsInfinite.data);
-  const loadError = isUnsupportedSeparateType ? false : (showBlocks ? blocksInfinite.isError : listingsInfinite.isError);
+    || (!showBlocks && listingsInfinite.isPending && !listingsInfinite.data);
+  const loadError = showBlocks ? blocksInfinite.isError : listingsInfinite.isError;
   const hasMore = showBlocks ? Boolean(blocksInfinite.hasNextPage) : Boolean(listingsInfinite.hasNextPage);
   const fetchingMore = showBlocks ? blocksInfinite.isFetchingNextPage : listingsInfinite.isFetchingNextPage;
   const totalShown = showBlocks ? filtered.length : listingRows.length;
@@ -762,19 +761,13 @@ const RedesignCatalog = () => {
                 <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                   <SlidersHorizontal className="w-5 h-5 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground text-sm mb-1">
-                  {isUnsupportedSeparateType ? 'Нет объявлений, добавьте первым' : 'Ничего не найдено'}
-                </p>
+                <p className="text-muted-foreground text-sm mb-1">Ничего не найдено</p>
                 <p className="text-muted-foreground text-xs mb-4">
-                  {isUnsupportedSeparateType
-                    ? 'Для этого типа будет отдельная модель объявлений. Сейчас данные не смешиваем с домами или квартирами.'
-                    : 'Попробуйте изменить параметры фильтров, быстрые пресеты или строку поиска'}
+                  Попробуйте изменить параметры фильтров, быстрые пресеты или строку поиска
                 </p>
-                {!isUnsupportedSeparateType ? (
-                  <Button variant="outline" size="sm" onClick={handleResetFilters}>
-                    Сбросить фильтры
-                  </Button>
-                ) : null}
+                <Button variant="outline" size="sm" onClick={handleResetFilters}>
+                  Сбросить фильтры
+                </Button>
                 {objectKindLinks.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 justify-center">
                     {objectKindLinks

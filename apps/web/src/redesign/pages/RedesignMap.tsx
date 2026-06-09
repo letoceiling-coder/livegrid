@@ -145,7 +145,6 @@ const RedesignMap = () => {
   }, [searchParams]);
 
   const objectType = filters.objectType;
-  const isUnsupportedSeparateType = objectType === 'dachas';
   const useBlocksForApartments = objectType === 'apartments' && filters.marketType !== 'secondary';
 
   // Kind counts – drives the type switcher
@@ -279,7 +278,7 @@ const RedesignMap = () => {
       });
       return apiGet<CatalogListResponse<Record<string, unknown>>>(`/listings?${sp}`);
     },
-    enabled: regionId != null && needListings && !isUnsupportedSeparateType,
+    enabled: regionId != null && needListings,
     placeholderData: keepPreviousData,
   });
 
@@ -355,7 +354,7 @@ const RedesignMap = () => {
   const useBlocksMap = useBlocksForApartments && blocks.length > 0;
 
   const blocksActive = regionId != null && useBlocksForApartments;
-  const listingsActive = regionId != null && needListings && !isUnsupportedSeparateType;
+  const listingsActive = regionId != null && needListings;
   const displayBlocks = useBlocksMap;
 
   const catalogTotal = displayBlocks
@@ -391,9 +390,7 @@ const RedesignMap = () => {
     else void listingsQuery.refetch();
   };
 
-  const subtitle = isUnsupportedSeparateType
-    ? 'Нет объявлений, добавьте первым'
-    : catalogFetchError
+  const subtitle = catalogFetchError
       ? 'Не удалось загрузить объекты'
       : catalogInitialLoading && loadedCount === 0
         ? 'Загрузка…'

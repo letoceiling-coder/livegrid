@@ -7,7 +7,7 @@ export const OBJECT_TYPE_TABS: { type: ObjectType; label: string; countKey: stri
   { type: 'rooms', label: 'Комнаты', countKey: 'ROOM' },
   { type: 'houses', label: 'Дома', countKey: 'HOUSE' },
   { type: 'land', label: 'Участки', countKey: 'LAND' },
-  { type: 'dachas', label: 'Дачи', countKey: 'HOUSE' },
+  { type: 'dachas', label: 'Дачи', countKey: 'DACHA' },
   { type: 'commercial', label: 'Коммерция', countKey: 'COMMERCIAL' },
 ];
 

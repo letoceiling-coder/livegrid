@@ -519,6 +519,14 @@ export class ListingsService implements OnModuleInit {
       ];
     }
 
+    if (query.house_category === 'dacha' || query.house_category === 'standard') {
+      const houseCat = this.houseCategoryWhere(query.house_category);
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        houseCat,
+      ];
+    }
+
     if (query.kind === 'HOUSE') {
       const houseParts = this.buildHouseWhereParts(query);
       if (houseParts.length) {
@@ -815,6 +823,14 @@ export class ListingsService implements OnModuleInit {
         updatedByUserId: actorUserId ?? null,
       },
     });
+  }
+
+  /** Split HOUSE listings into «дачи» vs «дома» (wizard kind=DACHA). */
+  private houseCategoryWhere(category: 'dacha' | 'standard'): Prisma.ListingWhereInput {
+    const isDacha: Prisma.ListingWhereInput = {
+      wizardSnapshot: { payload: { path: ['kind'], equals: 'DACHA' } },
+    };
+    return category === 'dacha' ? isDacha : { NOT: isDacha };
   }
 
   /** Split APARTMENT listings into «комнаты» vs «квартиры» (feed crm 100 + wizard kind=ROOM). */

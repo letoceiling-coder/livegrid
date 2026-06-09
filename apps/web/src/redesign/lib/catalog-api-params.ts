@@ -139,6 +139,8 @@ export function buildListingsSearchParams(args: {
   setGeo(sp, geo);
 
   if (kind === 'HOUSE') {
+    if (filters.objectType === 'dachas') sp.set('house_category', 'dacha');
+    else if (filters.objectType === 'houses') sp.set('house_category', 'standard');
     setCsv(sp, 'rooms', filters.rooms);
     setFinite(sp, 'house_land_min', filters.landAreaMin);
     setFinite(sp, 'house_land_max', filters.landAreaMax);

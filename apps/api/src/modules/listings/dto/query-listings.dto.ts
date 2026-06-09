@@ -89,6 +89,14 @@ export class QueryListingsDto {
   @IsOptional()
   @IsIn(['room', 'standard'])
   apartment_category?: 'room' | 'standard';
+  @ApiPropertyOptional({
+    description:
+      'HOUSE split: dacha — дачи (wizard kind=DACHA); standard — дома без дач',
+    enum: ['dacha', 'standard'],
+  })
+  @IsOptional()
+  @IsIn(['dacha', 'standard'])
+  house_category?: 'dacha' | 'standard';
   @ApiPropertyOptional({ description: 'Comma-separated finishing IDs' }) @IsOptional() @IsString() finishing?: string;
   @ApiPropertyOptional({ description: 'Comma-separated building type IDs' }) @IsOptional() @IsString() building_type?: string;
 
