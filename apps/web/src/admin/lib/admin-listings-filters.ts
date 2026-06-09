@@ -1,4 +1,30 @@
-export type AdminListingKind = 'APARTMENT' | 'HOUSE' | 'LAND' | 'COMMERCIAL' | 'PARKING';
+export type AdminListingKind = 'APARTMENT' | 'ROOM' | 'HOUSE' | 'LAND' | 'COMMERCIAL' | 'PARKING';
+
+export type RoomTypeRef = {
+  id: number;
+  name: string;
+  nameOne?: string | null;
+  crmId?: string | number | null;
+};
+
+/** room_types for «Комнаты» (TrendAgent crm_id=100, name «Комнаты»). */
+export function resolveRoomListingTypeIds(roomTypes: RoomTypeRef[] | undefined): number[] {
+  if (!roomTypes?.length) return [];
+  return roomTypes
+    .filter((rt) => {
+      const crm = rt.crmId != null ? String(rt.crmId) : '';
+      if (crm === '100') return true;
+      const label = (rt.nameOne ?? rt.name ?? '').trim().toLowerCase();
+      if (!label) return false;
+      if (label.includes('к.кв') || label.includes('комнатная') || label.includes('студ')) return false;
+      return label === 'комнаты' || label === 'комната' || label.startsWith('комнат');
+    })
+    .map((rt) => rt.id);
+}
+
+export function apiKindForAdminTab(kind: AdminListingKind): AdminListingKind {
+  return kind === 'ROOM' ? 'APARTMENT' : kind;
+}
 
 export const ADMIN_ROOM_FILTER_OPTIONS = [
   { value: 0, label: 'Студия' },
@@ -99,7 +125,7 @@ export function applyExtendedFiltersToParams(
   if (floorMin != null) sp.set('floor_min', String(floorMin));
   if (floorMax != null) sp.set('floor_max', String(floorMax));
 
-  if (kind === 'APARTMENT' && filters.market !== 'all') {
+  if ((kind === 'APARTMENT' || kind === 'ROOM') && filters.market !== 'all') {
     sp.set('apartment_market', filters.market);
   }
 
@@ -114,10 +140,10 @@ export function applyExtendedFiltersToParams(
     }
   }
 
-  if (kind === 'APARTMENT' && filters.finishingId !== 'all') {
+  if ((kind === 'APARTMENT' || kind === 'ROOM') && filters.finishingId !== 'all') {
     sp.set('finishing', String(filters.finishingId));
   }
-  if (kind === 'APARTMENT' && filters.buildingTypeId !== 'all') {
+  if ((kind === 'APARTMENT' || kind === 'ROOM') && filters.buildingTypeId !== 'all') {
     sp.set('building_type', String(filters.buildingTypeId));
   }
 

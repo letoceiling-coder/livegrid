@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   Loader2, ChevronLeft, ChevronRight, ExternalLink, Pencil, Trash2, Plus,
-  Building, TreePine, Trees, Hammer, ParkingSquare, Search, X,
+  Building, TreePine, Trees, Hammer, ParkingSquare, Search, X, DoorOpen,
 } from 'lucide-react';
 import { formatApiValidationError } from '@lg/shared';
 import { apiGet, apiDelete, apiPatch, ApiError } from '@/lib/api';
@@ -21,12 +21,14 @@ import {
 } from '@/admin/lib/listingVisibility';
 import AdminListingsFilterPanel from '@/admin/components/AdminListingsFilterPanel';
 import {
+  apiKindForAdminTab,
   applyExtendedFiltersToParams,
   EMPTY_EXTENDED_FILTERS,
+  resolveRoomListingTypeIds,
   type AdminListingsExtendedFilters,
 } from '@/admin/lib/admin-listings-filters';
 
-type Kind = 'APARTMENT' | 'HOUSE' | 'LAND' | 'COMMERCIAL' | 'PARKING';
+type Kind = 'APARTMENT' | 'ROOM' | 'HOUSE' | 'LAND' | 'COMMERCIAL' | 'PARKING';
 type Source = 'all' | 'feed' | 'manual' | 'donor';
 
 type ListingRow = {
@@ -75,6 +77,7 @@ const STATUS_GROUPS: Array<{ key: StatusGroup; label: string; statuses?: Listing
 ];
 const KIND_TABS: { key: Kind; label: string; icon: typeof Building; manualPath: string }[] = [
   { key: 'APARTMENT',  label: 'Квартиры',     icon: Building,      manualPath: '/admin/listings/manual/new' },
+  { key: 'ROOM',       label: 'Комнаты',     icon: DoorOpen,      manualPath: '/admin/listings/wizard/new' },
   { key: 'HOUSE',      label: 'Дома',          icon: TreePine,      manualPath: '/admin/listings/manual-house/new' },
   { key: 'LAND',       label: 'Участки',       icon: Trees,         manualPath: '/admin/listings/manual-land/new' },
   { key: 'COMMERCIAL', label: 'Коммерция',     icon: Hammer,        manualPath: '/admin/listings/manual-commercial/new' },
@@ -114,12 +117,14 @@ function parseApiErrorMessage(e: unknown, fallback: string): string {
 }
 
 function publicLinkFor(kind: Kind, id: number): string {
-  return kind === 'APARTMENT' ? `/apartment/${id}` : `/listing/${id}`;
+  return kind === 'APARTMENT' || kind === 'ROOM' ? `/apartment/${id}` : `/listing/${id}`;
 }
 
 function manualEditPath(kind: Kind, id: number): string {
   switch (kind) {
-    case 'APARTMENT':  return `/admin/listings/manual/${id}/edit`;
+    case 'APARTMENT':
+    case 'ROOM':
+      return `/admin/listings/manual/${id}/edit`;
     case 'HOUSE':      return `/admin/listings/manual-house/${id}/edit`;
     case 'LAND':       return `/admin/listings/manual-land/${id}/edit`;
     case 'COMMERCIAL': return `/admin/listings/manual-commercial/${id}/edit`;
@@ -153,6 +158,17 @@ export default function AdminListings() {
     staleTime: 60 * 60 * 1000,
   });
 
+  const { data: roomTypes } = useQuery({
+    queryKey: ['reference', 'room-types'],
+    queryFn: () =>
+      apiGet<Array<{ id: number; name: string; nameOne?: string | null; crmId?: string | number | null }>>(
+        '/reference/room-types',
+      ),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const roomListingTypeIds = useMemo(() => resolveRoomListingTypeIds(roomTypes), [roomTypes]);
+
   const { data: agents } = useQuery({
     queryKey: ['admin', 'listings', 'agents'],
     queryFn: () => apiGet<AgentRow[]>('/admin/listings/agents'),
@@ -174,17 +190,23 @@ export default function AdminListings() {
       visibilityFilter,
       staleOnly,
       extendedFilters,
+      roomListingTypeIds,
     ],
-    [regionId, page, source, kind, statusGroup, statusFilter, search, ownerFilter, visibilityFilter, staleOnly, extendedFilters],
+    [regionId, page, source, kind, statusGroup, statusFilter, search, ownerFilter, visibilityFilter, staleOnly, extendedFilters, roomListingTypeIds],
   );
 
   const queryString = useMemo(() => {
+    const apiKind = apiKindForAdminTab(kind);
     const sp = new URLSearchParams({
       page: String(page),
       per_page: String(perPage),
-      kind,
+      kind: apiKind,
       admin_view: 'true',
     });
+    if (kind === 'ROOM') {
+      const ids = roomListingTypeIds.length ? roomListingTypeIds : [-1];
+      sp.set('room_type_ids', ids.join(','));
+    }
     if (regionId !== 'all') sp.set('region_id', String(regionId));
     if (source === 'feed') sp.set('data_source', 'FEED');
     if (source === 'manual') sp.set('data_source', 'MANUAL');
@@ -202,7 +224,7 @@ export default function AdminListings() {
     if (search.trim()) sp.set('search', search.trim());
     applyExtendedFiltersToParams(sp, extendedFilters, kind);
     return sp.toString();
-  }, [page, perPage, kind, regionId, source, statusGroup, statusFilter, search, visibilityFilter, ownerFilter, staleOnly, user?.role, extendedFilters]);
+  }, [page, perPage, kind, regionId, source, statusGroup, statusFilter, search, visibilityFilter, ownerFilter, staleOnly, user?.role, extendedFilters, roomListingTypeIds]);
 
   const { data, isLoading } = useQuery({
     queryKey,
@@ -518,11 +540,11 @@ export default function AdminListings() {
                   <th className="px-4 py-3 font-medium">Регион</th>
                   <th className="px-4 py-3 font-medium">Источник</th>
                   <th className="px-4 py-3 font-medium">
-                    {kind === 'APARTMENT' ? 'Комн.' : kind === 'LAND' ? 'Категория' : 'Тип'}
+                    {kind === 'APARTMENT' || kind === 'ROOM' ? 'Комн.' : kind === 'LAND' ? 'Категория' : 'Тип'}
                   </th>
                   <th className="px-4 py-3 font-medium">Площадь</th>
                   <th className="px-4 py-3 font-medium">
-                    {kind === 'APARTMENT' ? 'Этаж' : kind === 'HOUSE' ? 'Этажей' : kind === 'LAND' ? 'Комм.' : kind === 'COMMERCIAL' ? 'Этаж' : 'Место'}
+                    {kind === 'APARTMENT' || kind === 'ROOM' ? 'Этаж' : kind === 'HOUSE' ? 'Этажей' : kind === 'LAND' ? 'Комм.' : kind === 'COMMERCIAL' ? 'Этаж' : 'Место'}
                   </th>
                   <th className="px-4 py-3 font-medium">Статус</th>
                   <th className="px-4 py-3 font-medium">Видимость</th>
@@ -536,7 +558,7 @@ export default function AdminListings() {
               <tbody className="divide-y">
                 {rows.map((r) => {
                   const priceN = r.price != null ? Number(r.price) : 0;
-                  const area = kind === 'APARTMENT' ? Number(r.apartment?.areaTotal ?? NaN)
+                  const area = kind === 'APARTMENT' || kind === 'ROOM' ? Number(r.apartment?.areaTotal ?? NaN)
                     : kind === 'HOUSE' ? Number(r.house?.areaTotal ?? NaN)
                     : kind === 'LAND' ? Number(r.land?.areaSotki ?? NaN)
                     : kind === 'COMMERCIAL' ? Number(r.commercial?.area ?? NaN)
@@ -564,7 +586,7 @@ export default function AdminListings() {
                       <td className="px-4 py-2 text-xs">{r.region?.name ?? '—'}</td>
                       <td className="px-4 py-2 text-xs">{r.dataSource ?? '—'}</td>
                       <td className="px-4 py-2">
-                        {kind === 'APARTMENT' ? (r.apartment?.roomType?.name ?? '—')
+                        {kind === 'APARTMENT' || kind === 'ROOM' ? (r.apartment?.roomType?.name ?? '—')
                           : kind === 'HOUSE' ? (r.house?.houseType ?? '—')
                           : kind === 'LAND' ? (r.land?.landCategory ?? '—')
                           : kind === 'COMMERCIAL' ? (r.commercial?.commercialType ?? '—')
@@ -574,7 +596,7 @@ export default function AdminListings() {
                         {Number.isFinite(area) ? `${area} ${kind === 'LAND' ? 'сот.' : 'м²'}` : '—'}
                       </td>
                       <td className="px-4 py-2">
-                        {kind === 'APARTMENT' ? (r.apartment?.floor ?? '—')
+                        {kind === 'APARTMENT' || kind === 'ROOM' ? (r.apartment?.floor ?? '—')
                           : kind === 'HOUSE' ? (r.house?.floorsCount ?? '—')
                           : kind === 'LAND' ? (r.land?.hasCommunications == null ? '—' : r.land.hasCommunications ? 'Да' : 'Нет')
                           : kind === 'COMMERCIAL' ? (r.commercial?.floor ?? '—')

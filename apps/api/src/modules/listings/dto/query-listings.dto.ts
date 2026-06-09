@@ -77,6 +77,10 @@ export class QueryListingsDto {
   @ApiPropertyOptional() @IsOptional() @Transform(({ value }) => value === 'true') not_last_floor?: boolean;
 
   @ApiPropertyOptional({ description: 'Comma-separated room type IDs' }) @IsOptional() @IsString() rooms?: string;
+  @ApiPropertyOptional({ description: 'Comma-separated room_types.id (admin: filter «Комнаты»)' })
+  @IsOptional()
+  @IsString()
+  room_type_ids?: string;
   @ApiPropertyOptional({ description: 'Comma-separated finishing IDs' }) @IsOptional() @IsString() finishing?: string;
   @ApiPropertyOptional({ description: 'Comma-separated building type IDs' }) @IsOptional() @IsString() building_type?: string;
 

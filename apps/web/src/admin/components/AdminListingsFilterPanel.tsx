@@ -56,17 +56,20 @@ export default function AdminListingsFilterPanel({
     patch({ rooms: next });
   };
 
+  const isAptLike = kind === 'APARTMENT' || kind === 'ROOM';
+  const districtsKind = kind === 'ROOM' ? 'APARTMENT' : kind;
+
   const { data: districts } = useQuery({
-    queryKey: ['admin', 'listings-filters', 'districts', regionId, kind],
-    queryFn: () => apiGet<DistrictRow[]>(`/districts?region_id=${regionId}&kind=${kind}`),
-    enabled: regionSelected && (kind === 'APARTMENT' || kind === 'HOUSE' || kind === 'LAND' || kind === 'COMMERCIAL'),
+    queryKey: ['admin', 'listings-filters', 'districts', regionId, districtsKind],
+    queryFn: () => apiGet<DistrictRow[]>(`/districts?region_id=${regionId}&kind=${districtsKind}`),
+    enabled: regionSelected && (isAptLike || kind === 'HOUSE' || kind === 'LAND' || kind === 'COMMERCIAL'),
     staleTime: 60_000,
   });
 
   const { data: builders } = useQuery({
     queryKey: ['admin', 'listings-filters', 'builders', regionId],
     queryFn: () => apiGet<BuilderRow[]>(`/builders?region_id=${regionId}`),
-    enabled: regionSelected && kind === 'APARTMENT',
+    enabled: regionSelected && isAptLike,
     staleTime: 60_000,
   });
 
@@ -76,32 +79,32 @@ export default function AdminListingsFilterPanel({
       apiGet<{ data: BlockRow[] }>(
         `/blocks?region_id=${regionId}&per_page=200&page=1&sort=name_asc`,
       ),
-    enabled: regionSelected && kind === 'APARTMENT',
+    enabled: regionSelected && isAptLike,
     staleTime: 60_000,
   });
 
   const { data: finishings } = useQuery({
     queryKey: ['reference', 'finishings'],
     queryFn: () => apiGet<RefRow[]>('/reference/finishings'),
-    enabled: kind === 'APARTMENT',
+    enabled: isAptLike,
     staleTime: 60 * 60 * 1000,
   });
 
   const { data: buildingTypes } = useQuery({
     queryKey: ['reference', 'building-types'],
     queryFn: () => apiGet<RefRow[]>('/reference/building-types'),
-    enabled: kind === 'APARTMENT',
+    enabled: isAptLike,
     staleTime: 60 * 60 * 1000,
   });
 
   const blocks = blocksData?.data ?? [];
-  const showRooms = kind === 'APARTMENT' || kind === 'HOUSE';
-  const showFloor = kind === 'APARTMENT' || kind === 'COMMERCIAL' || kind === 'PARKING';
-  const showMarket = kind === 'APARTMENT';
-  const showBlock = kind === 'APARTMENT';
-  const showBuilder = kind === 'APARTMENT';
-  const showFinishing = kind === 'APARTMENT';
-  const showBuildingType = kind === 'APARTMENT';
+  const showRooms = isAptLike || kind === 'HOUSE';
+  const showFloor = isAptLike || kind === 'COMMERCIAL' || kind === 'PARKING';
+  const showMarket = isAptLike;
+  const showBlock = isAptLike;
+  const showBuilder = isAptLike;
+  const showFinishing = isAptLike;
+  const showBuildingType = isAptLike;
   const showDistrict = regionSelected && districts && districts.length > 0;
 
   return (

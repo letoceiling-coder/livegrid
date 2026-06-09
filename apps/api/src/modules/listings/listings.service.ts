@@ -688,9 +688,14 @@ export class ListingsService implements OnModuleInit {
   private async buildApartmentWhereParts(query: QueryListingsDto): Promise<Prisma.ListingApartmentWhereInput[]> {
     const parts: Prisma.ListingApartmentWhereInput[] = [];
 
-    // rooms param is room-category list (0=studio,1=1к,2=2к...) same as blocks API
-    const roomCatIds = await this.parseRoomCategoryIds(query.rooms);
-    if (roomCatIds?.length) parts.push({ roomTypeId: { in: roomCatIds } });
+    const roomTypeIds = this.parseIdList(query.room_type_ids);
+    if (roomTypeIds?.length) {
+      parts.push({ roomTypeId: { in: roomTypeIds } });
+    } else {
+      // rooms param is room-category list (0=studio,1=1к,2=2к...) same as blocks API
+      const roomCatIds = await this.parseRoomCategoryIds(query.rooms);
+      if (roomCatIds?.length) parts.push({ roomTypeId: { in: roomCatIds } });
+    }
 
     const finishingIds = this.parseIdList(query.finishing);
     if (finishingIds?.length) parts.push({ finishingId: { in: finishingIds } });
